@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'router.dart';
 import 'state/settings.dart';
+import 'theme/glass.dart';
 import 'theme/theme.dart';
 
 class CrawlStatApp extends ConsumerStatefulWidget {
@@ -31,6 +32,10 @@ class _CrawlStatAppState extends ConsumerState<CrawlStatApp> {
       // Desktop users resize windows; a scroll behaviour that shows scrollbars
       // on every axis is the right default here, unlike on a phone.
       scrollBehavior: const MaterialScrollBehavior(),
+      // The ambient light every frosted surface refracts. Wrapped here rather
+      // than per screen so it sits behind the whole window, including dialogs
+      // — a glass panel over a flat fill reads as grey, not as glass.
+      builder: (context, child) => GlassBackdrop(child: child ?? const SizedBox.shrink()),
     );
   }
 }

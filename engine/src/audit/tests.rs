@@ -31,6 +31,7 @@ struct Page<'a> {
     canonical: Option<&'a str>,
     canonical_is_self: Option<bool>,
     meta_robots: Option<&'a str>,
+    html_lang: Option<&'a str>,
     x_robots_tag: Option<&'a str>,
     redirect_count: i64,
     redirect_loop: bool,
@@ -65,6 +66,7 @@ impl Default for Page<'_> {
             canonical: None,
             canonical_is_self: None,
             meta_robots: None,
+            html_lang: Some("en"),
             x_robots_tag: None,
             redirect_count: 0,
             redirect_loop: false,
@@ -102,10 +104,11 @@ impl TestSite {
                      response_time_ms, body_bytes, title, title_length, meta_description,
                      meta_description_length, meta_robots, x_robots_tag, canonical,
                      canonical_is_self, h1_count, word_count, text_hash, text_simhash,
-                     redirect_count, redirect_loop, error_kind, discovered_via, content_type
+                     redirect_count, redirect_loop, error_kind, discovered_via, html_lang,
+                     content_type
                  ) VALUES (
                      ?1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                     ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, 'text/html'
+                     ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, 'text/html'
                  )",
                 params![
                     page.url,
@@ -133,6 +136,7 @@ impl TestSite {
                     page.error_kind,
                     // NULL marks a seed; anything else marks a discovery.
                     (!page.is_seed).then_some(crate::model::LinkSource::Anchor as i64),
+                    page.html_lang,
                 ],
             )
             .unwrap();
@@ -1423,6 +1427,36 @@ fn a_report_can_be_read_back_without_re_running_the_audit() {
     assert_eq!(reread.issues.len(), fresh.issues.len());
     assert_eq!(reread.issue("status_4xx").unwrap().url_count, 1);
     assert_eq!(reread.elapsed_ms, 0, "a re-read did not time anything");
+}
+
+#[test]
+fn a_page_with_no_declared_language_is_an_accessibility_error() {
+    let mut site = TestSite::new();
+    site.add(Page {
+        url: "https://a.test/named",
+        html_lang: Some("en-GB"),
+        ..Default::default()
+    });
+    site.add(Page {
+        url: "https://a.test/silent",
+        html_lang: None,
+        ..Default::default()
+    });
+    site.add(Page {
+        url: "https://a.test/blank",
+        html_lang: Some("  "),
+        ..Default::default()
+    });
+
+    let report = site.audit();
+    let affected = site.affected("a11y_page_without_lang");
+    assert_eq!(affected.len(), 2, "absent and whitespace-only both count");
+    assert!(affected.contains(&"https://a.test/silent".to_string()));
+    assert!(!affected.contains(&"https://a.test/named".to_string()));
+    assert_eq!(
+        report.issue("a11y_page_without_lang").unwrap().severity,
+        Severity::Error
+    );
 }
 
 #[test]

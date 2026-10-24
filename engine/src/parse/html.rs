@@ -113,6 +113,7 @@ pub fn parse_html(body: &str, page_url: &Url, policy: &NormalizationPolicy) -> P
     extract_images(&doc, &mut page, &resolve);
     extract_other_references(&doc, &mut page, &resolve);
     extract_structured_data(&doc, &mut page);
+    page.accessibility = super::accessibility::analyse(&doc);
 
     // Visible text drives the word count and both duplicate-detection hashes.
     let text = match doc.select(&SEL_BODY).next() {

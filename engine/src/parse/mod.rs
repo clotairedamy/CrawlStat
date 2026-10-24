@@ -1,5 +1,6 @@
 //! Turning response bodies into records.
 
+pub mod accessibility;
 mod html;
 pub mod structured;
 

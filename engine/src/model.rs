@@ -265,6 +265,8 @@ pub struct ParsedPage {
     pub hreflang: Vec<HreflangEntry>,
     pub social: Vec<SocialTag>,
     pub structured_data: Vec<StructuredDataBlock>,
+    /// What the markup says about this page's accessibility.
+    pub accessibility: crate::parse::accessibility::AccessibilityReport,
 }
 
 impl ParsedPage {

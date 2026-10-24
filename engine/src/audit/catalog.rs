@@ -710,6 +710,188 @@ pub const AUDITS: &[Audit] = &[
              WHERE is_internal = 1 AND url LIKE 'http://%' AND {site_is_https} = 1",
         ),
     },
+    // ─── Accessibility ───────────────────────────────────────────────────
+    //
+    // Every check here is a definite WCAG failure that is visible in the
+    // markup. Anything needing layout, computed style or a real accessibility
+    // tree — contrast, focus order, whether a thing is actually visible — is
+    // deliberately absent: a crawler that never renders cannot know it, and
+    // guessing would make the whole set untrustworthy.
+    Audit {
+        id: "a11y_link_without_name",
+        title: "Link with no accessible name",
+        severity: Severity::Error,
+        description: "These pages contain links a screen reader announces as \
+            just \"link\". An icon-only link with no label, or one wrapping an \
+            image with empty alt text, is unusable without sight — and search \
+            engines get nothing from it either.",
+        how_to_fix: "Give the link text. If it must look like an icon alone, \
+            put the words in `aria-label`, or give the image inside it real alt \
+            text describing *the destination* rather than the picture: a home \
+            icon's alt is \"Home\", not \"house\". WCAG 2.4.4 and 4.1.2.",
+        docs_slug: "links-without-accessible-names",
+        check: Check::Sql(
+            "SELECT id AS url_id, a11y_links_no_name || ' link(s)' AS detail
+             FROM indexable_pages WHERE a11y_links_no_name > 0",
+        ),
+    },
+    Audit {
+        id: "a11y_button_without_name",
+        title: "Button with no accessible name",
+        severity: Severity::Error,
+        description: "A button with no text, label or value is announced as \
+            \"button\" and nothing more, so nobody using a screen reader can \
+            know what it does before pressing it.",
+        how_to_fix: "Put text in the button. Where the design is an icon only, \
+            add `aria-label` saying what the button *does* — \"Close dialog\", \
+            \"Add to basket\" — and keep the icon decorative. WCAG 4.1.2.",
+        docs_slug: "buttons-without-accessible-names",
+        check: Check::Sql(
+            "SELECT id AS url_id, a11y_buttons_no_name || ' button(s)' AS detail
+             FROM indexable_pages WHERE a11y_buttons_no_name > 0",
+        ),
+    },
+    Audit {
+        id: "a11y_input_without_label",
+        title: "Form field with no label",
+        severity: Severity::Error,
+        description: "These form fields have no `<label>`, `aria-label` or \
+            `aria-labelledby`. A screen reader reaches the field and can say \
+            only \"edit text\", which makes the form impossible to complete.",
+        how_to_fix: "Add a `<label for=\"…\">` matching the field's id, or wrap \
+            the field in the label. A `placeholder` is not a label: it vanishes \
+            as soon as someone types, and several screen readers ignore it. \
+            Where the design has no room for visible text, `aria-label` is the \
+            right answer. WCAG 1.3.1 and 3.3.2.",
+        docs_slug: "form-fields-without-labels",
+        check: Check::Sql(
+            "SELECT id AS url_id, a11y_inputs_no_label || ' field(s)' AS detail
+             FROM indexable_pages WHERE a11y_inputs_no_label > 0",
+        ),
+    },
+    Audit {
+        id: "a11y_broken_aria_reference",
+        title: "ARIA reference points at nothing",
+        severity: Severity::Error,
+        description: "An `aria-labelledby` or `aria-describedby` on these \
+            pages names an element id that is not on the page. The reference is \
+            silently dropped, so the element ends up with no name at all — \
+            worse than if the attribute had never been added.",
+        how_to_fix: "Check each id actually exists and is spelled identically; \
+            they are case-sensitive. This usually follows a template change \
+            that renamed or removed the element being pointed at. Watch for \
+            ids that only exist after JavaScript runs, which is too late for \
+            some assistive technology.",
+        docs_slug: "broken-aria-references",
+        check: Check::Sql(
+            "SELECT id AS url_id, a11y_broken_aria || ' reference(s)' AS detail
+             FROM indexable_pages WHERE a11y_broken_aria > 0",
+        ),
+    },
+    Audit {
+        id: "a11y_page_without_lang",
+        title: "Page does not declare a language",
+        severity: Severity::Error,
+        description: "These pages have no `lang` attribute on `<html>`. A \
+            screen reader then guesses, and reads English in a French accent or \
+            the reverse — which ranges from irritating to incomprehensible.",
+        how_to_fix: "Add `lang` to the `<html>` element: `<html lang=\"en-GB\">`. \
+            Mark any passage in another language with its own `lang` too. This \
+            is one attribute, it takes a minute, and it is WCAG 3.1.1 at \
+            level A.",
+        docs_slug: "pages-without-a-language",
+        check: Check::Sql(
+            "SELECT id AS url_id, NULL AS detail
+             FROM indexable_pages
+             WHERE html_lang IS NULL OR trim(html_lang) = ''",
+        ),
+    },
+    Audit {
+        id: "a11y_duplicate_id",
+        title: "Duplicate element id",
+        severity: Severity::Warning,
+        description: "The same `id` appears more than once on these pages. \
+            Every `aria-labelledby`, `aria-describedby` and `<label for>` \
+            pointing at it resolves to the first one only, so some controls \
+            quietly get the wrong name or none.",
+        how_to_fix: "Make each id unique. Duplicates almost always come from a \
+            component rendered several times with a hard-coded id — generate \
+            one per instance instead. WCAG 4.1.1.",
+        docs_slug: "duplicate-element-ids",
+        check: Check::Sql(
+            "SELECT id AS url_id, a11y_duplicate_ids || ' duplicated id(s)' AS detail
+             FROM indexable_pages WHERE a11y_duplicate_ids > 0",
+        ),
+    },
+    Audit {
+        id: "a11y_invalid_role",
+        title: "Invalid ARIA role",
+        severity: Severity::Warning,
+        description: "These pages use a `role` that ARIA does not define. An \
+            unrecognised role is ignored outright, so the element falls back to \
+            its native semantics — or, on a `<div>`, to none at all.",
+        how_to_fix: "Correct the spelling against the ARIA role list. The \
+            usual culprits are invented names like `role=\"clickable\"` and \
+            near-misses like `role=\"buton\"`. Better still, use the element \
+            that already has the semantics: a `<button>` needs no role.",
+        docs_slug: "invalid-aria-roles",
+        check: Check::Sql(
+            "SELECT id AS url_id, a11y_invalid_roles AS detail
+             FROM indexable_pages WHERE a11y_invalid_roles IS NOT NULL",
+        ),
+    },
+    Audit {
+        id: "a11y_positive_tabindex",
+        title: "Positive tabindex",
+        severity: Severity::Warning,
+        description: "A `tabindex` greater than zero pulls an element to the \
+            front of the tab order, ahead of everything in document order. One \
+            of them rearranges keyboard navigation for the whole page, usually \
+            in a way nobody intended.",
+        how_to_fix: "Use `tabindex=\"0\"` to make something focusable in its \
+            natural position, or `-1` for something only script will focus. If \
+            the tab order is wrong, fix the order of the markup rather than \
+            overriding it. WCAG 2.4.3.",
+        docs_slug: "positive-tabindex",
+        check: Check::Sql(
+            "SELECT id AS url_id, a11y_positive_tabindex || ' element(s)' AS detail
+             FROM indexable_pages WHERE a11y_positive_tabindex > 0",
+        ),
+    },
+    Audit {
+        id: "a11y_iframe_without_title",
+        title: "Frame with no title",
+        severity: Severity::Warning,
+        description: "An `<iframe>` with no `title` is announced as just \
+            \"frame\". Someone navigating by frame has no way to tell the \
+            video from the map from the advert.",
+        how_to_fix: "Add `title` describing what the frame contains — \
+            \"Office location map\", not \"iframe\". A frame that is purely \
+            decorative or offscreen should carry `aria-hidden=\"true\"` \
+            instead. WCAG 4.1.2.",
+        docs_slug: "frames-without-titles",
+        check: Check::Sql(
+            "SELECT id AS url_id, a11y_iframes_no_title || ' frame(s)' AS detail
+             FROM indexable_pages WHERE a11y_iframes_no_title > 0",
+        ),
+    },
+    Audit {
+        id: "a11y_heading_level_skipped",
+        title: "Heading level skipped",
+        severity: Severity::Notice,
+        description: "These pages jump down more than one heading level at \
+            once, such as an `<h2>` straight to an `<h4>`. Screen-reader users \
+            navigate by heading, and a gap reads as a missing section.",
+        how_to_fix: "Use heading levels to describe structure, not size: go \
+            down one level at a time and style them with CSS. Jumping back *up* \
+            any number of levels is fine — that is just a new section. WCAG \
+            1.3.1.",
+        docs_slug: "skipped-heading-levels",
+        check: Check::Sql(
+            "SELECT id AS url_id, a11y_heading_skips || ' skip(s)' AS detail
+             FROM indexable_pages WHERE a11y_heading_skips > 0",
+        ),
+    },
     // ─── Notices ─────────────────────────────────────────────────────────
     Audit {
         id: "slow_response",

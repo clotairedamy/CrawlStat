@@ -27,7 +27,7 @@ use crate::error::{EngineError, Result};
 ///
 /// Older databases are migrated forward by [`MIGRATIONS`]; a database from a
 /// *newer* build is refused, because this one cannot know what changed.
-pub const SCHEMA_VERSION: i64 = 2;
+pub const SCHEMA_VERSION: i64 = 3;
 
 /// Connection pragmas. WAL lets the UI read while the crawl writes.
 const PRAGMAS: &str = "
@@ -117,6 +117,19 @@ CREATE TABLE IF NOT EXISTS urls (
     -- Simplified PageRank over the internal link graph, 0.0..=1.0 scaled so the
     -- strongest page on the site is 100.
     link_score              REAL,
+
+    -- Accessibility, from the markup. See parse::accessibility for what is and
+    -- is not knowable without rendering the page.
+    a11y_links_no_name      INTEGER,
+    a11y_buttons_no_name    INTEGER,
+    a11y_inputs_no_label    INTEGER,
+    a11y_duplicate_ids      INTEGER,
+    a11y_broken_aria        INTEGER,
+    a11y_invalid_roles      TEXT,
+    a11y_positive_tabindex  INTEGER,
+    a11y_iframes_no_title   INTEGER,
+    a11y_heading_skips      INTEGER,
+    a11y_issues             INTEGER,
 
     -- Bookkeeping
     error_kind              TEXT,
@@ -266,12 +279,27 @@ CREATE INDEX IF NOT EXISTS issue_urls_url ON issue_urls (url_id);
 ///
 /// Migrations must be idempotent-safe to *attempt*: they run inside a
 /// transaction and the version is only bumped once they succeed.
-const MIGRATIONS: &[(i64, &str)] = &[(
-    2,
-    "ALTER TABLE urls ADD COLUMN indexable INTEGER;
-     ALTER TABLE urls ADD COLUMN indexability_reason TEXT;
-     ALTER TABLE urls ADD COLUMN link_score REAL;",
-)];
+const MIGRATIONS: &[(i64, &str)] = &[
+    (
+        2,
+        "ALTER TABLE urls ADD COLUMN indexable INTEGER;
+         ALTER TABLE urls ADD COLUMN indexability_reason TEXT;
+         ALTER TABLE urls ADD COLUMN link_score REAL;",
+    ),
+    (
+        3,
+        "ALTER TABLE urls ADD COLUMN a11y_links_no_name INTEGER;
+         ALTER TABLE urls ADD COLUMN a11y_buttons_no_name INTEGER;
+         ALTER TABLE urls ADD COLUMN a11y_inputs_no_label INTEGER;
+         ALTER TABLE urls ADD COLUMN a11y_duplicate_ids INTEGER;
+         ALTER TABLE urls ADD COLUMN a11y_broken_aria INTEGER;
+         ALTER TABLE urls ADD COLUMN a11y_invalid_roles TEXT;
+         ALTER TABLE urls ADD COLUMN a11y_positive_tabindex INTEGER;
+         ALTER TABLE urls ADD COLUMN a11y_iframes_no_title INTEGER;
+         ALTER TABLE urls ADD COLUMN a11y_heading_skips INTEGER;
+         ALTER TABLE urls ADD COLUMN a11y_issues INTEGER;",
+    ),
+];
 
 /// Indexes for reading and auditing, created once the crawl is done.
 pub const ANALYSIS_INDEXES: &str = "
@@ -287,6 +315,7 @@ pub const ANALYSIS_INDEXES: &str = "
     CREATE INDEX IF NOT EXISTS hreflang_href    ON hreflang (href_key);
     CREATE INDEX IF NOT EXISTS urls_indexable   ON urls (indexable);
     CREATE INDEX IF NOT EXISTS urls_link_score  ON urls (link_score);
+    CREATE INDEX IF NOT EXISTS urls_a11y        ON urls (a11y_issues);
 ";
 
 /// Apply the pragmas every connection needs.
