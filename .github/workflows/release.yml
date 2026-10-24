@@ -1,0 +1,253 @@
+name: release
+
+# Push a version tag and this builds installers for all three desktop
+# platforms and publishes them to GitHub Releases:
+#
+#     git tag v1.0.0 && git push origin v1.0.0
+#
+# `workflow_dispatch` runs the same thing on demand without tagging, which is
+# how you produce a build to hand a tester before you are ready to call it a
+# version.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (no leading v)'
+        required: true
+        default: '0.0.0-test'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  FLUTTER_CHANNEL: stable
+
+jobs:
+  version:
+    name: work out the version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.pick.outputs.version }}
+      prerelease: ${{ steps.pick.outputs.prerelease }}
+    steps:
+      - id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # Anything with a hyphen (1.0.0-beta.1, 0.9.0-test) is a pre-release,
+          # so it does not become the "latest" download on the website.
+          case "$VERSION" in
+            *-*) echo "prerelease=true"  >> "$GITHUB_OUTPUT" ;;
+            *)   echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+          echo "Building $VERSION"
+
+  macos:
+    name: macOS (.dmg)
+    needs: version
+    runs-on: macos-14
+    # `secrets` cannot be read from a step-level `if`, so the presence of a
+    # certificate is surfaced as an env var the conditions can see.
+    env:
+      HAS_MACOS_CERT: ${{ secrets.MACOS_CERT_P12 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      # Signing only happens when the certificate secrets exist, so a fork or
+      # a first run still produces a working (unsigned) build rather than
+      # failing. See packaging/macos/make-dmg.sh for what that costs the user.
+      - name: Import the signing certificate
+        if: env.HAS_MACOS_CERT == 'true'
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          PASSWORD="$(uuidgen)"
+          security create-keychain -p "$PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
+          echo -n "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychain -d user -s "$KEYCHAIN" login.keychain-db
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Build and package
+        env:
+          MACOS_CERT_NAME: ${{ secrets.MACOS_CERT_NAME }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          chmod +x packaging/macos/make-dmg.sh
+          ./packaging/macos/make-dmg.sh "${{ needs.version.outputs.version }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*
+
+  windows:
+    name: Windows (setup.exe)
+    needs: version
+    runs-on: windows-latest
+    env:
+      HAS_AZURE_SIGNING: ${{ secrets.AZURE_CLIENT_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Build
+        working-directory: app
+        run: flutter build windows --release
+
+      - name: Package with Inno Setup
+        run: |
+          iscc /DMyAppVersion=${{ needs.version.outputs.version }} packaging\windows\crawlstat.iss
+
+      # Azure Trusted Signing is the cheap route to a real Authenticode
+      # signature (about $10/month, no hardware token). Without it the
+      # installer still runs; SmartScreen shows "Windows protected your PC"
+      # and the user clicks More info › Run anyway.
+      - name: Sign the installer
+        if: env.HAS_AZURE_SIGNING == 'true'
+        uses: azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE }}
+          files-folder: dist
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          Get-ChildItem dist\*.exe | ForEach-Object {
+            (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower() + "  " + $_.Name |
+              Out-File -Encoding ascii "$($_.FullName).sha256"
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+
+  linux:
+    name: Linux (AppImage + .deb)
+    needs: version
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      # Built on 22.04 on purpose: glibc is backwards compatible but not
+      # forwards, so a binary linked against a newer glibc will not start on an
+      # older distribution. The oldest supported runner gives the widest reach.
+      - name: Build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgtk-3-dev libfuse2
+
+      - name: Build and package
+        run: |
+          chmod +x packaging/linux/make-packages.sh
+          ./packaging/linux/make-packages.sh "${{ needs.version.outputs.version }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+
+  publish:
+    name: publish the release
+    needs: [version, macos, windows, linux]
+    runs-on: ubuntu-latest
+    env:
+      HAS_MACOS_CERT: ${{ secrets.MACOS_CERT_NAME != '' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect
+        run: |
+          mkdir -p dist
+          find artifacts -type f -exec cp {} dist/ \;
+          ls -lh dist
+
+      - name: Release notes
+        run: |
+          cat > notes.md <<'NOTES'
+          ## Install
+
+          | Platform | File | How |
+          |---|---|---|
+          | macOS 11+ | `.dmg` | Open it and drag CrawlStat to Applications |
+          | Windows 10/11 | `-windows-setup.exe` | Run it — installs for the current user, no admin needed |
+          | Linux | `.AppImage` | Mark it executable and run it, nothing to install |
+          | Debian/Ubuntu | `.deb` | `sudo apt install ./CrawlStat-*.deb` |
+
+          Free for up to 500 URLs per crawl. No account needed. Crawl data never
+          leaves your machine.
+
+          Every file has a `.sha256` next to it if you want to check the download.
+          NOTES
+
+          if [ "$HAS_MACOS_CERT" != "true" ]; then
+            cat >> notes.md <<'UNSIGNED'
+
+          ### First launch
+
+          These builds are not yet signed by Apple or Microsoft, so the operating
+          system will warn you the first time:
+
+          - **macOS** — "CrawlStat cannot be opened because the developer cannot
+            be verified." Open **System Settings › Privacy & Security**, scroll
+            down and press **Open Anyway**. Once only.
+          - **Windows** — "Windows protected your PC." Press **More info**, then
+            **Run anyway**. Once only.
+
+          Nothing needs to be typed into a terminal on either platform.
+          UNSIGNED
+          fi
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', needs.version.outputs.version) || github.ref_name }}
+          name: CrawlStat ${{ needs.version.outputs.version }}
+          body_path: notes.md
+          files: dist/*
+          prerelease: ${{ needs.version.outputs.prerelease == 'true' }}
+          fail_on_unmatched_files: true

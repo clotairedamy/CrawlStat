@@ -63,6 +63,10 @@ class AppIcon {
   static const IconData report = LucideIcons.fileText;
   static const IconData indexable = LucideIcons.badgeCheck;
   static const IconData pro = LucideIcons.sparkles;
+  static const IconData priority = LucideIcons.target;
+  static const IconData quickWin = LucideIcons.zap;
+  static const IconData save = LucideIcons.save;
+  static const IconData localModel = LucideIcons.cpu;
 
   // Severity. These three carry meaning, so they keep their familiar shapes:
   // a triangle warns, a circle informs, a tick confirms.

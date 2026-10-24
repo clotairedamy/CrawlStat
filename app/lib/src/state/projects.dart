@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../rust/api/project.dart' as rust;
@@ -162,7 +163,20 @@ final recentProjectsProvider =
 /// its legacy import.
 class OpenProject extends Notifier<String?> {
   @override
-  String? build() => null;
+  String? build() {
+    // A debug build can be told which crawl to open, so the marketing
+    // screenshots can be regenerated identically every time rather than by
+    // somebody clicking through the app. `kDebugMode` is a compile-time
+    // constant, so a release binary never reads the environment at all.
+    if (kDebugMode) {
+      final path = Platform.environment['CRAWLSTAT_INITIAL_PROJECT'];
+      if (path != null && path.isNotEmpty && File(path).existsSync()) {
+        Future.microtask(() => rust.openProject(dbPath: path));
+        return path;
+      }
+    }
+    return null;
+  }
 
   void open(String path) => state = path;
 

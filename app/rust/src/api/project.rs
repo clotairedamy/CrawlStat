@@ -10,8 +10,14 @@ use std::path::Path;
 
 use crawlstat_engine::audit::AuditConfig;
 use crawlstat_engine::export;
-use crawlstat_engine::store::queries;
+use crawlstat_engine::integrations::{ollama, secrets};
+use crawlstat_engine::plan;
+use crawlstat_engine::ux;
+use crawlstat_engine::store::{queries, Store};
 use flutter_rust_bridge::frb;
+
+// `StreamSink` lives in the generated module, not in the crate root.
+use crate::frb_generated::StreamSink;
 
 use super::types::{
     AuditReport, HeaderPair, ImageRow, Issue, LinkRow, ProjectInfo, ProjectStats, RedirectHop,
@@ -391,4 +397,495 @@ pub fn site_structure(db_path: String, node_limit: u32) -> Result<SiteStructure,
         })
     })
     .map_err(|error| error.to_string())
+}
+
+// ─── the action plan ─────────────────────────────────────────────────────
+
+/// One of the worst-affected pages for a job.
+#[derive(Debug, Clone)]
+pub struct PlanExample {
+    pub url: String,
+    pub detail: Option<String>,
+    pub depth: i64,
+}
+
+/// One job in the plan.
+#[derive(Debug, Clone)]
+pub struct PlanItem {
+    pub issue_id: String,
+    pub title: String,
+    /// `error`, `warning` or `notice`.
+    pub severity: String,
+    pub how_to_fix: String,
+    pub docs_slug: String,
+    pub pages: i64,
+    /// Distinct findings behind those pages — the number of actual changes.
+    pub distinct_fixes: i64,
+    /// How many pages one change improves.
+    pub leverage: f64,
+    /// Share of the site's internal link value on the affected pages, 0..1.
+    pub reach: f64,
+    /// 0..100, relative to everything else in this crawl.
+    pub impact: f64,
+    /// `template`, `bulk` or `per_page`.
+    pub effort: String,
+    pub examples: Vec<PlanExample>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ActionPlan {
+    pub items: Vec<PlanItem>,
+    pub affected_pages: i64,
+    pub total_pages: i64,
+    /// Share of link value touched by at least one error, 0..1.
+    pub value_at_risk: f64,
+}
+
+/// Rank a crawl's findings into a list of jobs, best first.
+pub fn action_plan(db_path: String) -> Result<ActionPlan, String> {
+    runtime::with_store(&db_path, |store| {
+        let plan = plan::build(store.connection())?;
+        Ok(ActionPlan {
+            affected_pages: plan.affected_pages as i64,
+            total_pages: plan.total_pages as i64,
+            value_at_risk: plan.value_at_risk,
+            items: plan
+                .items
+                .into_iter()
+                .map(|item| PlanItem {
+                    issue_id: item.issue_id,
+                    title: item.title,
+                    severity: item.severity.as_str().to_string(),
+                    how_to_fix: item.how_to_fix,
+                    docs_slug: item.docs_slug,
+                    pages: item.pages as i64,
+                    distinct_fixes: item.distinct_fixes as i64,
+                    leverage: item.leverage,
+                    reach: item.reach,
+                    impact: item.impact,
+                    effort: item.effort.as_str().to_string(),
+                    examples: item
+                        .examples
+                        .into_iter()
+                        .map(|example| PlanExample {
+                            url: example.url,
+                            detail: example.detail,
+                            depth: example.depth as i64,
+                        })
+                        .collect(),
+                })
+                .collect(),
+        })
+    })
+    .map_err(|error| error.to_string())
+}
+
+// ─── Phase 5: bring your own key ─────────────────────────────────────────
+
+/// A model the local Ollama has installed.
+#[derive(Debug, Clone)]
+pub struct OllamaModel {
+    pub name: String,
+    pub size_bytes: i64,
+}
+
+/// Where Ollama listens by default. Loopback, so nothing leaves the machine.
+pub fn ollama_default_endpoint() -> String {
+    ollama::DEFAULT_ENDPOINT.to_string()
+}
+
+pub fn ollama_default_model() -> String {
+    ollama::DEFAULT_MODEL.to_string()
+}
+
+/// Ask the local Ollama what it has. Also doubles as the "test connection"
+/// button: if this returns, Ollama is running.
+pub fn ollama_models(endpoint: String) -> Result<Vec<OllamaModel>, String> {
+    ollama::installed_models(&endpoint)
+        .map(|models| {
+            models
+                .into_iter()
+                .filter(|model| model.generates)
+                .map(|model| OllamaModel {
+                    name: model.name,
+                    size_bytes: model.size_bytes as i64,
+                })
+                .collect()
+        })
+        .map_err(|error| error.to_string())
+}
+
+/// How a report from the local model is coming along.
+#[derive(Debug, Clone)]
+pub enum ReportEvent {
+    /// The model that is writing. Differs from the one asked for when that
+    /// one is not installed, so the app can remember the substitute.
+    Model {
+        name: String,
+    },
+    /// Everything written so far, not just the latest words.
+    Progress {
+        text: String,
+    },
+    Done {
+        text: String,
+    },
+    Failed {
+        message: String,
+    },
+}
+
+/// Have the local model write up the plan, streaming it as it is written.
+///
+/// Slow — a local model on a laptop takes tens of seconds, plus the time to
+/// load it the first time — so it runs on its own thread and the UI shows
+/// the report filling in rather than a spinner.
+pub fn ollama_write_report(
+    db_path: String,
+    endpoint: String,
+    model: String,
+    site: String,
+    sink: StreamSink<ReportEvent>,
+) -> Result<(), String> {
+    std::thread::spawn(move || {
+        let outcome = (|| -> Result<String, String> {
+            let plan = runtime::with_store(&db_path, |store| Ok(plan::build(store.connection())?))
+                .map_err(|error| error.to_string())?;
+            let installed =
+                ollama::installed_models(&endpoint).map_err(|error| error.to_string())?;
+            let model = ollama::pick_model(&installed, &model).ok_or_else(|| {
+                format!(
+                    "Ollama has no models installed — run `ollama pull {}`",
+                    ollama::DEFAULT_MODEL
+                )
+            })?;
+            let _ = sink.add(ReportEvent::Model {
+                name: model.clone(),
+            });
+            ollama::summarise_streaming(&endpoint, &model, &plan, &site, |text| {
+                // Fails only once Dart has dropped the stream; stop writing.
+                sink.add(ReportEvent::Progress {
+                    text: text.to_string(),
+                })
+                .is_ok()
+            })
+            .map_err(|error| error.to_string())
+        })();
+        let _ = sink.add(match outcome {
+            Ok(text) => ReportEvent::Done { text },
+            Err(message) => ReportEvent::Failed { message },
+        });
+    });
+    Ok(())
+}
+
+/// Exactly what would be sent to the model, so the user can read it first.
+///
+/// A privacy claim nobody can check is worth very little. This is the button
+/// next to "Write the summary" that shows the whole brief.
+pub fn ollama_brief(db_path: String, site: String) -> Result<String, String> {
+    let plan = runtime::with_store(&db_path, |store| Ok(plan::build(store.connection())?))
+        .map_err(|error| error.to_string())?;
+    Ok(ollama::brief(&plan, &site))
+}
+
+/// Store a BYOK credential in the OS keychain. An empty value clears it.
+///
+/// The value goes straight from the text field into the keychain and is never
+/// read back into Dart — [`secret_is_set`] is all the UI can ask.
+pub fn store_secret(name: String, value: String) -> Result<(), String> {
+    let secret = secrets::Secret::parse(&name).ok_or_else(|| format!("unknown key '{name}'"))?;
+    secrets::store(secret, &value).map_err(|error| error.to_string())
+}
+
+/// Whether a credential is stored. Never the value.
+pub fn secret_is_set(name: String) -> bool {
+    secrets::Secret::parse(&name).is_some_and(secrets::is_set)
+}
+
+pub fn clear_secret(name: String) -> Result<(), String> {
+    let secret = secrets::Secret::parse(&name).ok_or_else(|| format!("unknown key '{name}'"))?;
+    secrets::clear(secret).map_err(|error| error.to_string())
+}
+
+// ─── directional UX intelligence ─────────────────────────────────────────
+
+/// A way of reading a page, for the persona picker.
+#[derive(Debug, Clone)]
+pub struct UxPersona {
+    pub id: String,
+    pub label: String,
+    pub describes: String,
+}
+
+/// One element's share of a reader's attention.
+#[derive(Debug, Clone)]
+pub struct UxAttention {
+    pub order: i64,
+    pub label: String,
+    /// `heading`, `link`, `action`, `field`, `image` or `text`.
+    pub kind: String,
+    /// `header`, `nav`, `main`, `aside`, `footer` or `unknown`.
+    pub region: String,
+    /// 0..1, and every share in a report sums to one.
+    pub share: f64,
+    pub confidence: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct UxConflict {
+    pub labels: Vec<String>,
+    pub share: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct UxDecision {
+    pub order: i64,
+    pub options: i64,
+    pub share: f64,
+}
+
+/// What the model thinks happens when this persona meets this page.
+#[derive(Debug, Clone)]
+pub struct UxFlow {
+    pub url: String,
+    pub persona: String,
+    /// How the markup was obtained: `stored` or `fetched`.
+    pub source: String,
+    pub node_count: i64,
+    pub attention: Vec<UxAttention>,
+    /// How many elements this reader gets through before deciding.
+    pub reach: i64,
+    pub steps_to_action: Option<i64>,
+    pub action_out_of_reach: bool,
+    pub conflicts: Vec<UxConflict>,
+    pub decisions: Vec<UxDecision>,
+    pub dead_end: bool,
+    pub coherence: f64,
+    pub vague_links: Vec<String>,
+}
+
+/// The personas the model knows, for the UI's picker.
+pub fn ux_personas() -> Vec<UxPersona> {
+    ux::Persona::ALL
+        .into_iter()
+        .map(|persona| UxPersona {
+            id: persona.as_str().to_string(),
+            label: persona.label().to_string(),
+            describes: persona.describes().to_string(),
+        })
+        .collect()
+}
+
+fn kind_name(kind: ux::NodeKind) -> String {
+    match kind {
+        ux::NodeKind::Heading(level) => format!("h{level}"),
+        ux::NodeKind::Link => "link".into(),
+        ux::NodeKind::Action => "action".into(),
+        ux::NodeKind::Field => "field".into(),
+        ux::NodeKind::Image => "image".into(),
+        ux::NodeKind::Text => "text".into(),
+    }
+}
+
+fn region_name(region: ux::Region) -> String {
+    match region {
+        ux::Region::Header => "header",
+        ux::Region::Nav => "nav",
+        ux::Region::Main => "main",
+        ux::Region::Aside => "aside",
+        ux::Region::Footer => "footer",
+        ux::Region::Unknown => "unknown",
+    }
+    .to_string()
+}
+
+/// Analyse one page of the open crawl.
+///
+/// The markup comes from the crawl file when "Keep raw HTML" was on for that
+/// crawl, and is fetched once otherwise — a single request for the page the
+/// user is looking at, which is why this is a button rather than something
+/// that happens on opening the screen.
+pub fn ux_analyse(db_path: String, url_id: i64, persona: String) -> Result<UxFlow, String> {
+    let persona = ux::Persona::parse(&persona)
+        .ok_or_else(|| format!("unknown persona '{persona}'"))?;
+
+    let (address, stored) = runtime::with_store(&db_path, |store| {
+        let row = store.connection().query_row(
+            "SELECT url, html FROM urls WHERE id = ?1",
+            [url_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
+        )?;
+        Ok(row)
+    })
+    .map_err(|error| error.to_string())?;
+
+    let (body, source) = match stored.filter(|html| !html.trim().is_empty()) {
+        Some(html) => (html, "stored"),
+        None => (ux::fetch_markup(&address)?, "fetched"),
+    };
+
+    let (nodes, flow) = ux::analyse_markup(&body, persona);
+
+    Ok(UxFlow {
+        url: address,
+        persona: flow.persona,
+        source: source.to_string(),
+        node_count: nodes.len() as i64,
+        reach: flow.path.len() as i64,
+        steps_to_action: flow.steps_to_action.map(|at| at as i64),
+        action_out_of_reach: flow.action_out_of_reach,
+        dead_end: flow.dead_end,
+        coherence: flow.coherence as f64,
+        vague_links: flow.vague_links,
+        attention: flow
+            .attention
+            .into_iter()
+            .map(|a| UxAttention {
+                order: a.order as i64,
+                label: a.label,
+                kind: kind_name(a.kind),
+                region: region_name(a.region),
+                share: a.share as f64,
+                confidence: a.confidence as f64,
+            })
+            .collect(),
+        conflicts: flow
+            .cta_conflicts
+            .into_iter()
+            .map(|c| UxConflict {
+                labels: c.labels,
+                share: c.share as f64,
+            })
+            .collect(),
+        decisions: flow
+            .decision_nodes
+            .into_iter()
+            .map(|d| UxDecision {
+                order: d.order as i64,
+                options: d.options as i64,
+                share: d.share as f64,
+            })
+            .collect(),
+    })
+}
+
+/// The pages worth looking at first: the best-connected HTML pages in the
+/// crawl, which are the ones most visitors actually land on.
+pub fn ux_candidate_pages(db_path: String, limit: u32) -> Result<Vec<SiteNode>, String> {
+    runtime::with_store(&db_path, |store| {
+        let (nodes, _) = queries::site_graph(store.connection(), limit)?;
+        Ok(nodes
+            .into_iter()
+            .map(|node| SiteNode {
+                id: node.id,
+                url: node.url,
+                label: node.label,
+                depth: node.depth as i64,
+                status: node.status.map(i64::from),
+                inlinks: node.inlinks as i64,
+                outlinks: node.outlinks as i64,
+            })
+            .collect())
+    })
+    .map_err(|error| error.to_string())
+}
+
+// ─── crawl comparison ────────────────────────────────────────────────────
+
+/// How one issue changed between two crawls.
+#[derive(Debug, Clone)]
+pub struct IssueDelta {
+    pub issue_id: String,
+    pub title: String,
+    pub before: i64,
+    pub after: i64,
+    /// Pages that had it, no longer do, and are still in the crawl.
+    pub fixed: i64,
+    pub introduced: i64,
+    pub impact_before: f64,
+    pub impact_after: f64,
+}
+
+/// A page that was fine and now is not.
+#[derive(Debug, Clone)]
+pub struct BrokenPage {
+    pub url: String,
+    pub status_before: Option<i64>,
+    pub status_after: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CrawlComparison {
+    pub pages_before: i64,
+    pub pages_after: i64,
+    pub affected_before: i64,
+    pub affected_after: i64,
+    pub value_at_risk_before: f64,
+    pub value_at_risk_after: f64,
+    pub total_fixed: i64,
+    pub total_introduced: i64,
+    /// Improvements first, then regressions.
+    pub issues: Vec<IssueDelta>,
+    pub pages_broken: Vec<BrokenPage>,
+    pub pages_added: i64,
+    pub pages_removed: i64,
+}
+
+/// Compare an earlier crawl with a later one.
+///
+/// Pro only: comparison is the feature that turns a report into a workflow,
+/// and the limit is enforced here rather than by the UI hiding a button.
+pub fn compare_crawls(before_path: String, after_path: String) -> Result<CrawlComparison, String> {
+    use crawlstat_engine::license;
+
+    if !license::current()
+        .entitlement()
+        .has(license::features::CRAWL_COMPARISON)
+    {
+        return Err(
+            "Comparing crawls is a Pro feature. See Settings for your licence.".to_string(),
+        );
+    }
+
+    let before = Store::open(std::path::Path::new(&before_path)).map_err(|e| e.to_string())?;
+    let after = Store::open(std::path::Path::new(&after_path)).map_err(|e| e.to_string())?;
+    let result = crawlstat_engine::compare::compare(before.connection(), after.connection())
+        .map_err(|error| error.to_string())?;
+
+    Ok(CrawlComparison {
+        pages_before: result.pages_before as i64,
+        pages_after: result.pages_after as i64,
+        affected_before: result.affected_before as i64,
+        affected_after: result.affected_after as i64,
+        value_at_risk_before: result.value_at_risk_before,
+        value_at_risk_after: result.value_at_risk_after,
+        total_fixed: result.total_fixed() as i64,
+        total_introduced: result.total_introduced() as i64,
+        pages_added: result.pages_added.len() as i64,
+        pages_removed: result.pages_removed.len() as i64,
+        pages_broken: result
+            .pages_broken
+            .iter()
+            .map(|page| BrokenPage {
+                url: page.url.clone(),
+                status_before: page.status_before.map(i64::from),
+                status_after: page.status_after.map(i64::from),
+            })
+            .collect(),
+        issues: result
+            .issues
+            .into_iter()
+            .map(|issue| IssueDelta {
+                issue_id: issue.issue_id,
+                title: issue.title,
+                before: issue.before as i64,
+                after: issue.after as i64,
+                fixed: issue.fixed as i64,
+                introduced: issue.introduced as i64,
+                impact_before: issue.impact_before,
+                impact_after: issue.impact_after,
+            })
+            .collect(),
+    })
 }

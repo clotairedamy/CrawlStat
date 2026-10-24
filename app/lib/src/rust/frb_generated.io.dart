@@ -32,7 +32,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustStreamSink<CrawlEvent> dco_decode_StreamSink_crawl_event_Sse(dynamic raw);
 
   @protected
+  RustStreamSink<ReportEvent> dco_decode_StreamSink_report_event_Sse(
+    dynamic raw,
+  );
+
+  @protected
   String dco_decode_String(dynamic raw);
+
+  @protected
+  ActionPlan dco_decode_action_plan(dynamic raw);
 
   @protected
   AuditReport dco_decode_audit_report(dynamic raw);
@@ -68,6 +76,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UrlQuery dco_decode_box_autoadd_url_query(dynamic raw);
 
   @protected
+  BrokenPage dco_decode_broken_page(dynamic raw);
+
+  @protected
+  CrawlComparison dco_decode_crawl_comparison(dynamic raw);
+
+  @protected
   CrawlEvent dco_decode_crawl_event(dynamic raw);
 
   @protected
@@ -101,6 +115,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Issue dco_decode_issue(dynamic raw);
 
   @protected
+  IssueDelta dco_decode_issue_delta(dynamic raw);
+
+  @protected
   LicenseInfo dco_decode_license_info(dynamic raw);
 
   @protected
@@ -108,6 +125,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<BrokenPage> dco_decode_list_broken_page(dynamic raw);
 
   @protected
   List<DepthBucket> dco_decode_list_depth_bucket(dynamic raw);
@@ -125,7 +145,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Issue> dco_decode_list_issue(dynamic raw);
 
   @protected
+  List<IssueDelta> dco_decode_list_issue_delta(dynamic raw);
+
+  @protected
   List<LinkRow> dco_decode_list_link_row(dynamic raw);
+
+  @protected
+  List<OllamaModel> dco_decode_list_ollama_model(dynamic raw);
+
+  @protected
+  List<PlanExample> dco_decode_list_plan_example(dynamic raw);
+
+  @protected
+  List<PlanItem> dco_decode_list_plan_item(dynamic raw);
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
@@ -152,6 +184,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UrlRow> dco_decode_list_url_row(dynamic raw);
 
   @protected
+  List<UxAttention> dco_decode_list_ux_attention(dynamic raw);
+
+  @protected
+  List<UxConflict> dco_decode_list_ux_conflict(dynamic raw);
+
+  @protected
+  List<UxDecision> dco_decode_list_ux_decision(dynamic raw);
+
+  @protected
+  List<UxPersona> dco_decode_list_ux_persona(dynamic raw);
+
+  @protected
+  OllamaModel dco_decode_ollama_model(dynamic raw);
+
+  @protected
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
@@ -167,6 +214,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Issue? dco_decode_opt_box_autoadd_issue(dynamic raw);
 
   @protected
+  PlanExample dco_decode_plan_example(dynamic raw);
+
+  @protected
+  PlanItem dco_decode_plan_item(dynamic raw);
+
+  @protected
   ProgressSnapshot dco_decode_progress_snapshot(dynamic raw);
 
   @protected
@@ -177,6 +230,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RedirectHop dco_decode_redirect_hop(dynamic raw);
+
+  @protected
+  ReportEvent dco_decode_report_event(dynamic raw);
 
   @protected
   SiteEdge dco_decode_site_edge(dynamic raw);
@@ -218,6 +274,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UrlRow dco_decode_url_row(dynamic raw);
 
   @protected
+  UxAttention dco_decode_ux_attention(dynamic raw);
+
+  @protected
+  UxConflict dco_decode_ux_conflict(dynamic raw);
+
+  @protected
+  UxDecision dco_decode_ux_decision(dynamic raw);
+
+  @protected
+  UxFlow dco_decode_ux_flow(dynamic raw);
+
+  @protected
+  UxPersona dco_decode_ux_persona(dynamic raw);
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
@@ -226,7 +297,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<ReportEvent> sse_decode_StreamSink_report_event_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer);
+
+  @protected
+  ActionPlan sse_decode_action_plan(SseDeserializer deserializer);
 
   @protected
   AuditReport sse_decode_audit_report(SseDeserializer deserializer);
@@ -270,6 +349,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UrlQuery sse_decode_box_autoadd_url_query(SseDeserializer deserializer);
 
   @protected
+  BrokenPage sse_decode_broken_page(SseDeserializer deserializer);
+
+  @protected
+  CrawlComparison sse_decode_crawl_comparison(SseDeserializer deserializer);
+
+  @protected
   CrawlEvent sse_decode_crawl_event(SseDeserializer deserializer);
 
   @protected
@@ -303,6 +388,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Issue sse_decode_issue(SseDeserializer deserializer);
 
   @protected
+  IssueDelta sse_decode_issue_delta(SseDeserializer deserializer);
+
+  @protected
   LicenseInfo sse_decode_license_info(SseDeserializer deserializer);
 
   @protected
@@ -310,6 +398,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<BrokenPage> sse_decode_list_broken_page(SseDeserializer deserializer);
 
   @protected
   List<DepthBucket> sse_decode_list_depth_bucket(SseDeserializer deserializer);
@@ -327,7 +418,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Issue> sse_decode_list_issue(SseDeserializer deserializer);
 
   @protected
+  List<IssueDelta> sse_decode_list_issue_delta(SseDeserializer deserializer);
+
+  @protected
   List<LinkRow> sse_decode_list_link_row(SseDeserializer deserializer);
+
+  @protected
+  List<OllamaModel> sse_decode_list_ollama_model(SseDeserializer deserializer);
+
+  @protected
+  List<PlanExample> sse_decode_list_plan_example(SseDeserializer deserializer);
+
+  @protected
+  List<PlanItem> sse_decode_list_plan_item(SseDeserializer deserializer);
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
@@ -354,6 +457,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UrlRow> sse_decode_list_url_row(SseDeserializer deserializer);
 
   @protected
+  List<UxAttention> sse_decode_list_ux_attention(SseDeserializer deserializer);
+
+  @protected
+  List<UxConflict> sse_decode_list_ux_conflict(SseDeserializer deserializer);
+
+  @protected
+  List<UxDecision> sse_decode_list_ux_decision(SseDeserializer deserializer);
+
+  @protected
+  List<UxPersona> sse_decode_list_ux_persona(SseDeserializer deserializer);
+
+  @protected
+  OllamaModel sse_decode_ollama_model(SseDeserializer deserializer);
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
@@ -369,6 +487,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Issue? sse_decode_opt_box_autoadd_issue(SseDeserializer deserializer);
 
   @protected
+  PlanExample sse_decode_plan_example(SseDeserializer deserializer);
+
+  @protected
+  PlanItem sse_decode_plan_item(SseDeserializer deserializer);
+
+  @protected
   ProgressSnapshot sse_decode_progress_snapshot(SseDeserializer deserializer);
 
   @protected
@@ -379,6 +503,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RedirectHop sse_decode_redirect_hop(SseDeserializer deserializer);
+
+  @protected
+  ReportEvent sse_decode_report_event(SseDeserializer deserializer);
 
   @protected
   SiteEdge sse_decode_site_edge(SseDeserializer deserializer);
@@ -420,6 +547,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UrlRow sse_decode_url_row(SseDeserializer deserializer);
 
   @protected
+  UxAttention sse_decode_ux_attention(SseDeserializer deserializer);
+
+  @protected
+  UxConflict sse_decode_ux_conflict(SseDeserializer deserializer);
+
+  @protected
+  UxDecision sse_decode_ux_decision(SseDeserializer deserializer);
+
+  @protected
+  UxFlow sse_decode_ux_flow(SseDeserializer deserializer);
+
+  @protected
+  UxPersona sse_decode_ux_persona(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
@@ -435,7 +577,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_report_event_Sse(
+    RustStreamSink<ReportEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_action_plan(ActionPlan self, SseSerializer serializer);
 
   @protected
   void sse_encode_audit_report(AuditReport self, SseSerializer serializer);
@@ -489,6 +640,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_broken_page(BrokenPage self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_crawl_comparison(
+    CrawlComparison self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_crawl_event(CrawlEvent self, SseSerializer serializer);
 
   @protected
@@ -525,6 +685,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_issue(Issue self, SseSerializer serializer);
 
   @protected
+  void sse_encode_issue_delta(IssueDelta self, SseSerializer serializer);
+
+  @protected
   void sse_encode_license_info(LicenseInfo self, SseSerializer serializer);
 
   @protected
@@ -532,6 +695,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_broken_page(
+    List<BrokenPage> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_depth_bucket(
@@ -558,7 +727,28 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_issue(List<Issue> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_issue_delta(
+    List<IssueDelta> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_link_row(List<LinkRow> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_ollama_model(
+    List<OllamaModel> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_plan_example(
+    List<PlanExample> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_plan_item(List<PlanItem> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_u_8_strict(
@@ -597,6 +787,33 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_url_row(List<UrlRow> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_ux_attention(
+    List<UxAttention> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_ux_conflict(
+    List<UxConflict> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_ux_decision(
+    List<UxDecision> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_ux_persona(
+    List<UxPersona> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ollama_model(OllamaModel self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
@@ -615,6 +832,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_box_autoadd_issue(Issue? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_plan_example(PlanExample self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plan_item(PlanItem self, SseSerializer serializer);
+
+  @protected
   void sse_encode_progress_snapshot(
     ProgressSnapshot self,
     SseSerializer serializer,
@@ -628,6 +851,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_redirect_hop(RedirectHop self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_report_event(ReportEvent self, SseSerializer serializer);
 
   @protected
   void sse_encode_site_edge(SiteEdge self, SseSerializer serializer);
@@ -667,6 +893,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_url_row(UrlRow self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ux_attention(UxAttention self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ux_conflict(UxConflict self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ux_decision(UxDecision self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ux_flow(UxFlow self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ux_persona(UxPersona self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);

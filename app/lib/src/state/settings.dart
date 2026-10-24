@@ -13,6 +13,11 @@ import 'projects.dart';
 /// Stored as JSON beside the crawl databases. Deliberately *not* in the OS
 /// keychain — none of this is secret, and a plain file is one less native
 /// dependency. Licence keys and API tokens do go in the keychain, in Phase 4.
+/// Ollama's own default, repeated here so the first frame has a value without
+/// a call across the bridge.
+const String defaultOllamaEndpoint = 'http://127.0.0.1:11434';
+const String defaultOllamaModel = 'qwen3:8b';
+
 class Settings {
   const Settings({
     required this.userAgent,
@@ -33,6 +38,8 @@ class Settings {
     this.projectsDirectory,
     this.exportDirectory,
     this.sidebarCollapsed,
+    this.ollamaEndpoint = defaultOllamaEndpoint,
+    this.ollamaModel = defaultOllamaModel,
   });
 
   final String userAgent;
@@ -59,6 +66,15 @@ class Settings {
   /// the window's width can decide in the meantime.
   final bool? sidebarCollapsed;
 
+  /// Where the local language model listens.
+  ///
+  /// Loopback by default, which is the whole point: the summary feature only
+  /// keeps its privacy promise while this address stays on this machine. The
+  /// field is editable because some people run Ollama on a box under their
+  /// desk — and the Settings screen says plainly what that means.
+  final String ollamaEndpoint;
+  final String ollamaModel;
+
   String get resolvedProjectsDirectory =>
       projectsDirectory ?? defaultProjectsDirectory();
   String get resolvedExportDirectory =>
@@ -83,6 +99,8 @@ class Settings {
     String? projectsDirectory,
     String? exportDirectory,
     bool? sidebarCollapsed,
+    String? ollamaEndpoint,
+    String? ollamaModel,
   }) {
     return Settings(
       userAgent: userAgent ?? this.userAgent,
@@ -103,11 +121,15 @@ class Settings {
       projectsDirectory: projectsDirectory ?? this.projectsDirectory,
       exportDirectory: exportDirectory ?? this.exportDirectory,
       sidebarCollapsed: sidebarCollapsed ?? this.sidebarCollapsed,
+      ollamaEndpoint: ollamaEndpoint ?? this.ollamaEndpoint,
+      ollamaModel: ollamaModel ?? this.ollamaModel,
     );
   }
 
   Map<String, Object?> toJson() => {
     'userAgent': userAgent,
+    'ollamaEndpoint': ollamaEndpoint,
+    'ollamaModel': ollamaModel,
     'themeMode': themeMode.name,
     'concurrency': concurrency,
     'crawlDelayMs': crawlDelayMs,
@@ -141,6 +163,8 @@ class Settings {
 
     return Settings(
       userAgent: pick<String>('userAgent') ?? fallbackUserAgent,
+      ollamaEndpoint: pick<String>('ollamaEndpoint') ?? defaults.ollamaEndpoint,
+      ollamaModel: pick<String>('ollamaModel') ?? defaults.ollamaModel,
       themeMode: ThemeMode.values.firstWhere(
         (mode) => mode.name == pick<String>('themeMode'),
         orElse: () => ThemeMode.system,

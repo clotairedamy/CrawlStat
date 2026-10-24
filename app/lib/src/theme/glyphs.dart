@@ -12,7 +12,19 @@ import 'package:flutter/widgets.dart';
 ///
 /// Every glyph is drawn on a 24-unit grid, the same as Lucide, so they sit
 /// at the same optical size as the line icons used everywhere else.
-enum Glyph { projects, crawl, results, issues, visualise, settings, add, pro }
+enum Glyph {
+  projects,
+  crawl,
+  results,
+  issues,
+  plan,
+  visualise,
+  readerFlow,
+  compare,
+  settings,
+  add,
+  pro,
+}
 
 class GlyphIcon extends StatelessWidget {
   const GlyphIcon(
@@ -103,7 +115,11 @@ class _GlyphPainter extends CustomPainter {
         canvas.restore();
         canvas.drawRRect(frame, line);
         canvas.drawLine(const Offset(3.5, 9.5), const Offset(20.5, 9.5), line);
-        canvas.drawLine(const Offset(3.5, 14.8), const Offset(20.5, 14.8), line);
+        canvas.drawLine(
+          const Offset(3.5, 14.8),
+          const Offset(20.5, 14.8),
+          line,
+        );
         canvas.drawLine(const Offset(9.6, 9.5), const Offset(9.6, 20), line);
 
       case Glyph.issues:
@@ -123,6 +139,16 @@ class _GlyphPainter extends CustomPainter {
           canvas.drawLine(Offset(13.8, y + 0.2), Offset(16, y + 0.2), line);
         }
 
+      case Glyph.plan:
+        // A ranked list: three bars, longest first, with the top one lit.
+        // The plan is the issues sorted by what they are worth, so the glyph
+        // is the issues glyph's content put in order.
+        final top = _rrect(4.5, 5, 19.5, 8.6, 1.8);
+        canvas.drawRRect(top, tone);
+        canvas.drawRRect(top, line);
+        canvas.drawRRect(_rrect(4.5, 10.8, 16, 14.4, 1.8), line);
+        canvas.drawRRect(_rrect(4.5, 16.6, 12, 20.2, 1.8), line);
+
       case Glyph.visualise:
         // A hub and three pages: the site's shape.
         const hub = Offset(12, 12.6);
@@ -140,6 +166,44 @@ class _GlyphPainter extends CustomPainter {
         }
         canvas.drawCircle(hub, hubRadius, tone);
         canvas.drawCircle(hub, hubRadius, line);
+
+      case Glyph.readerFlow:
+        // An eye following a path: where the reader is led.
+        canvas.drawPath(
+          Path()
+            ..moveTo(3.4, 7.4)
+            ..cubicTo(8, 4.2, 16, 4.2, 20.6, 7.4)
+            ..cubicTo(16, 10.6, 8, 10.6, 3.4, 7.4)
+            ..close(),
+          line,
+        );
+        canvas.drawCircle(const Offset(12, 7.4), 2.1, tone);
+        canvas.drawCircle(const Offset(12, 7.4), 2.1, line);
+        canvas.drawPath(
+          Path()
+            ..moveTo(4.6, 14.2)
+            ..lineTo(13, 14.2)
+            ..moveTo(4.6, 18)
+            ..lineTo(19.4, 18),
+          line,
+        );
+
+      case Glyph.compare:
+        // Two bars, one shorter: before and after.
+        final tall = _rrect(4.6, 4.5, 10.4, 19.5, 2.2);
+        canvas.drawRRect(tall, line);
+        final short = _rrect(13.6, 11, 19.4, 19.5, 2.2);
+        canvas.drawRRect(short, tone);
+        canvas.drawRRect(short, line);
+        // The arrow between them: it went down.
+        canvas.drawPath(
+          Path()
+            ..moveTo(11.6, 8.6)
+            ..lineTo(12.6, 8.6)
+            ..moveTo(12.1, 7.2)
+            ..lineTo(12.1, 9.8),
+          line,
+        );
 
       case Glyph.settings:
         // A gear with a lit hub.

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../rust/api/project.dart' as rust;
 import '../theme/icons.dart';
+import '../theme/soft.dart';
 import '../state/projects.dart';
 import '../state/settings.dart';
 import '../theme/theme.dart';
@@ -261,6 +263,10 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+                ),
+                SectionCard(
+                  title: 'Local AI',
+                  child: _OllamaSection(settings: settings),
                 ),
                 SectionCard(
                   title: 'Keyboard',
@@ -640,6 +646,201 @@ class _AboutRow extends StatelessWidget {
               style: CrawlStatTheme.mono(context, size: 11.5),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Phase 5: the local language model.
+///
+/// There is nothing to sign up for and no key to paste, because the model runs
+/// on this machine. The section exists to point CrawlStat at it, to prove it
+/// is reachable, and — the part that matters — to be honest about what leaves
+/// the process when the address is not loopback.
+class _OllamaSection extends ConsumerStatefulWidget {
+  const _OllamaSection({required this.settings});
+
+  final Settings settings;
+
+  @override
+  ConsumerState<_OllamaSection> createState() => _OllamaSectionState();
+}
+
+class _OllamaSectionState extends ConsumerState<_OllamaSection> {
+  late final TextEditingController _endpoint = TextEditingController(
+    text: widget.settings.ollamaEndpoint,
+  );
+  List<rust.OllamaModel>? _models;
+  String? _error;
+  bool _checking = false;
+
+  @override
+  void dispose() {
+    _endpoint.dispose();
+    super.dispose();
+  }
+
+  Future<void> _check() async {
+    setState(() {
+      _checking = true;
+      _error = null;
+    });
+    try {
+      final models = await rust.ollamaModels(endpoint: _endpoint.text.trim());
+      if (!mounted) return;
+      setState(() => _models = models);
+      ref
+          .read(settingsProvider.notifier)
+          .update((s) => s.copyWith(ollamaEndpoint: _endpoint.text.trim()));
+      // Pick a model for the user when the stored one is not installed, so
+      // "test" leaves the feature working rather than merely green.
+      final names = models.map((model) => model.name).toList();
+      if (names.isNotEmpty && !names.contains(widget.settings.ollamaModel)) {
+        ref
+            .read(settingsProvider.notifier)
+            .update((s) => s.copyWith(ollamaModel: names.first));
+      }
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  /// Whether the endpoint keeps the data on this machine.
+  bool get _isLocal {
+    final host = Uri.tryParse(_endpoint.text.trim())?.host ?? '';
+    return host == 'localhost' || host == '127.0.0.1' || host == '::1';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final settings = ref.watch(settingsProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'CrawlStat can have a language model write up a crawl in plain '
+          'English, on the Plan screen. The model runs on your machine through '
+          'Ollama, so no crawl data is uploaded anywhere. Nothing here is '
+          'required: the plan itself is computed without it.',
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _endpoint,
+                decoration: const InputDecoration(
+                  labelText: 'Ollama endpoint',
+                  hintText: defaultOllamaEndpoint,
+                ),
+                onSubmitted: (_) => _check(),
+              ),
+            ),
+            const SizedBox(width: 10),
+            SoftButton(
+              icon: AppIcon.refresh,
+              onPressed: _checking ? null : _check,
+              child: Text(_checking ? 'Checking…' : 'Test'),
+            ),
+          ],
+        ),
+        if (!_isLocal) ...[
+          const SizedBox(height: 10),
+          InlineMessage(
+            severity: 'warning',
+            message:
+                'That address is not on this machine. Crawl summaries sent to '
+                'it will leave your computer.',
+          ),
+        ],
+        if (_error != null) ...[
+          const SizedBox(height: 10),
+          InlineMessage(severity: 'warning', message: _error!),
+          const SizedBox(height: 6),
+          Text(
+            'Install Ollama from ollama.com, then run: ollama pull '
+            '$defaultOllamaModel',
+            style: CrawlStatTheme.mono(context, size: 12),
+          ),
+        ],
+        if (_models != null) ...[
+          const SizedBox(height: 16),
+          if (_models!.isEmpty)
+            Text(
+              'Ollama is running but has no models installed. '
+              'Run: ollama pull $defaultOllamaModel',
+              style: theme.textTheme.bodySmall,
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final model in _models!)
+                  _ModelChip(
+                    name: model.name,
+                    sizeBytes: model.sizeBytes,
+                    selected: model.name == settings.ollamaModel,
+                    onTap: () => ref
+                        .read(settingsProvider.notifier)
+                        .update((s) => s.copyWith(ollamaModel: model.name)),
+                  ),
+              ],
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ModelChip extends StatelessWidget {
+  const _ModelChip({
+    required this.name,
+    required this.sizeBytes,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String name;
+  final int sizeBytes;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SoftPanel(
+      radius: 999,
+      depth: 0.5,
+      pressed: selected,
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (selected) ...[
+            Icon(AppIcon.ok, size: 14, color: CrawlStatTheme.accent),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            name,
+            style: CrawlStatTheme.mono(
+              context,
+              size: 12.5,
+              color: selected
+                  ? theme.colorScheme.onSurface
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(formatBytes(sizeBytes), style: theme.textTheme.bodySmall),
         ],
       ),
     );

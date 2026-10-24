@@ -22,12 +22,50 @@ Future<void> exportCsv(
   required String name,
   required Future<int> Function(String file) write,
   required String Function(int rows) done,
+}) => _export(
+  context,
+  ref,
+  name: name,
+  extension: 'csv',
+  write: write,
+  done: done,
+);
+
+/// Write a finished document — the model's report — into the export folder.
+Future<void> exportText(
+  BuildContext context,
+  WidgetRef ref, {
+  required String name,
+  required String extension,
+  required String contents,
+  required String done,
+}) => _export(
+  context,
+  ref,
+  name: name,
+  extension: extension,
+  write: (file) async {
+    await File(file).writeAsString(contents);
+    return 1;
+  },
+  done: (_) => done,
+);
+
+Future<void> _export(
+  BuildContext context,
+  WidgetRef ref, {
+  required String name,
+  required String extension,
+  required Future<int> Function(String file) write,
+  required String Function(int rows) done,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
-  final directory = Directory(ref.read(settingsProvider).resolvedExportDirectory);
+  final directory = Directory(
+    ref.read(settingsProvider).resolvedExportDirectory,
+  );
   final file =
       '${directory.path}${Platform.pathSeparator}'
-      'crawlstat-$name-${_stamp.format(DateTime.now())}.csv';
+      'crawlstat-$name-${_stamp.format(DateTime.now())}.$extension';
 
   try {
     if (!directory.existsSync()) directory.createSync(recursive: true);

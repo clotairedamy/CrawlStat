@@ -140,7 +140,7 @@ pub trait Fetcher: Send + Sync + 'static {
 ///
 /// We pick `ring` rather than the default `aws-lc-rs` because it builds without
 /// cmake or NASM, which keeps the Windows and Linux release builds simple.
-fn install_crypto_provider() {
+pub fn install_crypto_provider() {
     static INSTALLED: OnceLock<()> = OnceLock::new();
     INSTALLED.get_or_init(|| {
         // An error here means another part of the process installed one first,

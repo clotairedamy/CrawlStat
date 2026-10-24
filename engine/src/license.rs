@@ -38,7 +38,7 @@ use ed25519_dalek::{Signature, VerifyingKey};
 use serde::{Deserialize, Serialize};
 
 pub mod client;
-mod storage;
+pub mod storage;
 
 pub use storage::{clear_stored, instance_id, load_stored, store_token, StorageError};
 

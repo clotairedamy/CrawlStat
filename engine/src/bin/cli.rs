@@ -20,6 +20,7 @@ use clap::{Args, Parser, Subcommand};
 use crawlstat_engine::audit::{AuditConfig, Severity};
 use crawlstat_engine::config::{CrawlConfig, CrawlMode, Seed};
 use crawlstat_engine::engine::Crawler;
+use crawlstat_engine::plan::Effort;
 use crawlstat_engine::progress::{CrawlSummary, ProgressEvent};
 use crawlstat_engine::store::queries::{self, SortBy, UrlFilter};
 use crawlstat_engine::store::Store;
@@ -98,6 +99,48 @@ enum Command {
     License {
         #[command(subcommand)]
         action: LicenseAction,
+    },
+    /// Rank a crawl's findings into a list of jobs, best first.
+    ///
+    /// The same ranking the desktop app's Plan screen shows: severity, the
+    /// share of the site's link value affected, and how many pages one change
+    /// fixes. Exits non-zero when anything scores above `--fail-above`, which
+    /// is how CrawlStat CI will gate a deploy.
+    Plan {
+        db: PathBuf,
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+        /// Exit 1 if any job scores higher than this. 0-100.
+        #[arg(long)]
+        fail_above: Option<f64>,
+    },
+    /// Compare two crawls of the same site: what was fixed, what broke.
+    ///
+    /// Exits non-zero when anything regressed, so a release can be gated on
+    /// "this change introduced no new problems".
+    Compare {
+        /// The earlier crawl.
+        before: PathBuf,
+        /// The later crawl.
+        after: PathBuf,
+        /// Exit 1 if any issue got worse or any page started failing.
+        #[arg(long)]
+        fail_on_regression: bool,
+    },
+    /// Predict how a page leads a reader, and where it loses them.
+    ///
+    /// Reads the markup only — there is no browser here, so this knows reading
+    /// order, landmarks and labels, and nothing about what the CSS did. See
+    /// the module docs in `src/ux/mod.rs` for what that does and does not buy.
+    Ux {
+        /// A URL to fetch, or a path to an HTML file.
+        target: String,
+        /// Which reader: task_oriented, explorer, skeptical, mobile_rushed.
+        #[arg(long, default_value = "task_oriented")]
+        persona: String,
+        /// How many nodes of the attention ranking to print.
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
     },
     /// Show one issue: what it means, how to fix it, and which URLs have it.
     Issue {
@@ -360,6 +403,256 @@ async fn main() -> anyhow::Result<()> {
                     report.total_findings(),
                     report.elapsed_ms
                 );
+            }
+            Ok(())
+        }
+        Command::Plan {
+            db,
+            limit,
+            fail_above,
+        } => {
+            let store = Store::open(&db)?;
+            let plan = crawlstat_engine::plan::build(store.connection())?;
+
+            if plan.items.is_empty() {
+                println!("No issues to rank. Run `audit` first if you have not.");
+                return Ok(());
+            }
+
+            println!(
+                "{} job(s) · {} of {} pages affected · {:.0}% of link value at risk\n",
+                plan.items.len(),
+                plan.affected_pages,
+                plan.total_pages,
+                plan.value_at_risk * 100.0
+            );
+
+            for (index, item) in plan.items.iter().take(limit).enumerate() {
+                let effort = match item.effort {
+                    Effort::Template => "one template change",
+                    Effort::Bulk => "a batch of changes",
+                    Effort::PerPage => "one change per page",
+                };
+                println!(
+                    "{:>3}.  [{:>3.0}]  {}  ({})",
+                    index + 1,
+                    item.impact,
+                    item.title,
+                    item.severity.as_str()
+                );
+                println!(
+                    "            {} page(s), {} distinct fix(es) — {}, {:.1}% of link value",
+                    item.pages,
+                    item.distinct_fixes,
+                    effort,
+                    item.reach * 100.0
+                );
+                if let Some(example) = item.examples.first() {
+                    println!("            e.g. {}", example.url);
+                }
+                println!();
+            }
+
+            if let Some(threshold) = fail_above {
+                let over: Vec<&str> = plan
+                    .items
+                    .iter()
+                    .filter(|item| item.impact > threshold)
+                    .map(|item| item.title.as_str())
+                    .collect();
+                if !over.is_empty() {
+                    eprintln!(
+                        "{} job(s) score above {threshold}: {}",
+                        over.len(),
+                        over.join(", ")
+                    );
+                    std::process::exit(1);
+                }
+            }
+            Ok(())
+        }
+        Command::Ux {
+            target,
+            persona,
+            limit,
+        } => {
+            let persona = crawlstat_engine::ux::Persona::parse(&persona).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "unknown persona `{persona}` — use task_oriented, explorer, \
+                     skeptical or mobile_rushed"
+                )
+            })?;
+
+            // The async client, not the blocking one: `main` already runs on a
+            // tokio runtime and dropping a blocking client inside one panics.
+            // The crypto provider is the crawler's own — `ring`, installed
+            // process-wide — because rustls refuses to build a client without
+            // one and the default would be a different library.
+            let body = if target.starts_with("http://") || target.starts_with("https://") {
+                crawlstat_engine::fetch::install_crypto_provider();
+                let client = reqwest::Client::builder()
+                    .user_agent(crawlstat_engine::config::DEFAULT_USER_AGENT)
+                    .build()?;
+                client.get(&target).send().await?.text().await?
+            } else {
+                std::fs::read_to_string(&target)?
+            };
+
+            let document = scraper::Html::parse_document(&body);
+            let nodes = crawlstat_engine::ux::signals::extract(&document);
+            let flow = crawlstat_engine::ux::flow_for(&nodes, persona);
+
+            println!("{}  —  {}", persona.label(), persona.describes());
+            println!("{} element(s) a reader could attend to\n", nodes.len());
+
+            println!("Where the attention goes:");
+            for attention in flow.attention.iter().take(limit) {
+                let bar = "#".repeat(((attention.share * 120.0).round() as usize).min(40));
+                println!(
+                    "  {:>5.1}%  {:<40}  {:<9} {}",
+                    attention.share * 100.0,
+                    truncate(&attention.label, 40),
+                    format!("{:?}", attention.region).to_lowercase(),
+                    bar
+                );
+            }
+
+            println!("\nFlow:");
+            println!(
+                "  reaches {} of {} elements before deciding",
+                flow.path.len(),
+                nodes.len()
+            );
+            match flow.steps_to_action {
+                Some(at) if flow.action_out_of_reach => println!(
+                    "  !! the primary action is element {at}, past where this reader stops"
+                ),
+                Some(at) => println!("  primary action at element {at}"),
+                None => println!("  no primary action on this page"),
+            }
+            println!(
+                "  coherence {:.0}% ({})",
+                flow.coherence * 100.0,
+                if flow.coherence > 0.35 {
+                    "attention lands somewhere"
+                } else {
+                    "attention is spread thin — the page does not lead anywhere"
+                }
+            );
+            if flow.dead_end {
+                println!("  !! dead end: no onward link in the content");
+            }
+
+            for conflict in &flow.cta_conflicts {
+                println!(
+                    "\n  !! {} actions competing ({:.0}% of attention between them):",
+                    conflict.labels.len(),
+                    conflict.share * 100.0
+                );
+                for label in &conflict.labels {
+                    println!("       {}", truncate(label, 60));
+                }
+            }
+
+            if !flow.decision_nodes.is_empty() {
+                println!("\n  {} decision point(s):", flow.decision_nodes.len());
+                for decision in &flow.decision_nodes {
+                    println!(
+                        "       element {}: {} options at once",
+                        decision.order, decision.options
+                    );
+                }
+            }
+
+            if !flow.vague_links.is_empty() {
+                println!("\n  {} link(s) that say nothing:", flow.vague_links.len());
+                for label in flow.vague_links.iter().take(8) {
+                    println!("       \"{label}\"");
+                }
+            }
+
+            Ok(())
+        }
+        Command::Compare {
+            before,
+            after,
+            fail_on_regression,
+        } => {
+            let old = Store::open(&before)?;
+            let new = Store::open(&after)?;
+            let result = crawlstat_engine::compare::compare(old.connection(), new.connection())?;
+
+            println!(
+                "{} pages -> {} pages   ({} with problems -> {})",
+                result.pages_before,
+                result.pages_after,
+                result.affected_before,
+                result.affected_after
+            );
+            println!(
+                "link value at risk: {:.0}% -> {:.0}%\n",
+                result.value_at_risk_before * 100.0,
+                result.value_at_risk_after * 100.0
+            );
+
+            let improvements = result.improvements();
+            if improvements.is_empty() {
+                println!("Nothing improved.");
+            } else {
+                println!("Fixed:");
+                for issue in &improvements {
+                    println!(
+                        "  {:>5}  {}   ({} -> {} pages, impact {:.0} -> {:.0})",
+                        format!("-{}", issue.fixed),
+                        issue.title,
+                        issue.before,
+                        issue.after,
+                        issue.impact_before,
+                        issue.impact_after
+                    );
+                }
+            }
+
+            let regressions = result.regressions();
+            if !regressions.is_empty() {
+                println!("\nGot worse:");
+                for issue in &regressions {
+                    println!(
+                        "  {:>5}  {}   ({} -> {} pages)",
+                        format!("+{}", issue.introduced),
+                        issue.title,
+                        issue.before,
+                        issue.after
+                    );
+                }
+            }
+
+            if !result.pages_broken.is_empty() {
+                println!("\n{} page(s) started failing:", result.pages_broken.len());
+                for page in result.pages_broken.iter().take(20) {
+                    println!(
+                        "  {} -> {}  {}",
+                        page.status_before.map_or("—".to_string(), |c| c.to_string()),
+                        page.status_after.map_or("failed".to_string(), |c| c.to_string()),
+                        page.url
+                    );
+                }
+            }
+
+            if !result.pages_removed.is_empty() {
+                println!("\n{} page(s) no longer crawled", result.pages_removed.len());
+            }
+            if !result.pages_added.is_empty() {
+                println!("{} page(s) new since last time", result.pages_added.len());
+            }
+
+            if fail_on_regression && (!regressions.is_empty() || !result.pages_broken.is_empty()) {
+                eprintln!(
+                    "\n{} issue(s) got worse and {} page(s) started failing",
+                    regressions.len(),
+                    result.pages_broken.len()
+                );
+                std::process::exit(1);
             }
             Ok(())
         }
@@ -791,4 +1084,15 @@ fn format_duration(duration: Duration) -> String {
     } else {
         format!("{}h{:02}m", secs / 3600, (secs % 3600) / 60)
     }
+}
+
+
+/// Shorten a label to fit a column, with an ellipsis.
+fn truncate(text: &str, width: usize) -> String {
+    let trimmed = text.trim();
+    if trimmed.chars().count() <= width {
+        return trimmed.to_string();
+    }
+    let kept: String = trimmed.chars().take(width.saturating_sub(1)).collect();
+    format!("{kept}…")
 }

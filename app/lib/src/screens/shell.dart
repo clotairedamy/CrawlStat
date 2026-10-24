@@ -295,11 +295,24 @@ class _Rail extends ConsumerWidget {
                   needsProject: true,
                 ),
                 destination(
+                  Glyph.plan,
+                  'Plan',
+                  Routes.plan,
+                  needsProject: true,
+                ),
+                destination(
                   Glyph.visualise,
                   'Visualise',
                   Routes.visualise,
                   needsProject: true,
                 ),
+                destination(
+                  Glyph.readerFlow,
+                  'Reader flow',
+                  Routes.ux,
+                  needsProject: true,
+                ),
+                destination(Glyph.compare, 'Compare', Routes.compare),
                 const Spacer(),
                 const SizedBox(height: 16),
                 if (!isPro)
@@ -403,8 +416,13 @@ class _Brand extends StatelessWidget {
     const markHeight = 36.0;
     const markLeft = (_railCollapsed - markWidth) / 2;
     const owlWidth = _railExpanded - 2 * _tileLeft;
-    // The artwork's own proportions, 1197 × 321.
-    const owlHeight = owlWidth * 321 / 1197;
+    // The artwork's own proportions, 1197 × 579.
+    //
+    // This was 321 high, which is the wings-only crop: with the full owl in
+    // the box the talons and the triangle below them were cut off, because
+    // the box was barely half the height the artwork needs. The mark is a
+    // whole owl, so the rail shows a whole owl.
+    const owlHeight = owlWidth * 579 / 1197;
     // The head steps aside for the owl early, so the two never show at once
     // at full strength.
     final markOpacity = (1 - expansion * 2.5).clamp(0.0, 1.0);
@@ -445,7 +463,7 @@ class _Brand extends StatelessWidget {
                 width: _railExpanded - 2 * _tileLeft,
                 child: Center(
                   child: Image.asset(
-                    'assets/brand/crawlstat_wings.png',
+                    'assets/brand/crawlstat_owl.png',
                     width: owlWidth,
                     fit: BoxFit.contain,
                     color: ink,

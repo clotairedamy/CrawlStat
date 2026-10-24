@@ -6,11 +6,13 @@
 import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 
 import 'types.dart';
+part 'project.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `audit_config`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `audit_config`, `kind_name`, `region_name`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Open a crawl file and describe it, for the projects screen.
 Future<ProjectInfo> openProject({required String dbPath}) =>
@@ -113,6 +115,222 @@ Future<SiteStructure> siteStructure({
   nodeLimit: nodeLimit,
 );
 
+/// Rank a crawl's findings into a list of jobs, best first.
+Future<ActionPlan> actionPlan({required String dbPath}) =>
+    RustLib.instance.api.crateApiProjectActionPlan(dbPath: dbPath);
+
+/// Where Ollama listens by default. Loopback, so nothing leaves the machine.
+Future<String> ollamaDefaultEndpoint() =>
+    RustLib.instance.api.crateApiProjectOllamaDefaultEndpoint();
+
+Future<String> ollamaDefaultModel() =>
+    RustLib.instance.api.crateApiProjectOllamaDefaultModel();
+
+/// Ask the local Ollama what it has. Also doubles as the "test connection"
+/// button: if this returns, Ollama is running.
+Future<List<OllamaModel>> ollamaModels({required String endpoint}) =>
+    RustLib.instance.api.crateApiProjectOllamaModels(endpoint: endpoint);
+
+/// Have the local model write up the plan, streaming it as it is written.
+///
+/// Slow — a local model on a laptop takes tens of seconds, plus the time to
+/// load it the first time — so it runs on its own thread and the UI shows
+/// the report filling in rather than a spinner.
+Stream<ReportEvent> ollamaWriteReport({
+  required String dbPath,
+  required String endpoint,
+  required String model,
+  required String site,
+}) => RustLib.instance.api.crateApiProjectOllamaWriteReport(
+  dbPath: dbPath,
+  endpoint: endpoint,
+  model: model,
+  site: site,
+);
+
+/// Exactly what would be sent to the model, so the user can read it first.
+///
+/// A privacy claim nobody can check is worth very little. This is the button
+/// next to "Write the summary" that shows the whole brief.
+Future<String> ollamaBrief({required String dbPath, required String site}) =>
+    RustLib.instance.api.crateApiProjectOllamaBrief(dbPath: dbPath, site: site);
+
+/// Store a BYOK credential in the OS keychain. An empty value clears it.
+///
+/// The value goes straight from the text field into the keychain and is never
+/// read back into Dart — [`secret_is_set`] is all the UI can ask.
+Future<void> storeSecret({required String name, required String value}) =>
+    RustLib.instance.api.crateApiProjectStoreSecret(name: name, value: value);
+
+/// Whether a credential is stored. Never the value.
+Future<bool> secretIsSet({required String name}) =>
+    RustLib.instance.api.crateApiProjectSecretIsSet(name: name);
+
+Future<void> clearSecret({required String name}) =>
+    RustLib.instance.api.crateApiProjectClearSecret(name: name);
+
+/// The personas the model knows, for the UI's picker.
+Future<List<UxPersona>> uxPersonas() =>
+    RustLib.instance.api.crateApiProjectUxPersonas();
+
+/// Analyse one page of the open crawl.
+///
+/// The markup comes from the crawl file when "Keep raw HTML" was on for that
+/// crawl, and is fetched once otherwise — a single request for the page the
+/// user is looking at, which is why this is a button rather than something
+/// that happens on opening the screen.
+Future<UxFlow> uxAnalyse({
+  required String dbPath,
+  required PlatformInt64 urlId,
+  required String persona,
+}) => RustLib.instance.api.crateApiProjectUxAnalyse(
+  dbPath: dbPath,
+  urlId: urlId,
+  persona: persona,
+);
+
+/// The pages worth looking at first: the best-connected HTML pages in the
+/// crawl, which are the ones most visitors actually land on.
+Future<List<SiteNode>> uxCandidatePages({
+  required String dbPath,
+  required int limit,
+}) => RustLib.instance.api.crateApiProjectUxCandidatePages(
+  dbPath: dbPath,
+  limit: limit,
+);
+
+/// Compare an earlier crawl with a later one.
+///
+/// Pro only: comparison is the feature that turns a report into a workflow,
+/// and the limit is enforced here rather than by the UI hiding a button.
+Future<CrawlComparison> compareCrawls({
+  required String beforePath,
+  required String afterPath,
+}) => RustLib.instance.api.crateApiProjectCompareCrawls(
+  beforePath: beforePath,
+  afterPath: afterPath,
+);
+
+class ActionPlan {
+  final List<PlanItem> items;
+  final PlatformInt64 affectedPages;
+  final PlatformInt64 totalPages;
+
+  /// Share of link value touched by at least one error, 0..1.
+  final double valueAtRisk;
+
+  const ActionPlan({
+    required this.items,
+    required this.affectedPages,
+    required this.totalPages,
+    required this.valueAtRisk,
+  });
+
+  @override
+  int get hashCode =>
+      items.hashCode ^
+      affectedPages.hashCode ^
+      totalPages.hashCode ^
+      valueAtRisk.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ActionPlan &&
+          runtimeType == other.runtimeType &&
+          items == other.items &&
+          affectedPages == other.affectedPages &&
+          totalPages == other.totalPages &&
+          valueAtRisk == other.valueAtRisk;
+}
+
+/// A page that was fine and now is not.
+class BrokenPage {
+  final String url;
+  final PlatformInt64? statusBefore;
+  final PlatformInt64? statusAfter;
+
+  const BrokenPage({required this.url, this.statusBefore, this.statusAfter});
+
+  @override
+  int get hashCode =>
+      url.hashCode ^ statusBefore.hashCode ^ statusAfter.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BrokenPage &&
+          runtimeType == other.runtimeType &&
+          url == other.url &&
+          statusBefore == other.statusBefore &&
+          statusAfter == other.statusAfter;
+}
+
+class CrawlComparison {
+  final PlatformInt64 pagesBefore;
+  final PlatformInt64 pagesAfter;
+  final PlatformInt64 affectedBefore;
+  final PlatformInt64 affectedAfter;
+  final double valueAtRiskBefore;
+  final double valueAtRiskAfter;
+  final PlatformInt64 totalFixed;
+  final PlatformInt64 totalIntroduced;
+
+  /// Improvements first, then regressions.
+  final List<IssueDelta> issues;
+  final List<BrokenPage> pagesBroken;
+  final PlatformInt64 pagesAdded;
+  final PlatformInt64 pagesRemoved;
+
+  const CrawlComparison({
+    required this.pagesBefore,
+    required this.pagesAfter,
+    required this.affectedBefore,
+    required this.affectedAfter,
+    required this.valueAtRiskBefore,
+    required this.valueAtRiskAfter,
+    required this.totalFixed,
+    required this.totalIntroduced,
+    required this.issues,
+    required this.pagesBroken,
+    required this.pagesAdded,
+    required this.pagesRemoved,
+  });
+
+  @override
+  int get hashCode =>
+      pagesBefore.hashCode ^
+      pagesAfter.hashCode ^
+      affectedBefore.hashCode ^
+      affectedAfter.hashCode ^
+      valueAtRiskBefore.hashCode ^
+      valueAtRiskAfter.hashCode ^
+      totalFixed.hashCode ^
+      totalIntroduced.hashCode ^
+      issues.hashCode ^
+      pagesBroken.hashCode ^
+      pagesAdded.hashCode ^
+      pagesRemoved.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CrawlComparison &&
+          runtimeType == other.runtimeType &&
+          pagesBefore == other.pagesBefore &&
+          pagesAfter == other.pagesAfter &&
+          affectedBefore == other.affectedBefore &&
+          affectedAfter == other.affectedAfter &&
+          valueAtRiskBefore == other.valueAtRiskBefore &&
+          valueAtRiskAfter == other.valueAtRiskAfter &&
+          totalFixed == other.totalFixed &&
+          totalIntroduced == other.totalIntroduced &&
+          issues == other.issues &&
+          pagesBroken == other.pagesBroken &&
+          pagesAdded == other.pagesAdded &&
+          pagesRemoved == other.pagesRemoved;
+}
+
 class DepthCount {
   final PlatformInt64 depth;
   final PlatformInt64 count;
@@ -129,6 +347,188 @@ class DepthCount {
           runtimeType == other.runtimeType &&
           depth == other.depth &&
           count == other.count;
+}
+
+/// How one issue changed between two crawls.
+class IssueDelta {
+  final String issueId;
+  final String title;
+  final PlatformInt64 before;
+  final PlatformInt64 after;
+
+  /// Pages that had it, no longer do, and are still in the crawl.
+  final PlatformInt64 fixed;
+  final PlatformInt64 introduced;
+  final double impactBefore;
+  final double impactAfter;
+
+  const IssueDelta({
+    required this.issueId,
+    required this.title,
+    required this.before,
+    required this.after,
+    required this.fixed,
+    required this.introduced,
+    required this.impactBefore,
+    required this.impactAfter,
+  });
+
+  @override
+  int get hashCode =>
+      issueId.hashCode ^
+      title.hashCode ^
+      before.hashCode ^
+      after.hashCode ^
+      fixed.hashCode ^
+      introduced.hashCode ^
+      impactBefore.hashCode ^
+      impactAfter.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is IssueDelta &&
+          runtimeType == other.runtimeType &&
+          issueId == other.issueId &&
+          title == other.title &&
+          before == other.before &&
+          after == other.after &&
+          fixed == other.fixed &&
+          introduced == other.introduced &&
+          impactBefore == other.impactBefore &&
+          impactAfter == other.impactAfter;
+}
+
+/// A model the local Ollama has installed.
+class OllamaModel {
+  final String name;
+  final PlatformInt64 sizeBytes;
+
+  const OllamaModel({required this.name, required this.sizeBytes});
+
+  @override
+  int get hashCode => name.hashCode ^ sizeBytes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OllamaModel &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          sizeBytes == other.sizeBytes;
+}
+
+/// One of the worst-affected pages for a job.
+class PlanExample {
+  final String url;
+  final String? detail;
+  final PlatformInt64 depth;
+
+  const PlanExample({required this.url, this.detail, required this.depth});
+
+  @override
+  int get hashCode => url.hashCode ^ detail.hashCode ^ depth.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PlanExample &&
+          runtimeType == other.runtimeType &&
+          url == other.url &&
+          detail == other.detail &&
+          depth == other.depth;
+}
+
+/// One job in the plan.
+class PlanItem {
+  final String issueId;
+  final String title;
+
+  /// `error`, `warning` or `notice`.
+  final String severity;
+  final String howToFix;
+  final String docsSlug;
+  final PlatformInt64 pages;
+
+  /// Distinct findings behind those pages — the number of actual changes.
+  final PlatformInt64 distinctFixes;
+
+  /// How many pages one change improves.
+  final double leverage;
+
+  /// Share of the site's internal link value on the affected pages, 0..1.
+  final double reach;
+
+  /// 0..100, relative to everything else in this crawl.
+  final double impact;
+
+  /// `template`, `bulk` or `per_page`.
+  final String effort;
+  final List<PlanExample> examples;
+
+  const PlanItem({
+    required this.issueId,
+    required this.title,
+    required this.severity,
+    required this.howToFix,
+    required this.docsSlug,
+    required this.pages,
+    required this.distinctFixes,
+    required this.leverage,
+    required this.reach,
+    required this.impact,
+    required this.effort,
+    required this.examples,
+  });
+
+  @override
+  int get hashCode =>
+      issueId.hashCode ^
+      title.hashCode ^
+      severity.hashCode ^
+      howToFix.hashCode ^
+      docsSlug.hashCode ^
+      pages.hashCode ^
+      distinctFixes.hashCode ^
+      leverage.hashCode ^
+      reach.hashCode ^
+      impact.hashCode ^
+      effort.hashCode ^
+      examples.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PlanItem &&
+          runtimeType == other.runtimeType &&
+          issueId == other.issueId &&
+          title == other.title &&
+          severity == other.severity &&
+          howToFix == other.howToFix &&
+          docsSlug == other.docsSlug &&
+          pages == other.pages &&
+          distinctFixes == other.distinctFixes &&
+          leverage == other.leverage &&
+          reach == other.reach &&
+          impact == other.impact &&
+          effort == other.effort &&
+          examples == other.examples;
+}
+
+@freezed
+sealed class ReportEvent with _$ReportEvent {
+  const ReportEvent._();
+
+  /// The model that is writing. Differs from the one asked for when that
+  /// one is not installed, so the app can remember the substitute.
+  const factory ReportEvent.model({required String name}) = ReportEvent_Model;
+
+  /// Everything written so far, not just the latest words.
+  const factory ReportEvent.progress({required String text}) =
+      ReportEvent_Progress;
+  const factory ReportEvent.done({required String text}) = ReportEvent_Done;
+  const factory ReportEvent.failed({required String message}) =
+      ReportEvent_Failed;
 }
 
 /// A followed internal link between two pages in the diagram.
@@ -284,4 +684,189 @@ class StatusCount {
           runtimeType == other.runtimeType &&
           status == other.status &&
           count == other.count;
+}
+
+/// One element's share of a reader's attention.
+class UxAttention {
+  final PlatformInt64 order;
+  final String label;
+
+  /// `heading`, `link`, `action`, `field`, `image` or `text`.
+  final String kind;
+
+  /// `header`, `nav`, `main`, `aside`, `footer` or `unknown`.
+  final String region;
+
+  /// 0..1, and every share in a report sums to one.
+  final double share;
+  final double confidence;
+
+  const UxAttention({
+    required this.order,
+    required this.label,
+    required this.kind,
+    required this.region,
+    required this.share,
+    required this.confidence,
+  });
+
+  @override
+  int get hashCode =>
+      order.hashCode ^
+      label.hashCode ^
+      kind.hashCode ^
+      region.hashCode ^
+      share.hashCode ^
+      confidence.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UxAttention &&
+          runtimeType == other.runtimeType &&
+          order == other.order &&
+          label == other.label &&
+          kind == other.kind &&
+          region == other.region &&
+          share == other.share &&
+          confidence == other.confidence;
+}
+
+class UxConflict {
+  final List<String> labels;
+  final double share;
+
+  const UxConflict({required this.labels, required this.share});
+
+  @override
+  int get hashCode => labels.hashCode ^ share.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UxConflict &&
+          runtimeType == other.runtimeType &&
+          labels == other.labels &&
+          share == other.share;
+}
+
+class UxDecision {
+  final PlatformInt64 order;
+  final PlatformInt64 options;
+  final double share;
+
+  const UxDecision({
+    required this.order,
+    required this.options,
+    required this.share,
+  });
+
+  @override
+  int get hashCode => order.hashCode ^ options.hashCode ^ share.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UxDecision &&
+          runtimeType == other.runtimeType &&
+          order == other.order &&
+          options == other.options &&
+          share == other.share;
+}
+
+/// What the model thinks happens when this persona meets this page.
+class UxFlow {
+  final String url;
+  final String persona;
+
+  /// How the markup was obtained: `stored` or `fetched`.
+  final String source;
+  final PlatformInt64 nodeCount;
+  final List<UxAttention> attention;
+
+  /// How many elements this reader gets through before deciding.
+  final PlatformInt64 reach;
+  final PlatformInt64? stepsToAction;
+  final bool actionOutOfReach;
+  final List<UxConflict> conflicts;
+  final List<UxDecision> decisions;
+  final bool deadEnd;
+  final double coherence;
+  final List<String> vagueLinks;
+
+  const UxFlow({
+    required this.url,
+    required this.persona,
+    required this.source,
+    required this.nodeCount,
+    required this.attention,
+    required this.reach,
+    this.stepsToAction,
+    required this.actionOutOfReach,
+    required this.conflicts,
+    required this.decisions,
+    required this.deadEnd,
+    required this.coherence,
+    required this.vagueLinks,
+  });
+
+  @override
+  int get hashCode =>
+      url.hashCode ^
+      persona.hashCode ^
+      source.hashCode ^
+      nodeCount.hashCode ^
+      attention.hashCode ^
+      reach.hashCode ^
+      stepsToAction.hashCode ^
+      actionOutOfReach.hashCode ^
+      conflicts.hashCode ^
+      decisions.hashCode ^
+      deadEnd.hashCode ^
+      coherence.hashCode ^
+      vagueLinks.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UxFlow &&
+          runtimeType == other.runtimeType &&
+          url == other.url &&
+          persona == other.persona &&
+          source == other.source &&
+          nodeCount == other.nodeCount &&
+          attention == other.attention &&
+          reach == other.reach &&
+          stepsToAction == other.stepsToAction &&
+          actionOutOfReach == other.actionOutOfReach &&
+          conflicts == other.conflicts &&
+          decisions == other.decisions &&
+          deadEnd == other.deadEnd &&
+          coherence == other.coherence &&
+          vagueLinks == other.vagueLinks;
+}
+
+/// A way of reading a page, for the persona picker.
+class UxPersona {
+  final String id;
+  final String label;
+  final String describes;
+
+  const UxPersona({
+    required this.id,
+    required this.label,
+    required this.describes,
+  });
+
+  @override
+  int get hashCode => id.hashCode ^ label.hashCode ^ describes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UxPersona &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          label == other.label &&
+          describes == other.describes;
 }
