@@ -554,20 +554,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crawlstat-bridge"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "crawlstat-engine",
- "flutter_rust_bridge",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "crawlstat-engine"
 version = "0.1.0"
 dependencies = [
@@ -603,6 +589,20 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "webpki-roots",
+]
+
+[[package]]
+name = "crawlstat_bridge"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "crawlstat-engine",
+ "flutter_rust_bridge",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

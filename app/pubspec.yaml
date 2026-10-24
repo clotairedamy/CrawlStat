@@ -39,6 +39,8 @@ dependencies:
   flutter_riverpod: ^3.4.3
   go_router: ^18.1.1
   intl: ^0.20.3
+  crawlstat_bridge:
+    path: rust_builder
 
 dev_dependencies:
   flutter_test:

@@ -1,5 +1,5 @@
 [package]
-name = "crawlstat-bridge"
+name = "crawlstat_bridge"
 description = "flutter_rust_bridge glue between the CrawlStat engine and the Flutter app."
 version.workspace = true
 edition.workspace = true
@@ -8,9 +8,15 @@ license.workspace = true
 repository.workspace = true
 
 [lib]
+# Deliberately identical to the package name: cargokit looks for an artifact
+# called `lib<package name>.a`, while cargo names it after the lib target. A
+# hyphen in one and an underscore in the other makes the macOS build fail with
+# "Unable to find bundle for dynamic library", which is a memorable afternoon.
 name = "crawlstat_bridge"
-# cdylib for the desktop app to load; lib so the tests can use it directly.
-crate-type = ["cdylib", "lib"]
+# `staticlib` is what cargokit links into the macOS and iOS app bundles with
+# `-force_load`; `cdylib` is what its CMake builds load on Linux and Windows;
+# `lib` lets this crate's own tests use it directly.
+crate-type = ["cdylib", "staticlib", "lib"]
 
 [dependencies]
 crawlstat-engine = { path = "../../engine" }

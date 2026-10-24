@@ -25,10 +25,10 @@ jobs:
 
       # The bridge crate must compile before the generated Dart means anything.
       - name: Build the bridge
-        run: cargo build -p crawlstat-bridge
+        run: cargo build -p crawlstat_bridge
 
       - name: Bridge tests
-        run: cargo test -p crawlstat-bridge
+        run: cargo test -p crawlstat_bridge
 
       - name: Dependencies
         working-directory: app

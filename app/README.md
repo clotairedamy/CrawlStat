@@ -5,7 +5,7 @@ of its own.
 
 ```
 app/
-  rust/            flutter_rust_bridge glue crate (crawlstat-bridge)
+  rust/            flutter_rust_bridge glue crate (crawlstat_bridge)
   lib/
     main.dart      loads the engine, then the app
     src/
@@ -21,9 +21,18 @@ app/
 
 ```bash
 flutter pub get
-flutter run -d macos          # or -d windows, -d linux
+flutter run -d macos          # the device is `macos`, not `macosx`
 flutter analyze
 flutter test
+```
+
+Building for macOS needs full Xcode with its licence accepted
+(`sudo xcodebuild -license accept`) and CocoaPods, which cargokit uses to
+compile and link the Rust library:
+
+```bash
+brew install cocoapods
+export LANG=en_US.UTF-8       # CocoaPods refuses a non-UTF-8 locale
 ```
 
 After changing anything under `rust/src/api/`, regenerate the bindings:
@@ -32,11 +41,8 @@ After changing anything under `rust/src/api/`, regenerate the bindings:
 flutter_rust_bridge_codegen generate
 ```
 
-> **macOS note.** Building the desktop app needs full Xcode with its licence
-> accepted (`sudo xcodebuild -license accept`). `flutter analyze` and
-> `flutter test` only need the Command Line Tools; set
-> `DEVELOPER_DIR=/Library/Developer/CommandLineTools` if `xcode-select` points
-> at an Xcode whose licence is unaccepted.
+`flutter analyze` and `flutter test` need neither Xcode nor CocoaPods — they
+run on the Dart VM. Only an actual build does.
 
 ## How it is put together
 
@@ -89,15 +95,35 @@ driven: arrows and Page Up/Down move the cursor, Home/End jump to the ends,
 Enter opens the detail panel, Esc closes it, ⌘F focuses the filter, ⌘E exports,
 ⌘N starts a crawl and ⌘Space pauses or resumes one.
 
-## No native plugins
+## How the Rust library gets into the app
 
-The app deliberately depends on no Flutter plugin with native code. Recent
-projects, settings and export paths are handled with `dart:io` and the platform
-directory conventions, which means the app builds with nothing but the Flutter
-SDK — no CocoaPods, no per-platform plugin registration. The cost is that
-"export" writes to a known directory and offers to copy the path instead of
-opening a native save dialog; swapping in `file_selector` later is a contained
-change.
+`rust_builder/` is [cargokit](https://github.com/irondash/cargokit), scaffolded
+by `flutter_rust_bridge_codegen integrate`. It compiles `rust/` during the
+Flutter build and links the result: a static library on macOS and iOS
+(`-force_load`), a shared one through CMake on Linux and Windows.
+
+Three things there are easy to get wrong, and all three cost a build:
+
+- **The crate's package name and lib name must match.** cargokit looks for
+  `lib<package name>.a` while cargo names the artifact after the lib target, so
+  `crawlstat-bridge` and `crawlstat_bridge` would disagree and the build fails
+  with the unhelpful "Unable to find bundle for dynamic library". Both are
+  `crawlstat_bridge`.
+- **A static Rust library carries no framework dependencies.** The podspecs
+  name `SystemConfiguration` (reqwest's system-proxy support), `Security` and
+  `CoreFoundation` (rustls and ring) explicitly. Without them the link fails on
+  `kSCPropNetProxies*` and friends.
+- **`rust_builder/` is generated**, so re-running `integrate` would overwrite
+  the podspec edits above. Re-apply them if that ever happens.
+
+## Almost no Flutter plugins
+
+cargokit aside, the app depends on no Flutter plugin with native code. Recent
+projects, settings and export paths use `dart:io` and the platform directory
+conventions rather than `path_provider` or `shared_preferences`. The cost is
+that "export" writes to a known directory and offers to copy the path instead
+of opening a native save dialog; swapping in `file_selector` later is a
+contained change.
 
 ## Not yet built
 

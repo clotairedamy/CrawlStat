@@ -18,6 +18,10 @@ app/.flutter-plugins-dependencies
 app/ios/Pods/
 app/macos/Pods/
 app/**/Flutter/ephemeral/
+app/macos/Pods/
+app/macos/Podfile.lock
+app/rust_builder/cargokit/build_tool/pubspec.lock
+app/rust_builder/**/.dart_tool/
 app/**/flutter/ephemeral/
 *.iml
 app/macos/Flutter/GeneratedPluginRegistrant.swift
