@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:collection';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../rust/api/crawl.dart' as rust;
@@ -130,7 +132,7 @@ class CrawlController extends Notifier<LiveCrawl> {
       startUrl: request.mode == 'list' ? 'a list of URLs' : request.startUrl,
     );
     _listen(rust.startCrawl(request: request, dbPath: dbPath));
-    await ref.read(recentProjectsProvider.notifier).remember(dbPath);
+    await _rememberQuietly(dbPath);
   }
 
   /// Continue an interrupted crawl.
@@ -138,7 +140,22 @@ class CrawlController extends Notifier<LiveCrawl> {
     await _subscription?.cancel();
     state = LiveCrawl(phase: CrawlPhase.starting, dbPath: dbPath, resumed: true);
     _listen(rust.resumeCrawl(dbPath: dbPath));
-    await ref.read(recentProjectsProvider.notifier).remember(dbPath);
+    await _rememberQuietly(dbPath);
+  }
+
+  /// Add the crawl to the recents list, swallowing anything that goes wrong.
+  ///
+  /// This runs *after* the crawl has been handed to the engine, so letting it
+  /// throw would report a failure for a crawl that is already running — which
+  /// is exactly what happened the first time: a bug here surfaced as "cannot
+  /// start a crawl" while the crawl ran on regardless. Keeping a recents list
+  /// is bookkeeping, and bookkeeping must never fail the work.
+  Future<void> _rememberQuietly(String dbPath) async {
+    try {
+      await ref.read(recentProjectsProvider.notifier).remember(dbPath);
+    } on Object catch (error, stack) {
+      debugPrint('could not record the crawl in the recents list: $error\n$stack');
+    }
   }
 
   void _listen(Stream<CrawlEvent> events) {

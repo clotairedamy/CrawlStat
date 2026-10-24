@@ -10,6 +10,9 @@ import '../theme/theme.dart';
 /// fixed-width columns by exactly its own width.
 const double _indicatorWidth = 2;
 
+/// Horizontal padding inside every header and body cell.
+const double _cellPadding = 12;
+
 /// One column of a [DataGrid].
 class GridColumn<T> {
   const GridColumn({
@@ -24,6 +27,7 @@ class GridColumn<T> {
     this.tooltip,
     this.defaultVisible = true,
     this.cell,
+    this.grow = false,
   });
 
   /// Stable identifier, used by the column chooser and saved layouts.
@@ -52,6 +56,46 @@ class GridColumn<T> {
 
   /// Full control over the cell, for chips and icons.
   final Widget Function(BuildContext context, T row)? cell;
+
+  /// Takes the spare width when the table is narrower than its viewport. When
+  /// no column asks for it, the widest one does — usually the URL.
+  final bool grow;
+
+  GridColumn<T> _withWidth(double newWidth) => GridColumn<T>(
+        id: id,
+        label: label,
+        width: newWidth,
+        value: value,
+        sortKey: sortKey,
+        align: align,
+        mono: mono,
+        color: color,
+        tooltip: tooltip,
+        defaultVisible: defaultVisible,
+        cell: cell,
+        grow: grow,
+      );
+}
+
+/// Widen one column so the table fills `available`, rather than leaving a
+/// ragged gap to the right of the last column and a header that stops short.
+List<GridColumn<T>> fillWidth<T>(List<GridColumn<T>> columns, double available) {
+  if (columns.isEmpty || !available.isFinite) return columns;
+  final natural = columns.fold<double>(_indicatorWidth, (sum, column) => sum + column.width);
+  final spare = available - natural;
+  if (spare <= 0) return columns;
+
+  var target = columns.indexWhere((column) => column.grow);
+  if (target < 0) {
+    target = 0;
+    for (var i = 1; i < columns.length; i++) {
+      if (columns[i].width > columns[target].width) target = i;
+    }
+  }
+  return [
+    for (var i = 0; i < columns.length; i++)
+      i == target ? columns[i]._withWidth(columns[i].width + spare) : columns[i],
+  ];
 }
 
 /// A dense, virtualized table backed by server-side paging.
@@ -213,13 +257,18 @@ class _DataGridState<T> extends State<DataGrid<T>> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final columns = _visible;
-    final width = columns.fold<double>(_indicatorWidth, (sum, column) => sum + column.width);
-
     if (widget.total == 0 && !widget.loading) {
       return widget.emptyState ?? const SizedBox.shrink();
     }
+    return LayoutBuilder(
+      builder: (context, constraints) => _grid(context, constraints.maxWidth),
+    );
+  }
+
+  Widget _grid(BuildContext context, double available) {
+    final theme = Theme.of(context);
+    final columns = fillWidth(_visible, available);
+    final width = columns.fold<double>(_indicatorWidth, (sum, column) => sum + column.width);
 
     return Shortcuts(
       shortcuts: const {
@@ -279,7 +328,7 @@ class _DataGridState<T> extends State<DataGrid<T>> {
                         height: 2,
                         child: LinearProgressIndicator(
                           minHeight: 2,
-                          backgroundColor: theme.colorScheme.surface,
+                          backgroundColor: theme.colorScheme.surfaceContainerLow,
                         ),
                       ),
                   ],
@@ -297,7 +346,7 @@ class _DataGridState<T> extends State<DataGrid<T>> {
     return Container(
       height: CrawlStatTheme.headerHeight,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
+        color: theme.colorScheme.surfaceContainer.withValues(alpha: 0.6),
         border: Border(bottom: BorderSide(color: theme.dividerColor)),
       ),
       child: Row(
@@ -382,30 +431,33 @@ class _HeaderCell<T> extends StatelessWidget {
       ),
     );
 
+    // The same padding and alignment as the cells below, so a heading sits
+    // exactly over its column whether or not it is sortable.
     final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: _cellPadding),
       child: Row(
         mainAxisAlignment:
             column.align == TextAlign.right ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           Flexible(child: label),
-          if (sorted)
+          if (sorted) ...[
+            const SizedBox(width: 3),
             Icon(
               descending ? Icons.arrow_downward : Icons.arrow_upward,
               size: 12,
               color: CrawlStatTheme.accent,
             ),
+          ],
         ],
       ),
     );
 
     return SizedBox(
       width: column.width,
+      height: double.infinity,
       child: Tooltip(
         message: column.tooltip ?? (onTap == null ? '' : 'Sort by ${column.label}'),
-        child: onTap == null
-            ? Align(alignment: Alignment.centerLeft, child: content)
-            : InkWell(onTap: onTap, child: Center(child: content)),
+        child: onTap == null ? content : InkWell(onTap: onTap, child: content),
       ),
     );
   }
@@ -436,7 +488,7 @@ class _GridRow<T> extends StatelessWidget {
     if (selected) {
       background = CrawlStatTheme.accent.withValues(alpha: 0.14);
     } else if (striped) {
-      background = theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5);
+      background = theme.colorScheme.surfaceContainer.withValues(alpha: 0.35);
     }
 
     return InkWell(
@@ -459,7 +511,7 @@ class _GridRow<T> extends StatelessWidget {
               SizedBox(
                 width: column.width,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: _cellPadding),
                   child: Align(
                     alignment: column.align == TextAlign.right
                         ? Alignment.centerRight
@@ -507,7 +559,7 @@ class _PlaceholderRow<T> extends StatelessWidget {
           SizedBox(
             width: column.width,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: _cellPadding, vertical: 12),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: FractionallySizedBox(

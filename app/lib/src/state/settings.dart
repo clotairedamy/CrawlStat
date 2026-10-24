@@ -32,6 +32,7 @@ class Settings {
     this.runAudits = true,
     this.projectsDirectory,
     this.exportDirectory,
+    this.sidebarCollapsed,
   });
 
   final String userAgent;
@@ -54,6 +55,10 @@ class Settings {
   final String? projectsDirectory;
   final String? exportDirectory;
 
+  /// The user's choice for the sidebar. `null` until they choose, in which
+  /// case it follows the window width.
+  final bool? sidebarCollapsed;
+
   String get resolvedProjectsDirectory => projectsDirectory ?? defaultProjectsDirectory();
   String get resolvedExportDirectory => exportDirectory ?? defaultExportDirectory();
 
@@ -75,6 +80,7 @@ class Settings {
     bool? runAudits,
     String? projectsDirectory,
     String? exportDirectory,
+    bool? sidebarCollapsed,
   }) {
     return Settings(
       userAgent: userAgent ?? this.userAgent,
@@ -94,6 +100,7 @@ class Settings {
       runAudits: runAudits ?? this.runAudits,
       projectsDirectory: projectsDirectory ?? this.projectsDirectory,
       exportDirectory: exportDirectory ?? this.exportDirectory,
+      sidebarCollapsed: sidebarCollapsed ?? this.sidebarCollapsed,
     );
   }
 
@@ -115,6 +122,7 @@ class Settings {
         'runAudits': runAudits,
         'projectsDirectory': projectsDirectory,
         'exportDirectory': exportDirectory,
+        'sidebarCollapsed': sidebarCollapsed,
       };
 
   /// Read settings, falling back to the engine's defaults for anything absent.
@@ -147,6 +155,7 @@ class Settings {
       runAudits: pick<bool>('runAudits') ?? defaults.runAudits,
       projectsDirectory: pick<String>('projectsDirectory'),
       exportDirectory: pick<String>('exportDirectory'),
+      sidebarCollapsed: pick<bool>('sidebarCollapsed'),
     );
   }
 
@@ -225,6 +234,9 @@ class SettingsController extends Notifier<Settings> {
   void resetUserAgent() => update((s) => s.copyWith(userAgent: rust.defaultUserAgent()));
 
   void setThemeMode(ThemeMode mode) => update((s) => s.copyWith(themeMode: mode));
+
+  void setSidebarCollapsed(bool collapsed) =>
+      update((s) => s.copyWith(sidebarCollapsed: collapsed));
 }
 
 final settingsProvider = NotifierProvider<SettingsController, Settings>(SettingsController.new);

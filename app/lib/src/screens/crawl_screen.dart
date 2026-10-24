@@ -42,17 +42,65 @@ class CrawlScreen extends ConsumerWidget {
     }
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _CrawlHeader(crawl: crawl),
-        if (crawl.error != null)
-          InlineMessage(message: crawl.error!, severity: 'error'),
-        _Counters(crawl: crawl),
-        if (crawl.warnings.isNotEmpty) _Warnings(warnings: crawl.warnings),
-        Expanded(child: _LiveTable(rows: crawl.rows, phase: crawl.phase)),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              CrawlStatTheme.gutter,
+              0,
+              CrawlStatTheme.gutter,
+              CrawlStatTheme.gutter,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (crawl.error != null)
+                  InlineMessage(
+                    message: crawl.error!,
+                    severity: 'error',
+                    margin: const EdgeInsets.only(bottom: 16),
+                  ),
+                _Counters(crawl: crawl),
+                const SizedBox(height: 16),
+                _ProgressCard(crawl: crawl),
+                if (crawl.warnings.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _Warnings(warnings: crawl.warnings),
+                ],
+                const SizedBox(height: 16),
+                Expanded(
+                  child: Card(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _TableHeading(count: crawl.rows.length),
+                        Expanded(child: _LiveTable(rows: crawl.rows, phase: crawl.phase)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
 }
+
+/// The phase as a word and a colour, shared by the header and the progress.
+(String, Color) _phaseLook(CrawlPhase phase) => switch (phase) {
+      CrawlPhase.starting => ('Starting', CrawlStatTheme.accent),
+      CrawlPhase.running => ('Crawling', CrawlStatTheme.success),
+      CrawlPhase.paused => ('Paused', CrawlStatTheme.warning),
+      CrawlPhase.auditing => ('Auditing', CrawlStatTheme.accent),
+      CrawlPhase.finished => ('Finished', CrawlStatTheme.success),
+      CrawlPhase.cancelled => ('Stopped', CrawlStatTheme.warning),
+      CrawlPhase.failed => ('Failed', CrawlStatTheme.error),
+      CrawlPhase.idle => ('Idle', CrawlStatTheme.notice),
+    };
 
 class _CrawlHeader extends ConsumerWidget {
   const _CrawlHeader({required this.crawl});
@@ -62,97 +110,56 @@ class _CrawlHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(crawlControllerProvider.notifier);
-    final (label, color) = switch (crawl.phase) {
-      CrawlPhase.starting => ('Starting', CrawlStatTheme.accent),
-      CrawlPhase.running => ('Crawling', CrawlStatTheme.accent),
-      CrawlPhase.paused => ('Paused', CrawlStatTheme.warning),
-      CrawlPhase.auditing => ('Auditing', CrawlStatTheme.accent),
-      CrawlPhase.finished => ('Finished', CrawlStatTheme.success),
-      CrawlPhase.cancelled => ('Stopped', CrawlStatTheme.warning),
-      CrawlPhase.failed => ('Failed', CrawlStatTheme.error),
-      CrawlPhase.idle => ('Idle', CrawlStatTheme.notice),
-    };
+    final (label, color) = _phaseLook(crawl.phase);
+    final host = Uri.tryParse(crawl.startUrl ?? '')?.host;
+    final live = crawl.isRunning || crawl.phase == CrawlPhase.auditing;
 
-    return Column(
-      children: [
-        ScreenHeader(
-          title: crawl.startUrl ?? 'Crawl',
-          subtitle: '$label${crawl.resumed ? ' · resumed' : ''}'
-              '${crawl.seeded > 0 ? ' · ${formatCount(crawl.seeded)} seeded' : ''}',
-          actions: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.13),
-                borderRadius: BorderRadius.circular(5),
-              ),
-              child: Row(
-                children: [
-                  if (crawl.isRunning || crawl.phase == CrawlPhase.auditing)
-                    const Padding(
-                      padding: EdgeInsets.only(right: 6),
-                      child: SizedBox(
-                        width: 10,
-                        height: 10,
-                        child: CircularProgressIndicator(strokeWidth: 1.8),
-                      ),
-                    ),
-                  Text(
-                    label,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: color, fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            if (crawl.phase == CrawlPhase.running)
-              OutlinedButton.icon(
-                onPressed: controller.pause,
-                icon: const Icon(Icons.pause, size: 14),
-                label: const Text('Pause'),
-              ),
-            if (crawl.phase == CrawlPhase.paused)
-              FilledButton.icon(
-                onPressed: controller.resume,
-                icon: const Icon(Icons.play_arrow, size: 14),
-                label: const Text('Resume'),
-              ),
-            if (crawl.isRunning) ...[
-              const SizedBox(width: 6),
-              OutlinedButton.icon(
-                onPressed: controller.cancel,
-                icon: const Icon(Icons.stop, size: 14),
-                label: const Text('Stop'),
-              ),
-            ],
-            if (crawl.isFinished) ...[
-              FilledButton.icon(
-                onPressed: () {
-                  // The crawl is over, so the results are complete: send the
-                  // table back to the database for the full set.
-                  ref.read(urlTableProvider.notifier).reset();
-                  context.go(Routes.results);
-                },
-                icon: const Icon(Icons.table_rows_outlined, size: 14),
-                label: const Text('See results'),
-              ),
-              const SizedBox(width: 6),
-              OutlinedButton(
-                onPressed: controller.clear,
-                child: const Text('Clear'),
-              ),
-            ],
-          ],
-        ),
-        if (crawl.isRunning || crawl.phase == CrawlPhase.auditing)
-          LinearProgressIndicator(
-            value: crawl.fraction,
-            minHeight: 2,
-            backgroundColor: Theme.of(context).colorScheme.surface,
+    final details = [
+      ?crawl.startUrl,
+      if (crawl.resumed) 'resumed',
+      if (crawl.seeded > 0) '${formatCount(crawl.seeded)} seeded',
+    ];
+
+    return ScreenHeader(
+      title: host == null || host.isEmpty ? (crawl.startUrl ?? 'Crawl') : host,
+      leading: TonePill(label, color: color, dot: live),
+      subtitle: details.isEmpty ? null : details.join('  ·  '),
+      actions: [
+        if (crawl.phase == CrawlPhase.running)
+          OutlinedButton.icon(
+            onPressed: controller.pause,
+            icon: const Icon(Icons.pause_rounded, size: 16),
+            label: const Text('Pause'),
           ),
+        if (crawl.phase == CrawlPhase.paused)
+          FilledButton.icon(
+            onPressed: controller.resume,
+            icon: const Icon(Icons.play_arrow_rounded, size: 16),
+            label: const Text('Resume'),
+          ),
+        if (crawl.isRunning)
+          OutlinedButton.icon(
+            onPressed: controller.cancel,
+            style: OutlinedButton.styleFrom(foregroundColor: CrawlStatTheme.error),
+            icon: const Icon(Icons.stop_rounded, size: 16),
+            label: const Text('Stop'),
+          ),
+        if (crawl.isFinished) ...[
+          OutlinedButton(
+            onPressed: controller.clear,
+            child: const Text('Clear'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              // The crawl is over, so the results are complete: send the
+              // table back to the database for the full set.
+              ref.read(urlTableProvider.notifier).reset();
+              context.go(Routes.results);
+            },
+            icon: const Icon(Icons.table_chart_outlined, size: 16),
+            label: const Text('See results'),
+          ),
+        ],
       ],
     );
   }
@@ -165,7 +172,6 @@ class _Counters extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final snapshot = crawl.snapshot;
     final summary = crawl.summary;
 
@@ -174,64 +180,186 @@ class _Counters extends ConsumerWidget {
     final errors = summary?.errors ?? snapshot?.errors ?? 0;
     final notFound = summary?.status4Xx ?? snapshot?.status4Xx ?? 0;
     final serverErrors = summary?.status5Xx ?? snapshot?.status5Xx ?? 0;
+    final audit = crawl.audit;
+
+    final tiles = [
+      StatTile(
+        label: 'Crawled',
+        icon: Icons.check_circle_outline_rounded,
+        color: CrawlStatTheme.success,
+        value: formatCount(crawled),
+        hint: 'Fetched and stored',
+      ),
+      StatTile(
+        label: 'Queued',
+        icon: Icons.schedule_rounded,
+        value: formatCount(snapshot?.queued ?? 0),
+        hint: 'Waiting to be fetched',
+      ),
+      StatTile(
+        label: 'Discovered',
+        icon: Icons.travel_explore_rounded,
+        value: formatCount(discovered),
+        hint: 'Known to the crawl',
+      ),
+      StatTile(
+        label: 'Client errors',
+        icon: Icons.link_off_rounded,
+        color: notFound > 0 ? CrawlStatTheme.error : CrawlStatTheme.notice,
+        value: formatCount(notFound),
+        hint: '4xx responses',
+      ),
+      StatTile(
+        label: 'Server errors',
+        icon: Icons.dns_outlined,
+        color: serverErrors > 0 ? CrawlStatTheme.error : CrawlStatTheme.notice,
+        value: formatCount(serverErrors),
+        hint: '5xx responses',
+      ),
+      if (audit != null)
+        StatTile(
+          label: 'Issues',
+          icon: Icons.fact_check_outlined,
+          color: audit.errors > 0 ? CrawlStatTheme.error : CrawlStatTheme.warning,
+          value: formatCount(audit.errors + audit.warnings),
+          hint: '${audit.errors} errors, ${audit.warnings} warnings',
+          onTap: () => context.go(Routes.issues),
+        )
+      else
+        StatTile(
+          label: 'Failed',
+          icon: Icons.error_outline_rounded,
+          color: errors > 0 ? CrawlStatTheme.error : CrawlStatTheme.notice,
+          value: formatCount(errors),
+          hint: 'Could not be fetched',
+        ),
+    ];
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final (index, tile) in tiles.indexed) ...[
+          if (index > 0) const SizedBox(width: 14),
+          Expanded(child: tile),
+        ],
+      ],
+    );
+  }
+}
+
+/// How far along the crawl is, and how fast it is going.
+class _ProgressCard extends StatelessWidget {
+  const _ProgressCard({required this.crawl});
+
+  final LiveCrawl crawl;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final snapshot = crawl.snapshot;
+    final summary = crawl.summary;
+    final (_, color) = _phaseLook(crawl.phase);
+
+    final crawled = summary?.crawled ?? snapshot?.crawled ?? 0;
+    final discovered = summary?.discovered ?? snapshot?.discovered ?? 0;
     final rate = summary?.urlsPerSecond ?? snapshot?.urlsPerSecond ?? 0;
     final elapsed = summary?.elapsedMs ?? snapshot?.elapsedMs ?? 0;
+    final fraction = crawl.isFinished ? 1.0 : crawl.fraction;
+    final live = crawl.isRunning || crawl.phase == CrawlPhase.auditing;
 
+    Widget metric(String label, String value) => Padding(
+          padding: const EdgeInsets.only(left: 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(label, style: theme.textTheme.bodySmall),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Progress', style: theme.textTheme.bodySmall),
+                      const SizedBox(height: 2),
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: fraction == null ? '—' : '${(fraction * 100).round()}%',
+                              style: theme.textTheme.titleLarge?.copyWith(fontSize: 22),
+                            ),
+                            TextSpan(
+                              text: '   ${formatCount(crawled)} of ${formatCount(discovered)} URLs',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                metric('Speed', '${rate.toStringAsFixed(rate >= 10 ? 0 : 1)} URLs/s'),
+                if (live) metric('In flight', formatCount(snapshot?.inFlight ?? 0)),
+                metric('Elapsed', formatMillis(elapsed)),
+              ],
+            ),
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: fraction ?? (live ? null : 0),
+                minHeight: 8,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TableHeading extends StatelessWidget {
+  const _TableHeading({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
         border: Border(bottom: BorderSide(color: theme.dividerColor)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       child: Row(
         children: [
-          StatTile(label: 'Crawled', value: formatCount(crawled)),
-          StatTile(
-            label: 'Queued',
-            value: formatCount(snapshot?.queued ?? 0),
-            hint: 'Discovered but not yet fetched',
+          Text('Live URLs', style: theme.textTheme.titleSmall),
+          const SizedBox(width: 10),
+          Text(
+            count >= liveRowLimit ? 'newest $liveRowLimit' : 'newest first',
+            style: theme.textTheme.bodySmall,
           ),
-          StatTile(
-            label: 'In flight',
-            value: formatCount(snapshot?.inFlight ?? 0),
-            hint: 'Requests open right now',
-          ),
-          StatTile(
-            label: 'Discovered',
-            value: formatCount(discovered),
-            hint: 'Every URL the crawl knows about',
-          ),
-          StatTile(
-            label: '4xx',
-            value: formatCount(notFound),
-            color: notFound > 0 ? CrawlStatTheme.error : null,
-          ),
-          StatTile(
-            label: '5xx',
-            value: formatCount(serverErrors),
-            color: serverErrors > 0 ? CrawlStatTheme.error : null,
-          ),
-          StatTile(
-            label: 'Failed',
-            value: formatCount(errors),
-            color: errors > 0 ? CrawlStatTheme.error : null,
-            hint: 'Could not be fetched at all',
-          ),
-          const Spacer(),
-          StatTile(
-            label: 'URLs/sec',
-            value: rate.toStringAsFixed(rate >= 10 ? 0 : 1),
-            hint: 'Over the last few seconds',
-          ),
-          StatTile(label: 'Elapsed', value: formatMillis(elapsed)),
-          if (crawl.audit != null)
-            StatTile(
-              label: 'Issues',
-              value: formatCount(crawl.audit!.errors + crawl.audit!.warnings),
-              color: crawl.audit!.errors > 0 ? CrawlStatTheme.error : CrawlStatTheme.warning,
-              hint: '${crawl.audit!.errors} errors, ${crawl.audit!.warnings} warnings',
-              onTap: () => context.go(Routes.issues),
-            ),
         ],
       ),
     );
@@ -256,25 +384,27 @@ class _WarningsState extends State<_Warnings> {
     final theme = Theme.of(context);
     final latest = widget.warnings.first;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: CrawlStatTheme.warning.withValues(alpha: 0.08),
-        border: Border(bottom: BorderSide(color: theme.dividerColor)),
+    return Material(
+      color: CrawlStatTheme.warning.withValues(alpha: 0.09),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(CrawlStatTheme.controlRadius + 1),
+        side: BorderSide(color: CrawlStatTheme.warning.withValues(alpha: 0.25)),
       ),
       child: Column(
         children: [
           InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               child: Row(
                 children: [
                   const Icon(
-                    Icons.warning_amber_outlined,
-                    size: 14,
+                    Icons.warning_amber_rounded,
+                    size: 16,
                     color: CrawlStatTheme.warning,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       _expanded
@@ -306,7 +436,7 @@ class _WarningsState extends State<_Warnings> {
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 150),
               child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(34, 0, 12, 8),
+                padding: const EdgeInsets.fromLTRB(40, 0, 14, 10),
                 itemCount: widget.warnings.length,
                 itemBuilder: (context, index) {
                   final warning = widget.warnings[index];
@@ -354,16 +484,16 @@ class _LiveTable extends StatelessWidget {
       GridColumn(
         id: 'status',
         label: 'Code',
-        width: 62,
-        align: TextAlign.right,
+        width: 72,
         value: (row) => row.statusCode?.toString() ?? '—',
         cell: (context, row) => StatusChip(row.statusCode),
       ),
       GridColumn(
         id: 'url',
         label: 'URL',
-        width: 540,
+        width: 460,
         mono: true,
+        grow: true,
         value: (row) => row.url,
       ),
       GridColumn(

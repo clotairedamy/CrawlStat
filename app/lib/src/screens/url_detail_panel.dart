@@ -34,43 +34,40 @@ class _UrlDetailPanelState extends ConsumerState<UrlDetailPanel> {
 
     return SizedBox(
       width: 420,
-      child: Container(
-        color: theme.colorScheme.surface,
-        child: detail.when(
-          loading: () => const Center(
-            child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-          ),
-          error: (error, _) => Padding(
-            padding: const EdgeInsets.all(14),
-            child: Text('Could not load this URL: $error', style: theme.textTheme.bodySmall),
-          ),
-          data: (data) => Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _Header(row: data.row),
-              _PanelTabs(
-                tabs: _tabs,
-                counts: {
-                  1: data.issues.length,
-                  2: data.inlinks.length,
-                  3: data.outlinks.length,
-                  4: data.images.length,
-                },
-                selected: _tab,
-                onSelect: (index) => setState(() => _tab = index),
-              ),
-              Expanded(
-                child: switch (_tab) {
-                  1 => _IssuesTab(issues: data.issues),
-                  2 => _LinksTab(links: data.inlinks, showSource: true),
-                  3 => _LinksTab(links: data.outlinks, showSource: false),
-                  4 => _ImagesTab(images: data.images),
-                  5 => _HeadersTab(headers: data.headers),
-                  _ => _OverviewTab(detail: data),
-                },
-              ),
-            ],
-          ),
+      child: detail.when(
+        loading: () => const Center(
+          child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+        ),
+        error: (error, _) => Padding(
+          padding: const EdgeInsets.all(14),
+          child: Text('Could not load this URL: $error', style: theme.textTheme.bodySmall),
+        ),
+        data: (data) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _Header(row: data.row),
+            _PanelTabs(
+              tabs: _tabs,
+              counts: {
+                1: data.issues.length,
+                2: data.inlinks.length,
+                3: data.outlinks.length,
+                4: data.images.length,
+              },
+              selected: _tab,
+              onSelect: (index) => setState(() => _tab = index),
+            ),
+            Expanded(
+              child: switch (_tab) {
+                1 => _IssuesTab(issues: data.issues),
+                2 => _LinksTab(links: data.inlinks, showSource: true),
+                3 => _LinksTab(links: data.outlinks, showSource: false),
+                4 => _ImagesTab(images: data.images),
+                5 => _HeadersTab(headers: data.headers),
+                _ => _OverviewTab(detail: data),
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -86,7 +83,7 @@ class _Header extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+      padding: const EdgeInsets.fromLTRB(18, 14, 10, 14),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: theme.dividerColor)),
       ),
@@ -98,10 +95,7 @@ class _Header extends ConsumerWidget {
               StatusChip(row.statusCode),
               const SizedBox(width: 8),
               Expanded(
-                child: IndexablePill(
-                  indexable: row.indexable,
-                  reason: row.indexabilityReason,
-                ),
+                child: IndexablePill(indexable: row.indexable, reason: row.indexabilityReason),
               ),
               ToolbarButton(
                 icon: Icons.copy_all_outlined,
@@ -116,11 +110,7 @@ class _Header extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
-          SelectableText(
-            row.url,
-            style: CrawlStatTheme.mono(context, size: 12.5),
-            maxLines: 3,
-          ),
+          SelectableText(row.url, style: CrawlStatTheme.mono(context, size: 12.5), maxLines: 3),
         ],
       ),
     );
@@ -206,9 +196,7 @@ class _OverviewTab extends StatelessWidget {
                 children: [
                   StatusChip(hop.status),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(hop.toUrl, style: CrawlStatTheme.mono(context, size: 11.5)),
-                  ),
+                  Expanded(child: Text(hop.toUrl, style: CrawlStatTheme.mono(context, size: 11.5))),
                 ],
               ),
             ),
@@ -229,7 +217,10 @@ class _OverviewTab extends StatelessWidget {
         _Pair(label: 'Content type', value: row.contentType),
         _Pair(label: 'Size', value: formatBytes(row.sizeBytes)),
         _Pair(label: 'Response time', value: formatMillis(row.responseTimeMs)),
-        _Pair(label: 'Word count', value: row.wordCount == null ? null : formatCount(row.wordCount!)),
+        _Pair(
+          label: 'Word count',
+          value: row.wordCount == null ? null : formatCount(row.wordCount!),
+        ),
         const Divider(height: 22),
         _Pair(label: 'Crawl depth', value: row.depth.toString()),
         _Pair(label: 'Inlinks', value: formatCount(row.inlinks)),
@@ -239,11 +230,7 @@ class _OverviewTab extends StatelessWidget {
               ? null
               : '${row.internalLinks} internal, ${row.externalLinks ?? 0} external',
         ),
-        _Pair(
-          label: 'Link score',
-          value: row.linkScore?.toStringAsFixed(1),
-          suffix: 'of 100',
-        ),
+        _Pair(label: 'Link score', value: row.linkScore?.toStringAsFixed(1), suffix: 'of 100'),
         if (row.errorKind != null) ...[
           const Divider(height: 22),
           _Pair(label: 'Error', value: row.errorKind, color: CrawlStatTheme.error),
@@ -289,8 +276,7 @@ class _IssuesTab extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(issue.title, style: theme.textTheme.bodyMedium),
-                  if (issue.detail != null)
-                    Text(issue.detail!, style: theme.textTheme.bodySmall),
+                  if (issue.detail != null) Text(issue.detail!, style: theme.textTheme.bodySmall),
                 ],
               ),
             ),
@@ -455,10 +441,7 @@ class _HeadersTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(header.name, style: Theme.of(context).textTheme.labelMedium),
-              SelectableText(
-                header.value,
-                style: CrawlStatTheme.mono(context, size: 11.5),
-              ),
+              SelectableText(header.value, style: CrawlStatTheme.mono(context, size: 11.5)),
             ],
           ),
         );

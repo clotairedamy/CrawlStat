@@ -38,8 +38,7 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
       ref.invalidate(auditReportProvider(path));
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Audit failed: $error')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Audit failed: $error')));
       }
     } finally {
       if (mounted) setState(() => _auditing = false);
@@ -68,8 +67,7 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
       );
     } on Object catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Export failed: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $error')));
     }
   }
 
@@ -78,7 +76,10 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
     final path = ref.watch(openProjectProvider);
     if (path == null) {
       return const Column(
-        children: [ScreenHeader(title: 'Issues'), Expanded(child: NoProjectState())],
+        children: [
+          ScreenHeader(title: 'Issues'),
+          Expanded(child: NoProjectState()),
+        ],
       );
     }
 
@@ -92,8 +93,8 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
             data: (data) => data.issues.isEmpty
                 ? 'Nothing found'
                 : '${data.errors} error${data.errors == 1 ? '' : 's'}, '
-                    '${data.warnings} warning${data.warnings == 1 ? '' : 's'}, '
-                    '${data.notices} notice${data.notices == 1 ? '' : 's'}',
+                      '${data.warnings} warning${data.warnings == 1 ? '' : 's'}, '
+                      '${data.notices} notice${data.notices == 1 ? '' : 's'}',
             orElse: () => null,
           ),
           actions: [
@@ -105,13 +106,12 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
                       height: 12,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.refresh, size: 14),
+                  : const Icon(Icons.refresh_rounded, size: 16),
               label: Text(_auditing ? 'Auditing…' : 'Re-run audits'),
             ),
-            const SizedBox(width: 6),
             OutlinedButton.icon(
               onPressed: () => _exportIssues(path),
-              icon: const Icon(Icons.file_download_outlined, size: 14),
+              icon: const Icon(Icons.file_download_outlined, size: 16),
               label: const Text('Export CSV'),
             ),
           ],
@@ -139,7 +139,8 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
                 return EmptyState(
                   icon: Icons.verified_outlined,
                   title: 'No issues found',
-                  message: 'Either this site is in good shape, or the audits have not '
+                  message:
+                      'Either this site is in good shape, or the audits have not '
                       'run yet for this crawl.',
                   action: OutlinedButton(
                     onPressed: () => _reaudit(path),
@@ -153,19 +154,34 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
                 orElse: () => data.issues.first,
               );
 
-              return Row(
-                children: [
-                  SizedBox(
-                    width: 380,
-                    child: _IssueList(
-                      report: data,
-                      selectedId: selected.id,
-                      onSelect: (id) => setState(() => _selectedId = id),
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  CrawlStatTheme.gutter,
+                  0,
+                  CrawlStatTheme.gutter,
+                  CrawlStatTheme.gutter,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: 360,
+                      child: Card(
+                        child: _IssueList(
+                          report: data,
+                          selectedId: selected.id,
+                          onSelect: (id) => setState(() => _selectedId = id),
+                        ),
+                      ),
                     ),
-                  ),
-                  Container(width: 1, color: Theme.of(context).dividerColor),
-                  Expanded(child: _IssueDetail(issue: selected, path: path)),
-                ],
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Card(
+                        child: _IssueDetail(issue: selected, path: path),
+                      ),
+                    ),
+                  ],
+                ),
               );
             },
           ),
@@ -176,11 +192,7 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
 }
 
 class _IssueList extends StatelessWidget {
-  const _IssueList({
-    required this.report,
-    required this.selectedId,
-    required this.onSelect,
-  });
+  const _IssueList({required this.report, required this.selectedId, required this.onSelect});
 
   final AuditReport report;
   final String selectedId;
@@ -196,37 +208,31 @@ class _IssueList extends StatelessWidget {
       'notice': report.issues.where((issue) => issue.severity == 'notice').toList(),
     };
 
-    return Container(
-      color: theme.colorScheme.surface,
-      child: ListView(
-        padding: const EdgeInsets.only(bottom: 20),
-        children: [
-          for (final entry in groups.entries)
-            if (entry.value.isNotEmpty) ...[
-              Container(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
-                child: Row(
-                  children: [
-                    SeverityDot(entry.key),
-                    const SizedBox(width: 7),
-                    Text(
-                      '${entry.key.toUpperCase()}S',
-                      style: theme.textTheme.labelMedium,
-                    ),
-                    const Spacer(),
-                    Text('${entry.value.length}', style: theme.textTheme.bodySmall),
-                  ],
-                ),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+      children: [
+        for (final entry in groups.entries)
+          if (entry.value.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 14, 10, 6),
+              child: Row(
+                children: [
+                  SeverityDot(entry.key),
+                  const SizedBox(width: 8),
+                  Text('${entry.key.toUpperCase()}S', style: theme.textTheme.labelMedium),
+                  const Spacer(),
+                  TonePill('${entry.value.length}', color: CrawlStatTheme.severityColor(entry.key)),
+                ],
               ),
-              for (final issue in entry.value)
-                _IssueRow(
-                  issue: issue,
-                  selected: issue.id == selectedId,
-                  onTap: () => onSelect(issue.id),
-                ),
-            ],
-        ],
-      ),
+            ),
+            for (final issue in entry.value)
+              _IssueRow(
+                issue: issue,
+                selected: issue.id == selectedId,
+                onTap: () => onSelect(issue.id),
+              ),
+          ],
+      ],
     );
   }
 }
@@ -241,18 +247,16 @@ class _IssueRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final radius = BorderRadius.circular(CrawlStatTheme.controlRadius);
     return InkWell(
       onTap: onTap,
+      borderRadius: radius,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        constraints: const BoxConstraints(minHeight: 38),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? CrawlStatTheme.accent.withValues(alpha: 0.12) : null,
-          border: Border(
-            left: BorderSide(
-              color: selected ? CrawlStatTheme.accent : Colors.transparent,
-              width: 2,
-            ),
-          ),
+          color: selected ? CrawlStatTheme.accent.withValues(alpha: 0.14) : null,
+          borderRadius: radius,
         ),
         child: Row(
           children: [
@@ -261,16 +265,17 @@ class _IssueRow extends StatelessWidget {
                 issue.title,
                 maxLines: 2,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: selected ? CrawlStatTheme.accent : null,
+                  fontWeight: selected ? FontWeight.w600 : null,
                 ),
               ),
             ),
             const SizedBox(width: 8),
             Text(
               formatCount(issue.urlCount),
-              style: CrawlStatTheme.mono(
-                context,
+              style: theme.textTheme.bodySmall?.copyWith(
                 color: CrawlStatTheme.severityColor(issue.severity),
+                fontWeight: FontWeight.w600,
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
           ],
@@ -290,15 +295,12 @@ class _IssueDetail extends ConsumerWidget {
     final settings = ref.read(settingsProvider);
     final directory = Directory(settings.resolvedExportDirectory);
     if (!directory.existsSync()) directory.createSync(recursive: true);
-    final file = '${directory.path}${Platform.pathSeparator}'
+    final file =
+        '${directory.path}${Platform.pathSeparator}'
         'crawlstat-${issue.id}-${DateTime.now().millisecondsSinceEpoch}.csv';
 
     try {
-      final rows = await rust.exportIssueUrlsCsv(
-        dbPath: path,
-        issueId: issue.id,
-        outPath: file,
-      );
+      final rows = await rust.exportIssueUrlsCsv(dbPath: path, issueId: issue.id, outPath: file);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -311,8 +313,7 @@ class _IssueDetail extends ConsumerWidget {
       );
     } on Object catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Export failed: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $error')));
     }
   }
 
@@ -321,26 +322,20 @@ class _IssueDetail extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(22, 20, 22, 30),
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 30),
       children: [
         Row(
           children: [
-            SeverityDot(issue.severity, size: 9),
+            TonePill(
+              issue.severity[0].toUpperCase() + issue.severity.substring(1),
+              color: CrawlStatTheme.severityColor(issue.severity),
+              dot: true,
+            ),
             const SizedBox(width: 8),
-            Text(
-              issue.severity.toUpperCase(),
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: CrawlStatTheme.severityColor(issue.severity),
-              ),
-            ),
-            const Spacer(),
-            Text(
-              '${formatCount(issue.urlCount)} affected',
-              style: theme.textTheme.bodySmall,
-            ),
+            TonePill('${formatCount(issue.urlCount)} URLs affected', color: CrawlStatTheme.notice),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 14),
         Text(issue.title, style: theme.textTheme.titleLarge),
         const SizedBox(height: 14),
         Text(issue.description, style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
@@ -348,19 +343,18 @@ class _IssueDetail extends ConsumerWidget {
         Text('HOW TO FIX', style: theme.textTheme.labelMedium),
         const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerLow,
-            border: Border.all(color: theme.dividerColor),
-            borderRadius: BorderRadius.circular(8),
+            color: CrawlStatTheme.accent.withValues(alpha: 0.07),
+            border: Border.all(color: CrawlStatTheme.accent.withValues(alpha: 0.25)),
+            borderRadius: BorderRadius.circular(CrawlStatTheme.controlRadius + 2),
           ),
-          child: Text(
-            issue.howToFix,
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
-          ),
+          child: Text(issue.howToFix, style: theme.textTheme.bodyMedium?.copyWith(height: 1.55)),
         ),
         const SizedBox(height: 20),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
             FilledButton.icon(
               onPressed: () {
@@ -372,18 +366,14 @@ class _IssueDetail extends ConsumerWidget {
               icon: const Icon(Icons.filter_alt_outlined, size: 15),
               label: Text('Show ${formatCount(issue.urlCount)} URLs'),
             ),
-            const SizedBox(width: 8),
             OutlinedButton.icon(
               onPressed: () => _exportAffected(context, ref),
               icon: const Icon(Icons.file_download_outlined, size: 14),
               label: const Text('Export affected'),
             ),
-            const SizedBox(width: 8),
             OutlinedButton.icon(
               onPressed: () => Clipboard.setData(
-                ClipboardData(
-                  text: 'https://crawlstat.com/docs/audits/${issue.docsSlug}',
-                ),
+                ClipboardData(text: 'https://crawlstat.com/docs/audits/${issue.docsSlug}'),
               ),
               icon: const Icon(Icons.link, size: 14),
               label: const Text('Copy docs link'),

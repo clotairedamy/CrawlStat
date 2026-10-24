@@ -45,8 +45,16 @@ class ResultsTab {
       label: 'Internal',
       filterTab: 'internal',
       columns: [
-        'status', 'url', 'indexable', 'title', 'word_count', 'depth',
-        'inlinks', 'link_score', 'size', 'time',
+        'status',
+        'url',
+        'indexable',
+        'title',
+        'word_count',
+        'depth',
+        'inlinks',
+        'link_score',
+        'size',
+        'time',
       ],
     ),
     ResultsTab(
@@ -155,13 +163,10 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
   void _applyTab() {
     final table = ref.read(urlTableProvider.notifier);
     final current = ref.read(urlTableProvider).query;
-    table.setQuery(
-      current.copyWith(tab: _tab.filterTab, sortBy: _tab.sortBy, descending: false),
-    );
+    table.setQuery(current.copyWith(tab: _tab.filterTab, sortBy: _tab.sortBy, descending: false));
   }
 
-  Set<String> get _visibleColumns =>
-      _columnOverrides[_tabId] ?? _tab.columns.toSet();
+  Set<String> get _visibleColumns => _columnOverrides[_tabId] ?? _tab.columns.toSet();
 
   Future<void> _export() async {
     final path = ref.read(openProjectProvider);
@@ -171,7 +176,8 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
 
     final directory = Directory(settings.resolvedExportDirectory);
     if (!directory.existsSync()) directory.createSync(recursive: true);
-    final file = '${directory.path}${Platform.pathSeparator}'
+    final file =
+        '${directory.path}${Platform.pathSeparator}'
         'crawlstat-$_tabId-${DateTime.now().millisecondsSinceEpoch}.csv';
 
     try {
@@ -194,9 +200,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
       );
     } on Object catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $error')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $error')));
     }
   }
 
@@ -205,7 +209,10 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
     final path = ref.watch(openProjectProvider);
     if (path == null) {
       return const Column(
-        children: [ScreenHeader(title: 'Results'), Expanded(child: NoProjectState())],
+        children: [
+          ScreenHeader(title: 'Results'),
+          Expanded(child: NoProjectState()),
+        ],
       );
     }
 
@@ -220,10 +227,12 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
         CrawlStatShortcuts.closePanel: ref.read(selectedUrlProvider.notifier).clear,
       },
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ScreenHeader(
             title: 'Results',
-            subtitle: '${formatCount(table.total)} '
+            subtitle:
+                '${formatCount(table.total)} '
                 '${table.total == 1 ? 'row' : 'rows'}'
                 '${table.query.hasFilters ? ' matching the filter' : ''}',
             actions: [
@@ -232,70 +241,93 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                 visible: _visibleColumns,
                 onChanged: (next) => setState(() => _columnOverrides[_tabId] = next),
               ),
-              const SizedBox(width: 4),
               OutlinedButton.icon(
                 onPressed: _export,
-                icon: const Icon(Icons.file_download_outlined, size: 14),
+                icon: const Icon(Icons.file_download_outlined, size: 16),
                 label: const Text('Export CSV'),
               ),
             ],
           ),
-          _TabBar(
-            tabs: ResultsTab.all,
-            selected: _tabId,
-            onSelect: (id) {
-              setState(() => _tabId = id);
-              _applyTab();
-            },
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: CrawlStatTheme.gutter),
+            child: _TabBar(
+              tabs: ResultsTab.all,
+              selected: _tabId,
+              onSelect: (id) {
+                setState(() => _tabId = id);
+                _applyTab();
+              },
+            ),
           ),
-          _FilterBar(
-            search: _search,
-            focus: _searchFocus,
-            query: table.query,
-          ),
-          if (table.error != null)
-            InlineMessage(message: 'Could not read results: ${table.error}', severity: 'error'),
+          const SizedBox(height: 14),
           Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: DataGrid<UrlRow>(
-                    columns: columns,
-                    visibleColumnIds: _visibleColumns,
-                    total: table.total,
-                    loading: table.pending.isNotEmpty,
-                    rowAt: table.rowAt,
-                    onNeedRow: ref.read(urlTableProvider.notifier).ensureIndexLoaded,
-                    sortBy: table.query.sortBy,
-                    descending: table.query.descending,
-                    onSort: ref.read(urlTableProvider.notifier).sortBy,
-                    selectedKey: selected,
-                    rowKey: (row) => row.id,
-                    onSelect: (row) =>
-                        ref.read(selectedUrlProvider.notifier).select(row.id),
-                    emptyState: EmptyState(
-                      icon: Icons.filter_alt_off_outlined,
-                      title: table.query.hasFilters ? 'Nothing matches' : 'No rows',
-                      message: table.query.hasFilters
-                          ? 'Try widening the filter, or clear it to see everything.'
-                          : 'This tab has nothing in it for this crawl.',
-                      action: table.query.hasFilters
-                          ? OutlinedButton(
-                              onPressed: () {
-                                _search.clear();
-                                ref.read(urlTableProvider.notifier).clearFilters();
-                              },
-                              child: const Text('Clear filter'),
-                            )
-                          : null,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                CrawlStatTheme.gutter,
+                0,
+                CrawlStatTheme.gutter,
+                CrawlStatTheme.gutter,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Card(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _FilterBar(search: _search, focus: _searchFocus, query: table.query),
+                          if (table.error != null)
+                            InlineMessage(
+                              message: 'Could not read results: ${table.error}',
+                              severity: 'error',
+                              margin: const EdgeInsets.all(12),
+                            ),
+                          Expanded(
+                            child: DataGrid<UrlRow>(
+                              columns: columns,
+                              visibleColumnIds: _visibleColumns,
+                              total: table.total,
+                              loading: table.pending.isNotEmpty,
+                              rowAt: table.rowAt,
+                              onNeedRow: ref.read(urlTableProvider.notifier).ensureIndexLoaded,
+                              sortBy: table.query.sortBy,
+                              descending: table.query.descending,
+                              onSort: ref.read(urlTableProvider.notifier).sortBy,
+                              selectedKey: selected,
+                              rowKey: (row) => row.id,
+                              onSelect: (row) =>
+                                  ref.read(selectedUrlProvider.notifier).select(row.id),
+                              emptyState: EmptyState(
+                                icon: Icons.filter_alt_off_outlined,
+                                title: table.query.hasFilters ? 'Nothing matches' : 'No rows',
+                                message: table.query.hasFilters
+                                    ? 'Try widening the filter, or clear it to see everything.'
+                                    : 'This tab has nothing in it for this crawl.',
+                                action: table.query.hasFilters
+                                    ? OutlinedButton(
+                                        onPressed: () {
+                                          _search.clear();
+                                          ref.read(urlTableProvider.notifier).clearFilters();
+                                        },
+                                        child: const Text('Clear filter'),
+                                      )
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                if (selected != null) ...[
-                  Container(width: 1, color: Theme.of(context).dividerColor),
-                  UrlDetailPanel(path: path, urlId: selected),
+                  if (selected != null) ...[
+                    const SizedBox(width: 14),
+                    Card(
+                      child: UrlDetailPanel(path: path, urlId: selected),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ],
@@ -304,6 +336,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
   }
 }
 
+/// The result tabs as a segmented strip, left-aligned with the cards below.
 class _TabBar extends StatelessWidget {
   const _TabBar({required this.tabs, required this.selected, required this.onSelect});
 
@@ -314,42 +347,61 @@ class _TabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      height: 36,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(bottom: BorderSide(color: theme.dividerColor)),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(CrawlStatTheme.controlRadius + 2),
+          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.7)),
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [for (final tab in tabs) _tab(context, tab, selected == tab.id)],
+          ),
+        ),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+    );
+  }
+
+  Widget _tab(BuildContext context, ResultsTab tab, bool active) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: () => onSelect(tab.id),
+      borderRadius: BorderRadius.circular(CrawlStatTheme.controlRadius - 1),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 13),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: active ? theme.colorScheme.surfaceContainer : null,
+          borderRadius: BorderRadius.circular(CrawlStatTheme.controlRadius - 1),
+        ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(width: 8),
-            for (final tab in tabs)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 4),
-                child: InkWell(
-                  onTap: () => onSelect(tab.id),
-                  borderRadius: BorderRadius.circular(5),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: selected == tab.id
-                          ? CrawlStatTheme.accent.withValues(alpha: 0.12)
-                          : null,
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: Text(
-                      tab.label,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: selected == tab.id ? CrawlStatTheme.accent : null,
-                        fontWeight: selected == tab.id ? FontWeight.w600 : null,
-                      ),
-                    ),
-                  ),
+            if (active) ...[
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: CrawlStatTheme.accent,
+                  shape: BoxShape.circle,
                 ),
               ),
-            const SizedBox(width: 8),
+              const SizedBox(width: 7),
+            ],
+            Text(
+              tab.label,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: active ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
           ],
         ),
       ),
@@ -377,8 +429,8 @@ class _FilterBar extends ConsumerWidget {
             focusNode: focus,
             decoration: InputDecoration(
               hintText: 'Filter by URL…',
-              prefixIcon: const Icon(Icons.search, size: 15),
-              prefixIconConstraints: const BoxConstraints(minWidth: 32),
+              prefixIcon: const Icon(Icons.search_rounded, size: 17),
+              prefixIconConstraints: const BoxConstraints(minWidth: 36),
               suffixIcon: search.text.isEmpty
                   ? null
                   : IconButton(
@@ -392,14 +444,11 @@ class _FilterBar extends ConsumerWidget {
             onChanged: (value) => table.setSearch(value.isEmpty ? null : value),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 12),
         _StatusClassFilter(selected: query.statusClass),
         const Spacer(),
         if (query.issueId != null) ...[
-          _ActiveFilterChip(
-            label: 'Issue: ${query.issueId}',
-            onClear: () => table.setIssue(null),
-          ),
+          _ActiveFilterChip(label: 'Issue: ${query.issueId}', onClear: () => table.setIssue(null)),
           const SizedBox(width: 6),
         ],
         if (query.hasFilters)
@@ -429,7 +478,7 @@ class _StatusClassFilter extends ConsumerWidget {
       children: [
         for (final (value, label) in const [(2, '2xx'), (3, '3xx'), (4, '4xx'), (5, '5xx')])
           Padding(
-            padding: const EdgeInsets.only(right: 4),
+            padding: const EdgeInsets.only(right: 6),
             child: InkWell(
               onTap: () {
                 final query = ref.read(urlTableProvider).query;
@@ -439,9 +488,9 @@ class _StatusClassFilter extends ConsumerWidget {
                       : query.copyWith(statusClass: value),
                 );
               },
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(CrawlStatTheme.controlRadius - 1),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
                   color: selected == value
                       ? CrawlStatTheme.statusColor(value * 100).withValues(alpha: 0.16)
@@ -451,7 +500,7 @@ class _StatusClassFilter extends ConsumerWidget {
                         ? CrawlStatTheme.statusColor(value * 100)
                         : theme.dividerColor,
                   ),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(CrawlStatTheme.controlRadius - 1),
                 ),
                 child: Text(
                   label,
@@ -488,10 +537,7 @@ class _ActiveFilterChip extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(color: CrawlStatTheme.accent),
-          ),
+          Text(label, style: theme.textTheme.bodySmall?.copyWith(color: CrawlStatTheme.accent)),
           IconButton(
             icon: const Icon(Icons.close, size: 13),
             onPressed: onClear,
@@ -515,22 +561,19 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
     GridColumn<UrlRow>(
       id: 'status',
       label: 'Code',
-      width: 60,
+      width: 72,
       sortKey: 'status_code',
-      align: TextAlign.right,
       value: (row) => row.statusCode?.toString() ?? '',
       cell: (context, row) => StatusChip(row.statusCode),
     ),
     GridColumn<UrlRow>(
       id: 'final_status',
       label: 'Final',
-      width: 60,
-      align: TextAlign.right,
+      width: 72,
       tooltip: 'Status at the end of the redirect chain',
       value: (row) => row.finalStatusCode?.toString() ?? '',
-      cell: (context, row) => row.finalStatusCode == null
-          ? const SizedBox.shrink()
-          : StatusChip(row.finalStatusCode),
+      cell: (context, row) =>
+          row.finalStatusCode == null ? const SizedBox.shrink() : StatusChip(row.finalStatusCode),
       defaultVisible: false,
     ),
     GridColumn<UrlRow>(
@@ -539,6 +582,7 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
       width: 460,
       sortKey: 'url',
       mono: true,
+      grow: true,
       value: (row) => row.url,
     ),
     GridColumn<UrlRow>(
@@ -581,12 +625,7 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
       mono: true,
       value: (row) => row.metaDescriptionLength?.toString() ?? '',
     ),
-    GridColumn<UrlRow>(
-      id: 'h1',
-      label: 'H1',
-      width: 280,
-      value: (row) => row.h1 ?? '',
-    ),
+    GridColumn<UrlRow>(id: 'h1', label: 'H1', width: 280, value: (row) => row.h1 ?? ''),
     GridColumn<UrlRow>(
       id: 'h1_count',
       label: 'H1s',
@@ -710,8 +749,7 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
       mono: true,
       tooltip: 'Server response time',
       value: (row) => formatMillis(row.responseTimeMs),
-      color: (row) =>
-          (row.responseTimeMs ?? 0) > 1000 ? CrawlStatTheme.warning : null,
+      color: (row) => (row.responseTimeMs ?? 0) > 1000 ? CrawlStatTheme.warning : null,
     ),
     GridColumn<UrlRow>(
       id: 'error',

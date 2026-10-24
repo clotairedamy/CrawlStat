@@ -55,19 +55,10 @@ class _LicenseCardState extends ConsumerState<LicenseCard> {
 
     return SectionCard(
       title: 'Licence',
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-        decoration: BoxDecoration(
-          color: (isPro ? CrawlStatTheme.success : CrawlStatTheme.notice)
-              .withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          isPro ? 'PRO' : 'FREE',
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: isPro ? CrawlStatTheme.success : CrawlStatTheme.notice,
-          ),
-        ),
+      trailing: TonePill(
+        isPro ? 'Pro' : 'Free',
+        color: isPro ? CrawlStatTheme.success : CrawlStatTheme.notice,
+        dot: isPro,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

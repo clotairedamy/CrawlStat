@@ -39,8 +39,8 @@ class StatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.13),
-        borderRadius: BorderRadius.circular(4),
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(5),
       ),
       child: Text(
         label ?? (status?.toString() ?? '—'),
@@ -96,7 +96,11 @@ class IndexablePill extends StatelessWidget {
   }
 }
 
-/// A headline number with a label, for the crawl screen and the project cards.
+/// A headline number in its own card: label on top, the number, then a
+/// one-line hint.
+///
+/// Every part has a fixed slot — the hint line is reserved even when empty —
+/// so a row of tiles lines up label to label and number to number.
 class StatTile extends StatelessWidget {
   const StatTile({
     super.key,
@@ -104,6 +108,7 @@ class StatTile extends StatelessWidget {
     required this.value,
     this.color,
     this.hint,
+    this.icon,
     this.onTap,
   });
 
@@ -111,60 +116,137 @@ class StatTile extends StatelessWidget {
   final String value;
   final Color? color;
   final String? hint;
+  final IconData? icon;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tone = color ?? CrawlStatTheme.accent;
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label.toUpperCase(), style: theme.textTheme.labelMedium),
-        const SizedBox(height: 4),
+        SizedBox(
+          height: 26,
+          child: Row(
+            children: [
+              if (icon != null) ...[
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: tone.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, size: 15, color: tone),
+                ),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
         Text(
           value,
-          style: CrawlStatTheme.mono(
-            context,
-            size: 21,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontSize: 24,
+            height: 1.1,
             color: color ?? theme.colorScheme.onSurface,
-          ).copyWith(fontWeight: FontWeight.w600),
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
-        if (hint != null) ...[
-          const SizedBox(height: 2),
-          Text(hint!, style: theme.textTheme.bodySmall),
-        ],
+        const SizedBox(height: 6),
+        Text(
+          hint ?? '',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodySmall,
+        ),
       ],
     );
 
-    return Tooltip(
-      message: hint ?? '',
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(6),
-          child: Padding(padding: const EdgeInsets.all(10), child: content),
-        ),
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 12), child: content),
       ),
     );
   }
 }
 
-/// A titled panel. Used instead of elevation to group things.
+/// A short coloured label: a crawl phase, a plan, a count.
+class TonePill extends StatelessWidget {
+  const TonePill(this.label, {super.key, required this.color, this.dot = false});
+
+  final String label;
+  final Color color;
+
+  /// Lead with a dot, for states that are live.
+  final bool dot;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (dot) ...[
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A titled card. The title row and the body share one left edge.
 class SectionCard extends StatelessWidget {
   const SectionCard({
     super.key,
     required this.child,
     this.title,
+    this.subtitle,
     this.trailing,
-    this.padding = const EdgeInsets.all(14),
+    this.padding,
   });
 
   final Widget child;
   final String? title;
+  final String? subtitle;
   final Widget? trailing;
-  final EdgeInsets padding;
+
+  /// Defaults to the card's standard inset, tucked up under the title.
+  final EdgeInsets? padding;
 
   @override
   Widget build(BuildContext context) {
@@ -174,19 +256,33 @@ class SectionCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (title != null)
-            Container(
-              padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: theme.dividerColor)),
-              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 14, 10),
               child: Row(
                 children: [
-                  Expanded(child: Text(title!, style: theme.textTheme.labelMedium)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title!, style: theme.textTheme.titleSmall),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: 2),
+                          Text(subtitle!, style: theme.textTheme.bodySmall),
+                        ],
+                      ],
+                    ),
+                  ),
                   ?trailing,
                 ],
               ),
             ),
-          Padding(padding: padding, child: child),
+          Padding(
+            padding: padding ??
+                (title == null
+                    ? const EdgeInsets.all(18)
+                    : const EdgeInsets.fromLTRB(18, 4, 18, 18)),
+            child: child,
+          ),
         ],
       ),
     );
@@ -220,8 +316,16 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 28, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(height: 12),
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: CrawlStatTheme.accent.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 26, color: CrawlStatTheme.accent),
+            ),
+            const SizedBox(height: 16),
             Text(title, style: theme.textTheme.titleMedium, textAlign: TextAlign.center),
             const SizedBox(height: 6),
             Text(
@@ -248,9 +352,8 @@ class Toolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: padding ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: padding ?? const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
         border: Border(bottom: BorderSide(color: theme.dividerColor)),
       ),
       child: Row(children: children),
@@ -283,13 +386,15 @@ class ToolbarButton extends StatelessWidget {
         icon: Icon(icon, size: 16),
         iconSize: 16,
         visualDensity: VisualDensity.compact,
-        constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
         padding: EdgeInsets.zero,
         style: IconButton.styleFrom(
           foregroundColor: active ? CrawlStatTheme.accent : theme.colorScheme.onSurfaceVariant,
           backgroundColor:
-              active ? CrawlStatTheme.accent.withValues(alpha: 0.12) : Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+              active ? CrawlStatTheme.accent.withValues(alpha: 0.14) : Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(CrawlStatTheme.controlRadius - 1),
+          ),
         ),
       ),
     );
@@ -304,10 +409,12 @@ class InlineMessage extends StatelessWidget {
     this.severity = 'warning',
     this.onDismiss,
     this.action,
+    this.margin = EdgeInsets.zero,
   });
 
   final String message;
   final String severity;
+  final EdgeInsets margin;
   final VoidCallback? onDismiss;
   final Widget? action;
 
@@ -316,10 +423,12 @@ class InlineMessage extends StatelessWidget {
     final theme = Theme.of(context);
     final color = CrawlStatTheme.severityColor(severity);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      margin: margin,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        border: Border(bottom: BorderSide(color: theme.dividerColor)),
+        borderRadius: BorderRadius.circular(CrawlStatTheme.controlRadius + 1),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [

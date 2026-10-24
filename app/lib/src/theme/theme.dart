@@ -1,15 +1,16 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 /// CrawlStat's design system.
 ///
-/// The app is a tool, not a page: dense, quiet, and built so a table of a
-/// hundred thousand rows is the thing you notice, not the chrome around it.
-/// Three rules follow from that and are worth stating, because they are what
-/// makes the app feel different from a web dashboard:
+/// A calm dashboard: content sits in rounded cards on a deep canvas, with the
+/// navigation in a sidebar that collapses to a rail when the table needs the
+/// room. Three rules hold it together:
 ///
-/// * **Borders, not shadows.** Elevation implies depth and movement. A data
-///   grid wants flat, crisp separation that stays readable at 13px.
+/// * **Cards, not strips.** Every block of content is a card with the same
+///   radius and padding, floating on the canvas. Alignment comes from the
+///   shared [CrawlStatTheme.gutter], not from borders between full-width bars.
 /// * **Numbers are monospaced.** Status codes, byte counts and URLs line up
 ///   column to column, so the eye can scan down instead of reading across.
 /// * **One accent.** Colour carries meaning here — severity, status class — so
@@ -17,41 +18,62 @@ import 'package:flutter/services.dart';
 class CrawlStatTheme {
   const CrawlStatTheme._();
 
-  /// Row height in data grids. Tight enough to show ~30 rows on a laptop.
-  static const double rowHeight = 30;
+  /// Row height in data grids. Tight enough to show ~25 rows on a laptop.
+  static const double rowHeight = 34;
 
   /// Header height in data grids.
-  static const double headerHeight = 34;
+  static const double headerHeight = 38;
+
+  /// Space between the window edge and the cards, and between cards. Every
+  /// screen uses it, which is what keeps their edges lined up.
+  static const double gutter = 24;
+
+  /// Corner radius of cards.
+  static const double radius = 14;
+
+  /// Corner radius of buttons, inputs and chips inside a card.
+  static const double controlRadius = 9;
 
   /// The single accent, used for selection, focus and primary actions.
-  static const Color accent = Color(0xFF3B6EF6);
+  static const Color accent = Color(0xFF6366F1);
 
-  /// Severity colours. These are the only other colours with meaning.
-  static const Color error = Color(0xFFD5342F);
-  static const Color warning = Color(0xFFC9790B);
-  static const Color notice = Color(0xFF5A6673);
-  static const Color success = Color(0xFF1C8A4B);
+  /// Severity colours. These are the only other colours with meaning, and
+  /// they are tuned to read on both the light and the dark canvas.
+  static const Color error = Color(0xFFEF4565);
+  static const Color warning = Color(0xFFF2A12E);
+  static const Color notice = Color(0xFF8189A8);
+  static const Color success = Color(0xFF22B573);
+
+  /// The system UI font on each platform, named explicitly so every text style
+  /// — buttons included — uses the same family.
+  static String? get fontFamily => switch (defaultTargetPlatform) {
+        TargetPlatform.macOS || TargetPlatform.iOS => '.AppleSystemUIFont',
+        TargetPlatform.windows => 'Segoe UI',
+        _ => null,
+      };
 
   static ThemeData light() => _build(
         brightness: Brightness.light,
         surface: const Color(0xFFFFFFFF),
-        canvas: const Color(0xFFF7F8FA),
-        panel: const Color(0xFFFCFCFD),
-        border: const Color(0xFFE1E4E9),
-        text: const Color(0xFF14181D),
-        subdued: const Color(0xFF5E6672),
-        hover: const Color(0xFFF0F3F8),
+        canvas: const Color(0xFFF3F4F9),
+        panel: const Color(0xFFFFFFFF),
+        raised: const Color(0xFFF6F7FB),
+        border: const Color(0xFFE3E5EF),
+        text: const Color(0xFF151728),
+        subdued: const Color(0xFF6B7092),
+        hover: const Color(0xFFEFF0F8),
       );
 
   static ThemeData dark() => _build(
         brightness: Brightness.dark,
-        surface: const Color(0xFF15181D),
-        canvas: const Color(0xFF0E1115),
-        panel: const Color(0xFF1A1E24),
-        border: const Color(0xFF2A3039),
-        text: const Color(0xFFE6E9ED),
-        subdued: const Color(0xFF99A2AE),
-        hover: const Color(0xFF212731),
+        surface: const Color(0xFF1A1C30),
+        canvas: const Color(0xFF13152A),
+        panel: const Color(0xFF1F2238),
+        raised: const Color(0xFF272A44),
+        border: const Color(0xFF2D3050),
+        text: const Color(0xFFEDEEF8),
+        subdued: const Color(0xFF9398BC),
+        hover: const Color(0xFF282B47),
       );
 
   static ThemeData _build({
@@ -59,6 +81,7 @@ class CrawlStatTheme {
     required Color surface,
     required Color canvas,
     required Color panel,
+    required Color raised,
     required Color border,
     required Color text,
     required Color subdued,
@@ -76,6 +99,8 @@ class CrawlStatTheme {
       onSurface: text,
       surfaceContainerLowest: canvas,
       surfaceContainerLow: panel,
+      surfaceContainer: raised,
+      surfaceContainerHigh: raised,
       outline: border,
       outlineVariant: border,
       onSurfaceVariant: subdued,
@@ -83,12 +108,21 @@ class CrawlStatTheme {
 
     // 13px base: the density a data tool needs without becoming unreadable.
     const baseSize = 13.0;
-    final body = TextStyle(fontSize: baseSize, height: 1.35, color: text);
+    final body = TextStyle(
+      fontFamily: fontFamily,
+      fontSize: baseSize,
+      height: 1.35,
+      color: text,
+    );
+    const controlShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.all(Radius.circular(controlRadius)),
+    );
 
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorScheme: colors,
+      fontFamily: fontFamily,
       scaffoldBackgroundColor: canvas,
       canvasColor: canvas,
       dividerColor: border,
@@ -101,23 +135,29 @@ class CrawlStatTheme {
       textTheme: TextTheme(
         bodyMedium: body,
         bodySmall: body.copyWith(fontSize: 12, color: subdued),
+        titleSmall: body.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
         titleMedium: body.copyWith(fontSize: 15, fontWeight: FontWeight.w600),
-        titleLarge: body.copyWith(fontSize: 19, fontWeight: FontWeight.w600, height: 1.2),
+        titleLarge: body.copyWith(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          height: 1.2,
+          letterSpacing: -0.2,
+        ),
         labelLarge: body.copyWith(fontWeight: FontWeight.w500),
         labelMedium: body.copyWith(
           fontSize: 11,
           fontWeight: FontWeight.w600,
           color: subdued,
-          letterSpacing: 0.4,
+          letterSpacing: 0.5,
         ),
       ),
       iconTheme: IconThemeData(size: 16, color: subdued),
       inputDecorationTheme: InputDecorationTheme(
         isDense: true,
         filled: true,
-        fillColor: surface,
+        fillColor: raised,
         hintStyle: body.copyWith(color: subdued),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
         border: _inputBorder(border),
         enabledBorder: _inputBorder(border),
         focusedBorder: _inputBorder(accent, width: 1.5),
@@ -126,43 +166,83 @@ class CrawlStatTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           textStyle: body.copyWith(fontWeight: FontWeight.w600),
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(6)),
-          ),
+          shape: controlShape,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          minimumSize: const Size(0, 34),
+          minimumSize: const Size(0, 36),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: text,
+          backgroundColor: panel,
           side: BorderSide(color: border),
-          textStyle: body,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(6)),
-          ),
+          textStyle: body.copyWith(fontWeight: FontWeight.w500),
+          shape: controlShape,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          minimumSize: const Size(0, 34),
+          minimumSize: const Size(0, 36),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: accent,
           textStyle: body.copyWith(fontWeight: FontWeight.w500),
-          minimumSize: const Size(0, 30),
+          shape: controlShape,
+          minimumSize: const Size(0, 32),
           padding: const EdgeInsets.symmetric(horizontal: 10),
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: SegmentedButton.styleFrom(
+          textStyle: body.copyWith(fontWeight: FontWeight.w500),
+          backgroundColor: raised,
+          foregroundColor: subdued,
+          selectedBackgroundColor: accent,
+          selectedForegroundColor: Colors.white,
+          side: BorderSide(color: border),
+          shape: controlShape,
+        ),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? Colors.white : subdued,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? accent : raised,
+        ),
+        trackOutlineColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? accent : border,
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: panel,
+        elevation: 8,
+        shadowColor: Colors.black.withValues(alpha: 0.4),
+        textStyle: body,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: border),
+          borderRadius: BorderRadius.circular(controlRadius + 2),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: raised,
+        contentTextStyle: body,
+        actionTextColor: accent,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: border),
+          borderRadius: BorderRadius.circular(controlRadius + 2),
         ),
       ),
       tooltipTheme: TooltipThemeData(
         waitDuration: const Duration(milliseconds: 500),
         textStyle: body.copyWith(color: Colors.white, fontSize: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF14181D).withValues(alpha: 0.94),
-          borderRadius: BorderRadius.circular(4),
+          color: const Color(0xFF0D0F1E).withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(6),
         ),
       ),
       scrollbarTheme: ScrollbarThemeData(
-        thickness: const WidgetStatePropertyAll(8),
+        thickness: const WidgetStatePropertyAll(7),
         radius: const Radius.circular(4),
         thumbColor: WidgetStatePropertyAll(subdued.withValues(alpha: 0.35)),
       ),
@@ -170,26 +250,32 @@ class CrawlStatTheme {
         color: panel,
         elevation: 0,
         margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: border),
-          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: border.withValues(alpha: 0.7)),
+          borderRadius: BorderRadius.circular(radius),
         ),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: surface,
-        elevation: 0,
+        backgroundColor: panel,
+        elevation: 24,
+        shadowColor: Colors.black.withValues(alpha: 0.5),
         shape: RoundedRectangleBorder(
           side: BorderSide(color: border),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(radius + 2),
         ),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(linearMinHeight: 4),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        linearMinHeight: 4,
+        color: accent,
+        linearTrackColor: raised,
+      ),
     );
   }
 
   static OutlineInputBorder _inputBorder(Color color, {double width = 1}) {
     return OutlineInputBorder(
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(controlRadius),
       borderSide: BorderSide(color: color, width: width),
     );
   }
