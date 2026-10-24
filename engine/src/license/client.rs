@@ -143,6 +143,11 @@ pub fn refresh_if_due(api_base: &str) -> Result<LicenseStatus, ClientError> {
     if entitlement.plan == super::Plan::Free {
         return Ok(current);
     }
+    // A developer entitlement was never issued by the licence service, so
+    // asking it to reissue one would only ever fail. Leave it alone.
+    if entitlement.key_fingerprint == "dev" {
+        return Ok(current);
+    }
     if !entitlement.needs_refresh(now_seconds()) {
         return Ok(current);
     }

@@ -369,6 +369,10 @@ pub fn set_current(status: LicenseStatus) {
 /// Called once at startup. A missing or unreadable token is not an error: it
 /// means the free tier.
 pub fn load_current() -> LicenseStatus {
+    if let Some(status) = developer_entitlement() {
+        set_current(status.clone());
+        return status;
+    }
     let status = match load_stored() {
         Ok(Some(token)) => evaluate(&token, SIGNING_PUBLIC_KEY_HEX, now_seconds()),
         Ok(None) => LicenseStatus::Free,
@@ -381,6 +385,45 @@ pub fn load_current() -> LicenseStatus {
     };
     set_current(status.clone());
     status
+}
+
+/// A Pro entitlement for whoever is building CrawlStat, granted when
+/// `CRAWLSTAT_DEV_PRO=1` is set in the environment.
+///
+/// Working on a Pro feature while the app insists you are on the free tier is
+/// miserable, and the alternative — signing yourself a real token — means
+/// handling the production private key on a development machine, which is a
+/// far worse idea than this.
+///
+/// **This exists only in debug builds.** The `cfg!` is a compile-time
+/// constant, so in a release binary the whole body folds to `None` and the
+/// environment variable is never read: a shipped CrawlStat cannot be talked
+/// into Pro by setting a variable. The entitlement is also marked with a
+/// `dev` fingerprint, so the Settings screen says plainly where it came from
+/// rather than looking like a real purchase.
+fn developer_entitlement() -> Option<LicenseStatus> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+    if std::env::var("CRAWLSTAT_DEV_PRO").as_deref() != Ok("1") {
+        return None;
+    }
+    let now = now_seconds();
+    let entitlement = Entitlement {
+        version: 1,
+        plan: Plan::Pro,
+        issued_at: now,
+        // Far enough out that it never nags, and never triggers a refresh
+        // against a licence server that knows nothing about it.
+        expires_at: now + 365 * 86_400,
+        key_fingerprint: "dev".to_string(),
+        instance_id: "developer".to_string(),
+        features: features::PRO.iter().map(|f| f.to_string()).collect(),
+    };
+    Some(LicenseStatus::Active {
+        entitlement,
+        days_remaining: 365,
+    })
 }
 
 /// The URL limit to apply to a crawl, given the current licence.

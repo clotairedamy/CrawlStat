@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../theme/icons.dart';
 import '../router.dart';
 import '../rust/api/types.dart';
 import '../state/crawl.dart';
 import '../state/results.dart';
 import '../theme/theme.dart';
 import '../widgets/common.dart';
+import '../widgets/gauge.dart';
 import '../widgets/data_grid.dart';
 import 'new_crawl_dialog.dart';
 import 'shell.dart';
+import '../theme/soft.dart';
 
 /// The live crawl: counters, a rate graph, and the URLs as they come in.
 class CrawlScreen extends ConsumerWidget {
@@ -26,13 +29,14 @@ class CrawlScreen extends ConsumerWidget {
           const ScreenHeader(title: 'Crawl'),
           Expanded(
             child: EmptyState(
-              icon: Icons.radar_outlined,
+              icon: AppIcon.crawl,
               title: 'Nothing crawling',
-              message: 'Start a crawl and this screen shows it happening, '
+              message:
+                  'Start a crawl and this screen shows it happening, '
                   'URL by URL, with the counters updating live.',
               action: FilledButton.icon(
                 onPressed: () => showNewCrawlDialog(context),
-                icon: const Icon(Icons.add, size: 15),
+                icon: const Icon(AppIcon.add, size: 15),
                 label: const Text('New crawl'),
               ),
             ),
@@ -53,31 +57,56 @@ class CrawlScreen extends ConsumerWidget {
               CrawlStatTheme.gutter,
               CrawlStatTheme.gutter,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (crawl.error != null)
-                  InlineMessage(
-                    message: crawl.error!,
-                    severity: 'error',
-                    margin: const EdgeInsets.only(bottom: 16),
-                  ),
-                _Counters(crawl: crawl),
-                const SizedBox(height: 16),
-                _ProgressCard(crawl: crawl),
-                if (crawl.warnings.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  _Warnings(warnings: crawl.warnings),
-                ],
-                const SizedBox(height: 16),
-                Expanded(
-                  child: Card(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _TableHeading(count: crawl.rows.length),
-                        Expanded(child: _LiveTable(rows: crawl.rows, phase: crawl.phase)),
+            // Slivers rather than a Column with an Expanded tail.
+            //
+            // The tiles above the table wrap to more rows as the window
+            // narrows, and a plain Column has nowhere to put that extra
+            // height: Expanded collapses to zero and the fixed children
+            // overflow, which is the yellow-and-black bar. SliverFillRemaining
+            // gives the table the rest of the viewport when there is room and
+            // lets the whole screen scroll when there is not.
+            child: CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (crawl.error != null)
+                        InlineMessage(
+                          message: crawl.error!,
+                          severity: 'error',
+                          margin: const EdgeInsets.only(bottom: 16),
+                        ),
+                      _Counters(crawl: crawl),
+                      const SizedBox(height: 16),
+                      _ProgressCard(crawl: crawl),
+                      if (crawl.warnings.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _Warnings(warnings: crawl.warnings),
                       ],
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+                SliverFillRemaining(
+                  hasScrollBody: true,
+                  child: ConstrainedBox(
+                    // Below this the table shows nothing useful, so it keeps
+                    // its own height and the page scrolls instead.
+                    constraints: const BoxConstraints(minHeight: 220),
+                    child: SoftPanel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _TableHeading(count: crawl.rows.length),
+                          Expanded(
+                            child: _LiveTable(
+                              rows: crawl.rows,
+                              phase: crawl.phase,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -92,15 +121,15 @@ class CrawlScreen extends ConsumerWidget {
 
 /// The phase as a word and a colour, shared by the header and the progress.
 (String, Color) _phaseLook(CrawlPhase phase) => switch (phase) {
-      CrawlPhase.starting => ('Starting', CrawlStatTheme.accent),
-      CrawlPhase.running => ('Crawling', CrawlStatTheme.success),
-      CrawlPhase.paused => ('Paused', CrawlStatTheme.warning),
-      CrawlPhase.auditing => ('Auditing', CrawlStatTheme.accent),
-      CrawlPhase.finished => ('Finished', CrawlStatTheme.success),
-      CrawlPhase.cancelled => ('Stopped', CrawlStatTheme.warning),
-      CrawlPhase.failed => ('Failed', CrawlStatTheme.error),
-      CrawlPhase.idle => ('Idle', CrawlStatTheme.notice),
-    };
+  CrawlPhase.starting => ('Starting', CrawlStatTheme.accent),
+  CrawlPhase.running => ('Crawling', CrawlStatTheme.success),
+  CrawlPhase.paused => ('Paused', CrawlStatTheme.warning),
+  CrawlPhase.auditing => ('Auditing', CrawlStatTheme.accent),
+  CrawlPhase.finished => ('Finished', CrawlStatTheme.success),
+  CrawlPhase.cancelled => ('Stopped', CrawlStatTheme.warning),
+  CrawlPhase.failed => ('Failed', CrawlStatTheme.error),
+  CrawlPhase.idle => ('Idle', CrawlStatTheme.notice),
+};
 
 class _CrawlHeader extends ConsumerWidget {
   const _CrawlHeader({required this.crawl});
@@ -128,20 +157,22 @@ class _CrawlHeader extends ConsumerWidget {
         if (crawl.phase == CrawlPhase.running)
           OutlinedButton.icon(
             onPressed: controller.pause,
-            icon: const Icon(Icons.pause_rounded, size: 16),
+            icon: const Icon(AppIcon.pause, size: 16),
             label: const Text('Pause'),
           ),
         if (crawl.phase == CrawlPhase.paused)
           FilledButton.icon(
             onPressed: controller.resume,
-            icon: const Icon(Icons.play_arrow_rounded, size: 16),
+            icon: const Icon(AppIcon.play, size: 16),
             label: const Text('Resume'),
           ),
         if (crawl.isRunning)
           OutlinedButton.icon(
             onPressed: controller.cancel,
-            style: OutlinedButton.styleFrom(foregroundColor: CrawlStatTheme.error),
-            icon: const Icon(Icons.stop_rounded, size: 16),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: CrawlStatTheme.error,
+            ),
+            icon: const Icon(AppIcon.stop, size: 16),
             label: const Text('Stop'),
           ),
         if (crawl.isFinished) ...[
@@ -156,7 +187,7 @@ class _CrawlHeader extends ConsumerWidget {
               ref.read(urlTableProvider.notifier).reset();
               context.go(Routes.results);
             },
-            icon: const Icon(Icons.table_chart_outlined, size: 16),
+            icon: const Icon(AppIcon.results, size: 16),
             label: const Text('See results'),
           ),
         ],
@@ -185,33 +216,33 @@ class _Counters extends ConsumerWidget {
     final tiles = [
       StatTile(
         label: 'Crawled',
-        icon: Icons.check_circle_outline_rounded,
+        icon: AppIcon.ok,
         color: CrawlStatTheme.success,
         value: formatCount(crawled),
         hint: 'Fetched and stored',
       ),
       StatTile(
         label: 'Queued',
-        icon: Icons.schedule_rounded,
+        icon: AppIcon.queued,
         value: formatCount(snapshot?.queued ?? 0),
         hint: 'Waiting to be fetched',
       ),
       StatTile(
         label: 'Discovered',
-        icon: Icons.travel_explore_rounded,
+        icon: AppIcon.discovered,
         value: formatCount(discovered),
         hint: 'Known to the crawl',
       ),
       StatTile(
         label: 'Client errors',
-        icon: Icons.link_off_rounded,
+        icon: AppIcon.brokenLink,
         color: notFound > 0 ? CrawlStatTheme.error : CrawlStatTheme.notice,
         value: formatCount(notFound),
         hint: '4xx responses',
       ),
       StatTile(
         label: 'Server errors',
-        icon: Icons.dns_outlined,
+        icon: AppIcon.server,
         color: serverErrors > 0 ? CrawlStatTheme.error : CrawlStatTheme.notice,
         value: formatCount(serverErrors),
         hint: '5xx responses',
@@ -219,8 +250,10 @@ class _Counters extends ConsumerWidget {
       if (audit != null)
         StatTile(
           label: 'Issues',
-          icon: Icons.fact_check_outlined,
-          color: audit.errors > 0 ? CrawlStatTheme.error : CrawlStatTheme.warning,
+          icon: AppIcon.issues,
+          color: audit.errors > 0
+              ? CrawlStatTheme.error
+              : CrawlStatTheme.warning,
           value: formatCount(audit.errors + audit.warnings),
           hint: '${audit.errors} errors, ${audit.warnings} warnings',
           onTap: () => context.go(Routes.issues),
@@ -228,113 +261,201 @@ class _Counters extends ConsumerWidget {
       else
         StatTile(
           label: 'Failed',
-          icon: Icons.error_outline_rounded,
+          icon: AppIcon.error,
           color: errors > 0 ? CrawlStatTheme.error : CrawlStatTheme.notice,
           value: formatCount(errors),
           hint: 'Could not be fetched',
         ),
     ];
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final (index, tile) in tiles.indexed) ...[
-          if (index > 0) const SizedBox(width: 14),
-          Expanded(child: tile),
-        ],
-      ],
+    // Tiles wrap to a second line rather than overflowing. A Row of Expanded
+    // children looks right at full width and then paints Flutter's
+    // yellow-and-black overflow stripes the moment the window is narrowed,
+    // because an Expanded still cannot shrink below the tile's intrinsic
+    // width.
+    const spacing = 14.0;
+    const minTileWidth = 168.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final available = constraints.maxWidth;
+        var perRow = ((available + spacing) / (minTileWidth + spacing)).floor();
+        perRow = perRow.clamp(1, tiles.length);
+        final width = (available - spacing * (perRow - 1)) / perRow;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final tile in tiles) SizedBox(width: width, child: tile),
+          ],
+        );
+      },
     );
   }
 }
 
-/// How far along the crawl is, and how fast it is going.
-class _ProgressCard extends StatelessWidget {
+/// The hero of the crawl screen: a dial, a scrubber and the running totals.
+///
+/// A crawl has a speed and a completion, and both move every second. A dial
+/// reads a changing rate far better than digits do — you can see at a glance
+/// whether the crawl is moving or has stalled, without reading anything.
+class _ProgressCard extends StatefulWidget {
   const _ProgressCard({required this.crawl});
 
   final LiveCrawl crawl;
 
   @override
+  State<_ProgressCard> createState() => _ProgressCardState();
+}
+
+class _ProgressCardState extends State<_ProgressCard> {
+  /// The fastest rate seen so far.
+  ///
+  /// The dial is scaled to this rather than to the current reading, and only
+  /// ever grows. A scale that tracked the live value would pin the needle in
+  /// the same place whatever the rate, which tells you nothing.
+  double _peakRate = 0;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final crawl = widget.crawl;
     final snapshot = crawl.snapshot;
     final summary = crawl.summary;
-    final (_, color) = _phaseLook(crawl.phase);
 
     final crawled = summary?.crawled ?? snapshot?.crawled ?? 0;
     final discovered = summary?.discovered ?? snapshot?.discovered ?? 0;
+    final queued = snapshot?.queued ?? 0;
     final rate = summary?.urlsPerSecond ?? snapshot?.urlsPerSecond ?? 0;
     final elapsed = summary?.elapsedMs ?? snapshot?.elapsedMs ?? 0;
     final fraction = crawl.isFinished ? 1.0 : crawl.fraction;
     final live = crawl.isRunning || crawl.phase == CrawlPhase.auditing;
 
-    Widget metric(String label, String value) => Padding(
-          padding: const EdgeInsets.only(left: 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(label, style: theme.textTheme.bodySmall),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ],
-          ),
-        );
+    if (rate > _peakRate) {
+      _peakRate = rate.toDouble();
+    }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Progress', style: theme.textTheme.bodySmall),
-                      const SizedBox(height: 2),
-                      Text.rich(
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: fraction == null ? '—' : '${(fraction * 100).round()}%',
-                              style: theme.textTheme.titleLarge?.copyWith(fontSize: 22),
-                            ),
-                            TextSpan(
-                              text: '   ${formatCount(crawled)} of ${formatCount(discovered)} URLs',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+    return SoftPanel(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Side by side when there is room for both; stacked when the dial
+          // would leave the readouts nothing to live in.
+          final side = constraints.maxWidth >= 640;
+          final gauge = CrawlGauge(
+            value: rate.toDouble(),
+            max: gaugeCeiling(_peakRate),
+            label: 'URL/s',
+            size: 232,
+            progress: fraction,
+            secondaryValue: formatCount(crawled),
+            secondaryLabel: 'crawled',
+            live: live,
+          );
+
+          final details = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // A spider crawl does not know its total until it has found
+              // it, so the bar sweeps rather than lying about a percentage.
+              SoftProgressBar(
+                value: fraction ?? 0,
+                indeterminate: fraction == null && live,
+                height: 9,
+              ),
+              const SizedBox(height: 8),
+              // This used to be printed inside the dial, where it ran over
+              // the tick ring. It belongs beside the bar it describes.
+              Text(
+                fraction == null
+                    ? 'finding the size of the site'
+                    : '${(fraction * 100).round()}% of what is known',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 18),
+              Wrap(
+                spacing: 34,
+                runSpacing: 16,
+                children: [
+                  _Readout(label: 'Discovered', value: formatCount(discovered)),
+                  _Readout(label: 'Queued', value: formatCount(queued)),
+                  _Readout(
+                    label: 'In flight',
+                    value: formatCount(snapshot?.inFlight ?? 0),
+                  ),
+                  _Readout(label: 'Elapsed', value: formatMillis(elapsed)),
+                  if (_peakRate > 0)
+                    _Readout(
+                      label: 'Peak',
+                      value:
+                          '${_peakRate.toStringAsFixed(_peakRate >= 10 ? 0 : 1)}/s',
+                    ),
+                ],
+              ),
+              if (crawl.startUrl != null) ...[
+                const SizedBox(height: 18),
+                Text(
+                  crawl.startUrl!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: CrawlStatTheme.mono(
+                    context,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                metric('Speed', '${rate.toStringAsFixed(rate >= 10 ? 0 : 1)} URLs/s'),
-                if (live) metric('In flight', formatCount(snapshot?.inFlight ?? 0)),
-                metric('Elapsed', formatMillis(elapsed)),
               ],
-            ),
-            const SizedBox(height: 14),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: LinearProgressIndicator(
-                value: fraction ?? (live ? null : 0),
-                minHeight: 8,
-                color: color,
-              ),
-            ),
-          ],
-        ),
+            ],
+          );
+
+          if (!side) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(child: gauge),
+                const SizedBox(height: 22),
+                details,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              gauge,
+              const SizedBox(width: 26),
+              Expanded(child: details),
+            ],
+          );
+        },
       ),
+    );
+  }
+}
+
+/// A label over a figure, for the block beside the dial.
+class _Readout extends StatelessWidget {
+  const _Readout({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label.toUpperCase(), style: theme.textTheme.labelMedium),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          style: CrawlStatTheme.mono(
+            context,
+            size: 19,
+          ).copyWith(fontWeight: FontWeight.w600),
+        ),
+      ],
     );
   }
 }
@@ -400,7 +521,7 @@ class _WarningsState extends State<_Warnings> {
               child: Row(
                 children: [
                   const Icon(
-                    Icons.warning_amber_rounded,
+                    AppIcon.warning,
                     size: 16,
                     color: CrawlStatTheme.warning,
                   ),
@@ -409,22 +530,24 @@ class _WarningsState extends State<_Warnings> {
                     child: Text(
                       _expanded
                           ? '${widget.warnings.length} warning'
-                              '${widget.warnings.length == 1 ? '' : 's'}'
+                                '${widget.warnings.length == 1 ? '' : 's'}'
                           : latest.message,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: CrawlStatTheme.warning),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: CrawlStatTheme.warning,
+                      ),
                     ),
                   ),
                   if (widget.warnings.length > 1 && !_expanded)
                     Text(
                       '+${widget.warnings.length - 1}',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: CrawlStatTheme.warning),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: CrawlStatTheme.warning,
+                      ),
                     ),
                   Icon(
-                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    _expanded ? AppIcon.chevronUp : AppIcon.chevronDown,
                     size: 15,
                     color: CrawlStatTheme.warning,
                   ),
@@ -472,7 +595,9 @@ class _LiveTable extends StatelessWidget {
   Widget build(BuildContext context) {
     if (rows.isEmpty) {
       return EmptyState(
-        icon: phase == CrawlPhase.starting ? Icons.hourglass_empty : Icons.link_off,
+        icon: phase == CrawlPhase.starting
+            ? AppIcon.waiting
+            : AppIcon.brokenLink,
         title: phase == CrawlPhase.starting ? 'Starting up' : 'No URLs yet',
         message: phase == CrawlPhase.starting
             ? 'Reading robots.txt and seeding the frontier.'

@@ -44,8 +44,9 @@ class LicenseController extends Notifier<rust.LicenseInfo> {
   }
 }
 
-final licenseProvider =
-    NotifierProvider<LicenseController, rust.LicenseInfo>(LicenseController.new);
+final licenseProvider = NotifierProvider<LicenseController, rust.LicenseInfo>(
+  LicenseController.new,
+);
 
 /// Whether this install has Pro.
 final isProProvider = Provider<bool>(
@@ -58,7 +59,8 @@ final urlLimitProvider = Provider<int?>(
 );
 
 /// Whether a Pro feature is available, by its engine feature name.
-bool hasFeature(rust.LicenseInfo info, String feature) => info.features.contains(feature);
+bool hasFeature(rust.LicenseInfo info, String feature) =>
+    info.features.contains(feature);
 
 /// The Pro features, so the UI can gate on them by name rather than by string
 /// literals scattered through the screens.
@@ -76,6 +78,12 @@ class ProFeatures {
 
 /// A one-line description of the licence, for the Settings header.
 String describeLicense(rust.LicenseInfo info) {
+  // A developer entitlement is granted by the engine when CRAWLSTAT_DEV_PRO
+  // is set on a debug build. It is said plainly rather than dressed up as a
+  // purchase, so nobody mistakes this install for a licensed one.
+  if (info.keyFingerprint == 'dev') {
+    return 'Pro · developer build (CRAWLSTAT_DEV_PRO)';
+  }
   switch (info.status) {
     case 'active':
       return 'Pro · renews in ${info.daysRemaining} '

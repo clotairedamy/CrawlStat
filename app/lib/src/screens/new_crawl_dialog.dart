@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../theme/icons.dart';
 import '../router.dart';
 import '../state/crawl.dart';
 import '../state/projects.dart';
@@ -83,8 +84,12 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
 
     try {
       final settings = ref.read(settingsProvider);
-      final listUrls = _mode == 'list' ? _splitLines(_listUrls) : const <String>[];
-      final startUrl = _mode == 'list' ? (listUrls.firstOrNull ?? '') : _url.text.trim();
+      final listUrls = _mode == 'list'
+          ? _splitLines(_listUrls)
+          : const <String>[];
+      final startUrl = _mode == 'list'
+          ? (listUrls.firstOrNull ?? '')
+          : _url.text.trim();
 
       final request = settings.toRequest(
         startUrl: startUrl,
@@ -177,7 +182,9 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
                         )
                       else
                         _Field(
-                          label: _mode == 'sitemap' ? 'Sitemap URL' : 'Start URL',
+                          label: _mode == 'sitemap'
+                              ? 'Sitemap URL'
+                              : 'Start URL',
                           hint: _mode == 'sitemap'
                               ? 'A sitemap or sitemap index. .gz is handled.'
                               : 'Crawls outwards from here. The scheme may be omitted.',
@@ -192,7 +199,9 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
                             ),
                             onFieldSubmitted: (_) => _start(),
                             validator: (value) =>
-                                (value == null || value.trim().isEmpty) ? 'Enter a URL' : null,
+                                (value == null || value.trim().isEmpty)
+                                ? 'Enter a URL'
+                                : null,
                           ),
                         ),
                       const SizedBox(height: 16),
@@ -205,7 +214,9 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
                               child: TextFormField(
                                 controller: _maxUrls,
                                 keyboardType: TextInputType.number,
-                                decoration: InputDecoration(hintText: '$freeLimit'),
+                                decoration: InputDecoration(
+                                  hintText: '$freeLimit',
+                                ),
                                 validator: _positiveOrBlank,
                               ),
                             ),
@@ -218,7 +229,9 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
                               child: TextFormField(
                                 controller: _maxDepth,
                                 keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(hintText: 'No limit'),
+                                decoration: const InputDecoration(
+                                  hintText: 'No limit',
+                                ),
                                 validator: _positiveOrBlank,
                               ),
                             ),
@@ -236,12 +249,15 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
                       Align(
                         alignment: Alignment.centerLeft,
                         child: TextButton.icon(
-                          onPressed: () => setState(() => _advanced = !_advanced),
+                          onPressed: () =>
+                              setState(() => _advanced = !_advanced),
                           icon: Icon(
-                            _advanced ? Icons.expand_less : Icons.expand_more,
+                            _advanced ? AppIcon.chevronUp : AppIcon.chevronDown,
                             size: 15,
                           ),
-                          label: Text(_advanced ? 'Fewer options' : 'More options'),
+                          label: Text(
+                            _advanced ? 'Fewer options' : 'More options',
+                          ),
                         ),
                       ),
                       if (_advanced) ...[
@@ -253,7 +269,9 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
                             controller: _include,
                             maxLines: 3,
                             style: CrawlStatTheme.mono(context),
-                            decoration: const InputDecoration(hintText: r'^https://example\.com/blog'),
+                            decoration: const InputDecoration(
+                              hintText: r'^https://example\.com/blog',
+                            ),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -264,7 +282,9 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
                             controller: _exclude,
                             maxLines: 3,
                             style: CrawlStatTheme.mono(context),
-                            decoration: const InputDecoration(hintText: r'/cart|\?page='),
+                            decoration: const InputDecoration(
+                              hintText: r'/cart|\?page=',
+                            ),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -290,7 +310,9 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
                       ),
                     ),
                     OutlinedButton(
-                      onPressed: _starting ? null : () => Navigator.of(context).pop(),
+                      onPressed: _starting
+                          ? null
+                          : () => Navigator.of(context).pop(),
                       child: const Text('Cancel'),
                     ),
                     const SizedBox(width: 8),
@@ -302,7 +324,7 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
                               height: 13,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.play_arrow, size: 16),
+                          : const Icon(AppIcon.play, size: 16),
                       label: Text(_starting ? 'Starting…' : 'Start crawl'),
                     ),
                   ],
@@ -330,9 +352,14 @@ class _ModeSelector extends StatelessWidget {
   final void Function(String) onChanged;
 
   static const _modes = [
-    ('spider', 'Spider', Icons.account_tree_outlined, 'Follow links from a start URL'),
-    ('sitemap', 'Sitemap', Icons.map_outlined, 'Crawl everything a sitemap declares'),
-    ('list', 'List', Icons.list_alt_outlined, 'Fetch exactly these URLs'),
+    ('spider', 'Spider', AppIcon.structure, 'Follow links from a start URL'),
+    (
+      'sitemap',
+      'Sitemap',
+      AppIcon.sitemap,
+      'Crawl everything a sitemap declares',
+    ),
+    ('list', 'List', AppIcon.report, 'Fetch exactly these URLs'),
   ];
 
   @override
@@ -350,9 +377,13 @@ class _ModeSelector extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 11),
                   decoration: BoxDecoration(
-                    color: mode == id ? CrawlStatTheme.accent.withValues(alpha: 0.1) : null,
+                    color: mode == id
+                        ? CrawlStatTheme.accent.withValues(alpha: 0.1)
+                        : null,
                     border: Border.all(
-                      color: mode == id ? CrawlStatTheme.accent : theme.dividerColor,
+                      color: mode == id
+                          ? CrawlStatTheme.accent
+                          : theme.dividerColor,
                     ),
                     borderRadius: BorderRadius.circular(7),
                   ),

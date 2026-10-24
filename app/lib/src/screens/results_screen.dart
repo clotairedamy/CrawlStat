@@ -1,19 +1,18 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../rust/api/project.dart' as rust;
+import '../theme/icons.dart';
 import '../rust/api/types.dart';
 import '../state/projects.dart';
 import '../state/results.dart';
-import '../state/settings.dart';
+import '../widgets/export.dart';
 import '../theme/theme.dart';
 import '../widgets/common.dart';
 import '../widgets/data_grid.dart';
 import 'shell.dart';
 import 'url_detail_panel.dart';
+import '../theme/soft.dart';
 
 /// A Results tab: a filter on the data plus the columns worth seeing with it.
 ///
@@ -67,7 +66,15 @@ class ResultsTab {
       id: 'codes',
       label: 'Response codes',
       filterTab: 'internal',
-      columns: ['status', 'final_status', 'url', 'redirects', 'content_type', 'time', 'error'],
+      columns: [
+        'status',
+        'final_status',
+        'url',
+        'redirects',
+        'content_type',
+        'time',
+        'error',
+      ],
       sortBy: 'status_code',
     ),
     ResultsTab(
@@ -80,7 +87,13 @@ class ResultsTab {
       id: 'meta',
       label: 'Meta description',
       filterTab: 'html',
-      columns: ['status', 'url', 'description', 'description_length', 'indexable'],
+      columns: [
+        'status',
+        'url',
+        'description',
+        'description_length',
+        'indexable',
+      ],
     ),
     ResultsTab(
       id: 'h1',
@@ -163,45 +176,36 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
   void _applyTab() {
     final table = ref.read(urlTableProvider.notifier);
     final current = ref.read(urlTableProvider).query;
-    table.setQuery(current.copyWith(tab: _tab.filterTab, sortBy: _tab.sortBy, descending: false));
+    table.setQuery(
+      current.copyWith(
+        tab: _tab.filterTab,
+        sortBy: _tab.sortBy,
+        descending: false,
+      ),
+    );
   }
 
-  Set<String> get _visibleColumns => _columnOverrides[_tabId] ?? _tab.columns.toSet();
+  Set<String> get _visibleColumns =>
+      _columnOverrides[_tabId] ?? _tab.columns.toSet();
 
   Future<void> _export() async {
     final path = ref.read(openProjectProvider);
     if (path == null) return;
-    final settings = ref.read(settingsProvider);
     final query = ref.read(urlTableProvider).query;
 
-    final directory = Directory(settings.resolvedExportDirectory);
-    if (!directory.existsSync()) directory.createSync(recursive: true);
-    final file =
-        '${directory.path}${Platform.pathSeparator}'
-        'crawlstat-$_tabId-${DateTime.now().millisecondsSinceEpoch}.csv';
-
-    try {
-      final rows = await rust.exportUrlsCsv(
+    await exportCsv(
+      context,
+      ref,
+      name: _tabId,
+      // Limit and offset are ignored by the export: it streams everything
+      // the filter matches.
+      write: (file) => rust.exportUrlsCsv(
         dbPath: path,
-        // Limit and offset are ignored by the export: it streams everything
-        // the filter matches.
         query: query.toRequest(offset: 0, limit: 1),
         outPath: file,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Exported ${formatCount(rows)} rows'),
-          action: SnackBarAction(
-            label: 'Copy path',
-            onPressed: () => Clipboard.setData(ClipboardData(text: file)),
-          ),
-        ),
-      );
-    } on Object catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $error')));
-    }
+      ),
+      done: (rows) => 'Exported ${formatCount(rows)} rows',
+    );
   }
 
   @override
@@ -224,7 +228,9 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
       bindings: {
         CrawlStatShortcuts.focusFilter: _searchFocus.requestFocus,
         CrawlStatShortcuts.exportCsv: _export,
-        CrawlStatShortcuts.closePanel: ref.read(selectedUrlProvider.notifier).clear,
+        CrawlStatShortcuts.closePanel: ref
+            .read(selectedUrlProvider.notifier)
+            .clear,
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -237,19 +243,24 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                 '${table.query.hasFilters ? ' matching the filter' : ''}',
             actions: [
               ColumnChooser(
-                columns: [for (final column in columns) (column.id, column.label)],
+                columns: [
+                  for (final column in columns) (column.id, column.label),
+                ],
                 visible: _visibleColumns,
-                onChanged: (next) => setState(() => _columnOverrides[_tabId] = next),
+                onChanged: (next) =>
+                    setState(() => _columnOverrides[_tabId] = next),
               ),
               OutlinedButton.icon(
                 onPressed: _export,
-                icon: const Icon(Icons.file_download_outlined, size: 16),
+                icon: const Icon(AppIcon.download, size: 16),
                 label: const Text('Export CSV'),
               ),
             ],
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: CrawlStatTheme.gutter),
+            padding: const EdgeInsets.symmetric(
+              horizontal: CrawlStatTheme.gutter,
+            ),
             child: _TabBar(
               tabs: ResultsTab.all,
               selected: _tabId,
@@ -272,11 +283,15 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
-                    child: Card(
+                    child: SoftPanel(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _FilterBar(search: _search, focus: _searchFocus, query: table.query),
+                          _FilterBar(
+                            search: _search,
+                            focus: _searchFocus,
+                            query: table.query,
+                          ),
                           if (table.error != null)
                             InlineMessage(
                               message: 'Could not read results: ${table.error}',
@@ -290,17 +305,24 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                               total: table.total,
                               loading: table.pending.isNotEmpty,
                               rowAt: table.rowAt,
-                              onNeedRow: ref.read(urlTableProvider.notifier).ensureIndexLoaded,
+                              onNeedRow: ref
+                                  .read(urlTableProvider.notifier)
+                                  .ensureIndexLoaded,
                               sortBy: table.query.sortBy,
                               descending: table.query.descending,
-                              onSort: ref.read(urlTableProvider.notifier).sortBy,
+                              onSort: ref
+                                  .read(urlTableProvider.notifier)
+                                  .sortBy,
                               selectedKey: selected,
                               rowKey: (row) => row.id,
-                              onSelect: (row) =>
-                                  ref.read(selectedUrlProvider.notifier).select(row.id),
+                              onSelect: (row) => ref
+                                  .read(selectedUrlProvider.notifier)
+                                  .select(row.id),
                               emptyState: EmptyState(
-                                icon: Icons.filter_alt_off_outlined,
-                                title: table.query.hasFilters ? 'Nothing matches' : 'No rows',
+                                icon: AppIcon.clearFilter,
+                                title: table.query.hasFilters
+                                    ? 'Nothing matches'
+                                    : 'No rows',
                                 message: table.query.hasFilters
                                     ? 'Try widening the filter, or clear it to see everything.'
                                     : 'This tab has nothing in it for this crawl.',
@@ -308,7 +330,9 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                                     ? OutlinedButton(
                                         onPressed: () {
                                           _search.clear();
-                                          ref.read(urlTableProvider.notifier).clearFilters();
+                                          ref
+                                              .read(urlTableProvider.notifier)
+                                              .clearFilters();
                                         },
                                         child: const Text('Clear filter'),
                                       )
@@ -322,7 +346,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                   ),
                   if (selected != null) ...[
                     const SizedBox(width: 14),
-                    Card(
+                    SoftPanel(
                       child: UrlDetailPanel(path: path, urlId: selected),
                     ),
                   ],
@@ -338,7 +362,11 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
 
 /// The result tabs as a segmented strip, left-aligned with the cards below.
 class _TabBar extends StatelessWidget {
-  const _TabBar({required this.tabs, required this.selected, required this.onSelect});
+  const _TabBar({
+    required this.tabs,
+    required this.selected,
+    required this.onSelect,
+  });
 
   final List<ResultsTab> tabs;
   final String selected;
@@ -361,7 +389,9 @@ class _TabBar extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            children: [for (final tab in tabs) _tab(context, tab, selected == tab.id)],
+            children: [
+              for (final tab in tabs) _tab(context, tab, selected == tab.id),
+            ],
           ),
         ),
       ),
@@ -398,7 +428,9 @@ class _TabBar extends StatelessWidget {
             Text(
               tab.label,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: active ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant,
+                color: active
+                    ? theme.colorScheme.onSurface
+                    : theme.colorScheme.onSurfaceVariant,
                 fontWeight: active ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
@@ -410,7 +442,11 @@ class _TabBar extends StatelessWidget {
 }
 
 class _FilterBar extends ConsumerWidget {
-  const _FilterBar({required this.search, required this.focus, required this.query});
+  const _FilterBar({
+    required this.search,
+    required this.focus,
+    required this.query,
+  });
 
   final TextEditingController search;
   final FocusNode focus;
@@ -429,12 +465,12 @@ class _FilterBar extends ConsumerWidget {
             focusNode: focus,
             decoration: InputDecoration(
               hintText: 'Filter by URL…',
-              prefixIcon: const Icon(Icons.search_rounded, size: 17),
+              prefixIcon: const Icon(AppIcon.search, size: 17),
               prefixIconConstraints: const BoxConstraints(minWidth: 36),
               suffixIcon: search.text.isEmpty
                   ? null
                   : IconButton(
-                      icon: const Icon(Icons.close, size: 14),
+                      icon: const Icon(AppIcon.close, size: 14),
                       onPressed: () {
                         search.clear();
                         table.setSearch(null);
@@ -448,7 +484,10 @@ class _FilterBar extends ConsumerWidget {
         _StatusClassFilter(selected: query.statusClass),
         const Spacer(),
         if (query.issueId != null) ...[
-          _ActiveFilterChip(label: 'Issue: ${query.issueId}', onClear: () => table.setIssue(null)),
+          _ActiveFilterChip(
+            label: 'Issue: ${query.issueId}',
+            onClear: () => table.setIssue(null),
+          ),
           const SizedBox(width: 6),
         ],
         if (query.hasFilters)
@@ -476,7 +515,12 @@ class _StatusClassFilter extends ConsumerWidget {
 
     return Row(
       children: [
-        for (final (value, label) in const [(2, '2xx'), (3, '3xx'), (4, '4xx'), (5, '5xx')])
+        for (final (value, label) in const [
+          (2, '2xx'),
+          (3, '3xx'),
+          (4, '4xx'),
+          (5, '5xx'),
+        ])
           Padding(
             padding: const EdgeInsets.only(right: 6),
             child: InkWell(
@@ -488,19 +532,27 @@ class _StatusClassFilter extends ConsumerWidget {
                       : query.copyWith(statusClass: value),
                 );
               },
-              borderRadius: BorderRadius.circular(CrawlStatTheme.controlRadius - 1),
+              borderRadius: BorderRadius.circular(
+                CrawlStatTheme.controlRadius - 1,
+              ),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: selected == value
-                      ? CrawlStatTheme.statusColor(value * 100).withValues(alpha: 0.16)
+                      ? CrawlStatTheme.statusColor(value * 100)
+                            .withValues(alpha: 0.16)
                       : null,
                   border: Border.all(
                     color: selected == value
                         ? CrawlStatTheme.statusColor(value * 100)
                         : theme.dividerColor,
                   ),
-                  borderRadius: BorderRadius.circular(CrawlStatTheme.controlRadius - 1),
+                  borderRadius: BorderRadius.circular(
+                    CrawlStatTheme.controlRadius - 1,
+                  ),
                 ),
                 child: Text(
                   label,
@@ -537,9 +589,14 @@ class _ActiveFilterChip extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(label, style: theme.textTheme.bodySmall?.copyWith(color: CrawlStatTheme.accent)),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: CrawlStatTheme.accent,
+            ),
+          ),
           IconButton(
-            icon: const Icon(Icons.close, size: 13),
+            icon: const Icon(AppIcon.close, size: 13),
             onPressed: onClear,
             visualDensity: VisualDensity.compact,
             constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
@@ -572,8 +629,9 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
       width: 72,
       tooltip: 'Status at the end of the redirect chain',
       value: (row) => row.finalStatusCode?.toString() ?? '',
-      cell: (context, row) =>
-          row.finalStatusCode == null ? const SizedBox.shrink() : StatusChip(row.finalStatusCode),
+      cell: (context, row) => row.finalStatusCode == null
+          ? const SizedBox.shrink()
+          : StatusChip(row.finalStatusCode),
       defaultVisible: false,
     ),
     GridColumn<UrlRow>(
@@ -589,9 +647,12 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
       id: 'indexable',
       label: 'Indexability',
       width: 150,
-      value: (row) => row.indexabilityReason ?? (row.indexable == true ? 'Indexable' : ''),
-      cell: (context, row) =>
-          IndexablePill(indexable: row.indexable, reason: row.indexabilityReason),
+      value: (row) =>
+          row.indexabilityReason ?? (row.indexable == true ? 'Indexable' : ''),
+      cell: (context, row) => IndexablePill(
+        indexable: row.indexable,
+        reason: row.indexabilityReason,
+      ),
     ),
     GridColumn<UrlRow>(
       id: 'title',
@@ -625,7 +686,12 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
       mono: true,
       value: (row) => row.metaDescriptionLength?.toString() ?? '',
     ),
-    GridColumn<UrlRow>(id: 'h1', label: 'H1', width: 280, value: (row) => row.h1 ?? ''),
+    GridColumn<UrlRow>(
+      id: 'h1',
+      label: 'H1',
+      width: 280,
+      value: (row) => row.h1 ?? '',
+    ),
     GridColumn<UrlRow>(
       id: 'h1_count',
       label: 'H1s',
@@ -651,7 +717,8 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
         false => 'no',
         null => '',
       },
-      color: (row) => row.canonicalIsSelf == false ? CrawlStatTheme.warning : null,
+      color: (row) =>
+          row.canonicalIsSelf == false ? CrawlStatTheme.warning : null,
     ),
     GridColumn<UrlRow>(
       id: 'lang',
@@ -722,7 +789,8 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
       align: TextAlign.right,
       mono: true,
       tooltip: 'Redirects traversed',
-      value: (row) => row.redirectCount == 0 ? '' : row.redirectCount.toString(),
+      value: (row) =>
+          row.redirectCount == 0 ? '' : row.redirectCount.toString(),
       color: (row) => row.redirectCount > 2 ? CrawlStatTheme.warning : null,
     ),
     GridColumn<UrlRow>(
@@ -749,7 +817,8 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
       mono: true,
       tooltip: 'Server response time',
       value: (row) => formatMillis(row.responseTimeMs),
-      color: (row) => (row.responseTimeMs ?? 0) > 1000 ? CrawlStatTheme.warning : null,
+      color: (row) =>
+          (row.responseTimeMs ?? 0) > 1000 ? CrawlStatTheme.warning : null,
     ),
     GridColumn<UrlRow>(
       id: 'error',

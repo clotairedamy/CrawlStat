@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../theme/glass.dart';
+import '../theme/soft.dart';
 import '../theme/theme.dart';
 import 'common.dart';
 
@@ -18,7 +18,12 @@ import 'common.dart';
 
 /// One slice, bar or series.
 class ChartDatum {
-  const ChartDatum({required this.label, required this.value, required this.color, this.hint});
+  const ChartDatum({
+    required this.label,
+    required this.value,
+    required this.color,
+    this.hint,
+  });
 
   final String label;
   final num value;
@@ -57,7 +62,8 @@ class DonutChart extends StatefulWidget {
   State<DonutChart> createState() => _DonutChartState();
 }
 
-class _DonutChartState extends State<DonutChart> with SingleTickerProviderStateMixin {
+class _DonutChartState extends State<DonutChart>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 650),
@@ -80,7 +86,9 @@ class _DonutChartState extends State<DonutChart> with SingleTickerProviderStateM
       return _EmptyChart(size: widget.size, message: 'Nothing to chart yet');
     }
 
-    final segments = donutSegments(widget.data.map((datum) => datum.value).toList());
+    final segments = donutSegments(
+      widget.data.map((datum) => datum.value).toList(),
+    );
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -108,7 +116,9 @@ class _DonutChartState extends State<DonutChart> with SingleTickerProviderStateM
                       data: widget.data,
                       segments: segments,
                       thickness: widget.thickness,
-                      progress: Curves.easeOutCubic.transform(_controller.value),
+                      progress: Curves.easeOutCubic.transform(
+                        _controller.value,
+                      ),
                       hovered: _hovered,
                       trackColor: theme.dividerColor.withValues(alpha: 0.4),
                     ),
@@ -118,8 +128,10 @@ class _DonutChartState extends State<DonutChart> with SingleTickerProviderStateM
                         children: [
                           Text(
                             widget.centreValue ?? formatCount(total),
-                            style: CrawlStatTheme.mono(context, size: 22)
-                                .copyWith(fontWeight: FontWeight.w600),
+                            style: CrawlStatTheme.mono(
+                              context,
+                              size: 22,
+                            ).copyWith(fontWeight: FontWeight.w600),
                           ),
                           if (widget.centreLabel != null)
                             Text(
@@ -136,12 +148,14 @@ class _DonutChartState extends State<DonutChart> with SingleTickerProviderStateM
           ),
         ),
         const SizedBox(width: 20),
-        _Legend(
-          data: widget.data,
-          total: total,
-          highlighted: _hovered,
-          onHover: (index) => setState(() => _hovered = index),
-          onTap: widget.onTap,
+        Flexible(
+          child: _Legend(
+            data: widget.data,
+            total: total,
+            highlighted: _hovered,
+            onHover: (index) => setState(() => _hovered = index),
+            onTap: widget.onTap,
+          ),
         ),
       ],
     );
@@ -153,7 +167,9 @@ class _DonutChartState extends State<DonutChart> with SingleTickerProviderStateM
     final vector = position - centre;
     final distance = vector.distance;
     final outer = widget.size / 2;
-    if (distance > outer || distance < outer - widget.thickness - 4) return null;
+    if (distance > outer || distance < outer - widget.thickness - 4) {
+      return null;
+    }
 
     // atan2 gives -pi..pi from the positive x axis; the ring starts at 12
     // o'clock, so rotate a quarter turn and wrap.
@@ -245,7 +261,9 @@ class _DonutPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DonutPainter old) =>
-      old.progress != progress || old.hovered != hovered || old.segments != segments;
+      old.progress != progress ||
+      old.hovered != hovered ||
+      old.segments != segments;
 }
 
 // ─── bars ────────────────────────────────────────────────────────────────
@@ -274,7 +292,8 @@ class BarChart extends StatefulWidget {
   State<BarChart> createState() => _BarChartState();
 }
 
-class _BarChartState extends State<BarChart> with SingleTickerProviderStateMixin {
+class _BarChartState extends State<BarChart>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 600),
@@ -390,7 +409,8 @@ class _Bar extends StatelessWidget {
                   animation: controller,
                   builder: (context, _) {
                     final grown =
-                        Curves.easeOutCubic.transform(controller.value) * fraction;
+                        Curves.easeOutCubic.transform(controller.value) *
+                        fraction;
                     return Container(
                       width: width,
                       height: math.max(3, height * grown),
@@ -401,7 +421,11 @@ class _Bar extends StatelessWidget {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Color.lerp(datum.color, Colors.white, hovered ? 0.4 : 0.22)!,
+                            Color.lerp(
+                              datum.color,
+                              Colors.white,
+                              hovered ? 0.4 : 0.22,
+                            )!,
                             datum.color,
                           ],
                         ),
@@ -463,7 +487,9 @@ class Sparkline extends StatelessWidget {
       width: width,
       child: values.length < 2
           ? const SizedBox.shrink()
-          : CustomPaint(painter: _SparklinePainter(values: values, color: line)),
+          : CustomPaint(
+              painter: _SparklinePainter(values: values, color: line),
+            ),
     );
   }
 }
@@ -572,7 +598,7 @@ class SeverityBar extends StatelessWidget {
                 Expanded(
                   flex: count,
                   child: DecoratedBox(
-                    decoration: BoxDecoration(gradient: Glass.gloss(colour)),
+                    decoration: BoxDecoration(gradient: glossOf(colour)),
                   ),
                 ),
           ],
@@ -610,7 +636,9 @@ class _Legend extends StatelessWidget {
           MouseRegion(
             onEnter: (_) => onHover(index),
             onExit: (_) => onHover(null),
-            cursor: onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
+            cursor: onTap == null
+                ? MouseCursor.defer
+                : SystemMouseCursors.click,
             child: GestureDetector(
               onTap: onTap == null ? null : () => onTap!(data[index]),
               child: AnimatedContainer(
@@ -630,18 +658,22 @@ class _Legend extends StatelessWidget {
                       width: 9,
                       height: 9,
                       decoration: BoxDecoration(
-                        gradient: Glass.gloss(data[index].color),
+                        gradient: glossOf(data[index].color),
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    SizedBox(
-                      width: 86,
-                      child: Text(
-                        data[index].label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall,
+                    // Flexible, so a narrow card shortens the label rather
+                    // than overflowing the row.
+                    Flexible(
+                      child: SizedBox(
+                        width: 86,
+                        child: Text(
+                          data[index].label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall,
+                        ),
                       ),
                     ),
                     Text(
@@ -678,9 +710,7 @@ class _EmptyChart extends StatelessWidget {
     final theme = Theme.of(context);
     return SizedBox(
       height: size,
-      child: Center(
-        child: Text(message, style: theme.textTheme.bodySmall),
-      ),
+      child: Center(child: Text(message, style: theme.textTheme.bodySmall)),
     );
   }
 }
@@ -689,7 +719,11 @@ class _EmptyChart extends StatelessWidget {
 
 /// One slice of a donut, in radians clockwise from 12 o'clock.
 class DonutSegment {
-  const DonutSegment({required this.start, required this.sweep, required this.fraction});
+  const DonutSegment({
+    required this.start,
+    required this.sweep,
+    required this.fraction,
+  });
 
   final double start;
   final double sweep;
@@ -720,7 +754,9 @@ List<DonutSegment> donutSegments(List<num> values) {
   for (final value in values) {
     final fraction = math.max(0, value) / total;
     final sweep = fraction * 2 * math.pi;
-    segments.add(DonutSegment(start: cursor, sweep: sweep, fraction: fraction.toDouble()));
+    segments.add(
+      DonutSegment(start: cursor, sweep: sweep, fraction: fraction.toDouble()),
+    );
     cursor += sweep;
   }
   return segments;
@@ -734,7 +770,9 @@ num niceAxisMax(num largest) {
   if (largest <= 0) return 1;
   if (largest <= 5) return 5;
 
-  final magnitude = math.pow(10, (math.log(largest) / math.ln10).floor()).toDouble();
+  final magnitude = math
+      .pow(10, (math.log(largest) / math.ln10).floor())
+      .toDouble();
   final normalised = largest / magnitude;
   final step = switch (normalised) {
     <= 1 => 1.0,

@@ -13,17 +13,19 @@ void main() {
     });
 
     test('puts the newest first', () {
-      expect(
-        promoteToFront(['/b.db', '/c.db'], '/a.db'),
-        ['/a.db', '/b.db', '/c.db'],
-      );
+      expect(promoteToFront(['/b.db', '/c.db'], '/a.db'), [
+        '/a.db',
+        '/b.db',
+        '/c.db',
+      ]);
     });
 
     test('moves an existing crawl up rather than duplicating it', () {
-      expect(
-        promoteToFront(['/a.db', '/b.db', '/c.db'], '/c.db'),
-        ['/c.db', '/a.db', '/b.db'],
-      );
+      expect(promoteToFront(['/a.db', '/b.db', '/c.db'], '/c.db'), [
+        '/c.db',
+        '/a.db',
+        '/b.db',
+      ]);
     });
 
     test('keeps the list short', () {
@@ -37,7 +39,10 @@ void main() {
       // The fix is only complete if the result is growable too.
       final result = promoteToFront(const [], '/a.db');
       expect(() => result.add('/b.db'), returnsNormally);
-      expect(() => result.removeWhere((path) => path == '/a.db'), returnsNormally);
+      expect(
+        () => result.removeWhere((path) => path == '/a.db'),
+        returnsNormally,
+      );
     });
 
     test('leaves the input alone', () {

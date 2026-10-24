@@ -7,8 +7,9 @@
 //! CSV is the free-tier export. XLSX and the shareable HTML audit report are
 //! Pro features and live behind the licence check.
 
+use std::borrow::Cow;
 use std::fs::File;
-use std::io::BufWriter;
+use std::io::{BufWriter, Write};
 use std::path::Path;
 
 use rusqlite::Connection;
@@ -20,6 +21,10 @@ use crate::store::Store;
 
 /// Rows read per query while streaming an export.
 const PAGE: u32 = 1_000;
+
+/// UTF-8 byte order mark. Excel guesses a legacy code page for a CSV without
+/// one, which turns accented titles and descriptions into mojibake.
+const UTF8_BOM: &[u8] = b"\xEF\xBB\xBF";
 
 /// The columns a URL export writes, in order.
 ///
@@ -61,7 +66,7 @@ pub fn urls_to_csv(
     descending: bool,
     path: &Path,
 ) -> Result<u64> {
-    let mut writer = csv::Writer::from_writer(BufWriter::new(File::create(path)?));
+    let mut writer = create_writer(path)?;
     writer.write_record(URL_HEADERS)?;
 
     let mut written = 0u64;
@@ -77,20 +82,20 @@ pub fn urls_to_csv(
                 &opt_number(row.status_code),
                 row.state.map(state_label).unwrap_or(""),
                 opt_bool(row.indexable),
-                row.indexability_reason.as_deref().unwrap_or(""),
-                row.content_type.as_deref().unwrap_or(""),
+                &cell(row.indexability_reason.as_deref().unwrap_or("")),
+                &cell(row.content_type.as_deref().unwrap_or("")),
                 &row.depth.to_string(),
                 &opt_number(row.body_bytes),
                 &opt_number(row.response_time_ms),
-                row.title.as_deref().unwrap_or(""),
+                &cell(row.title.as_deref().unwrap_or("")),
                 &opt_number(row.title_length),
-                row.meta_description.as_deref().unwrap_or(""),
+                &cell(row.meta_description.as_deref().unwrap_or("")),
                 &opt_number(row.meta_description_length),
-                row.meta_robots.as_deref().unwrap_or(""),
-                row.h1.as_deref().unwrap_or(""),
+                &cell(row.meta_robots.as_deref().unwrap_or("")),
+                &cell(row.h1.as_deref().unwrap_or("")),
                 &opt_number(row.h1_count),
                 &opt_number(row.word_count),
-                row.canonical.as_deref().unwrap_or(""),
+                &cell(row.canonical.as_deref().unwrap_or("")),
                 opt_bool(row.canonical_is_self),
                 &row.inlinks.to_string(),
                 &opt_number(row.internal_links),
@@ -116,7 +121,7 @@ pub fn urls_to_csv(
 /// Write the issue summary — one row per issue type — as CSV.
 pub fn issues_to_csv(store: &Store, config: &AuditConfig, path: &Path) -> Result<u64> {
     let report = store.audit_report(config)?;
-    let mut writer = csv::Writer::from_writer(BufWriter::new(File::create(path)?));
+    let mut writer = create_writer(path)?;
     writer.write_record([
         "Issue",
         "Severity",
@@ -152,7 +157,7 @@ pub fn issue_urls_to_csv(
     let details = issue_detail_map(store.connection(), issue_id)?;
     let filter = UrlFilter::for_issue(issue_id);
 
-    let mut writer = csv::Writer::from_writer(BufWriter::new(File::create(path)?));
+    let mut writer = create_writer(path)?;
     let mut headers: Vec<&str> = vec!["Detail"];
     headers.extend_from_slice(URL_HEADERS);
     writer.write_record(&headers)?;
@@ -167,25 +172,25 @@ pub fn issue_urls_to_csv(
         for row in &page.rows {
             let detail = details.get(&row.id).cloned().unwrap_or_default();
             writer.write_record([
-                detail.as_str(),
+                &cell(&detail),
                 row.url.as_str(),
                 &opt_number(row.status_code),
                 row.state.map(state_label).unwrap_or(""),
                 opt_bool(row.indexable),
-                row.indexability_reason.as_deref().unwrap_or(""),
-                row.content_type.as_deref().unwrap_or(""),
+                &cell(row.indexability_reason.as_deref().unwrap_or("")),
+                &cell(row.content_type.as_deref().unwrap_or("")),
                 &row.depth.to_string(),
                 &opt_number(row.body_bytes),
                 &opt_number(row.response_time_ms),
-                row.title.as_deref().unwrap_or(""),
+                &cell(row.title.as_deref().unwrap_or("")),
                 &opt_number(row.title_length),
-                row.meta_description.as_deref().unwrap_or(""),
+                &cell(row.meta_description.as_deref().unwrap_or("")),
                 &opt_number(row.meta_description_length),
-                row.meta_robots.as_deref().unwrap_or(""),
-                row.h1.as_deref().unwrap_or(""),
+                &cell(row.meta_robots.as_deref().unwrap_or("")),
+                &cell(row.h1.as_deref().unwrap_or("")),
                 &opt_number(row.h1_count),
                 &opt_number(row.word_count),
-                row.canonical.as_deref().unwrap_or(""),
+                &cell(row.canonical.as_deref().unwrap_or("")),
                 opt_bool(row.canonical_is_self),
                 &row.inlinks.to_string(),
                 &opt_number(row.internal_links),
@@ -210,7 +215,7 @@ pub fn issue_urls_to_csv(
 
 /// Write the whole internal link graph as `source,target,anchor,...`.
 pub fn links_to_csv(store: &Store, path: &Path) -> Result<u64> {
-    let mut writer = csv::Writer::from_writer(BufWriter::new(File::create(path)?));
+    let mut writer = create_writer(path)?;
     writer.write_record([
         "Source",
         "Target",
@@ -239,14 +244,10 @@ pub fn links_to_csv(store: &Store, path: &Path) -> Result<u64> {
             row.get::<_, Option<String>>(1)?
                 .unwrap_or_default()
                 .as_str(),
-            row.get::<_, Option<String>>(2)?
-                .unwrap_or_default()
-                .as_str(),
+            &cell(&row.get::<_, Option<String>>(2)?.unwrap_or_default()),
             link_source_label(row.get::<_, i64>(3)?),
             position_label(row.get::<_, i64>(4)?),
-            row.get::<_, Option<String>>(5)?
-                .unwrap_or_default()
-                .as_str(),
+            &cell(&row.get::<_, Option<String>>(5)?.unwrap_or_default()),
             if row.get::<_, i64>(6)? != 0 {
                 "yes"
             } else {
@@ -260,6 +261,35 @@ pub fn links_to_csv(store: &Store, path: &Path) -> Result<u64> {
     }
     writer.flush()?;
     Ok(written)
+}
+
+/// Open `path` for a CSV export, BOM first so Excel reads it as UTF-8.
+fn create_writer(path: &Path) -> Result<csv::Writer<BufWriter<File>>> {
+    let mut file = BufWriter::new(File::create(path)?);
+    file.write_all(UTF8_BOM)?;
+    Ok(csv::Writer::from_writer(file))
+}
+
+/// Defuse a crawled text value before it reaches a spreadsheet.
+///
+/// Titles, anchor text and the like come from third-party pages, and a cell
+/// starting with `=`, `+`, `-`, `@`, tab or carriage return is run as a
+/// formula by Excel and friends. A leading `'` makes it plain text. A bare
+/// negative number such as `-5` is left alone: it cannot carry a formula.
+fn cell(text: &str) -> Cow<'_, str> {
+    let risky = match text.as_bytes().first() {
+        Some(b'=' | b'+' | b'@' | b'\t' | b'\r') => true,
+        Some(b'-') => {
+            let rest = &text[1..];
+            rest.is_empty() || !rest.bytes().all(|b| b.is_ascii_digit() || b == b'.')
+        }
+        _ => false,
+    };
+    if risky {
+        Cow::Owned(format!("'{text}"))
+    } else {
+        Cow::Borrowed(text)
+    }
 }
 
 /// Build `url_id -> detail` for one issue.

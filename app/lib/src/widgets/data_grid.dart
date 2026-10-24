@@ -1,6 +1,8 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../theme/icons.dart';
 import '../theme/theme.dart';
 
 /// Width of the bar marking the keyboard cursor.
@@ -12,6 +14,14 @@ const double _indicatorWidth = 2;
 
 /// Horizontal padding inside every header and body cell.
 const double _cellPadding = 12;
+
+/// How wide the grab area on a header's right edge is. Far wider than the
+/// 1px line it carries, because a 1px target is a pixel hunt with a trackpad.
+const double _resizeHandleWidth = 8;
+
+/// The narrowest a column can be dragged to: room for the cell padding and a
+/// few characters, so a column cannot vanish under its own handle.
+const double _minColumnWidth = 48;
 
 /// One column of a [DataGrid].
 class GridColumn<T> {
@@ -62,29 +72,50 @@ class GridColumn<T> {
   final bool grow;
 
   GridColumn<T> _withWidth(double newWidth) => GridColumn<T>(
-        id: id,
-        label: label,
-        width: newWidth,
-        value: value,
-        sortKey: sortKey,
-        align: align,
-        mono: mono,
-        color: color,
-        tooltip: tooltip,
-        defaultVisible: defaultVisible,
-        cell: cell,
-        grow: grow,
-      );
+    id: id,
+    label: label,
+    width: newWidth,
+    value: value,
+    sortKey: sortKey,
+    align: align,
+    mono: mono,
+    color: color,
+    tooltip: tooltip,
+    defaultVisible: defaultVisible,
+    cell: cell,
+    grow: grow,
+  );
 }
 
 /// Widen one column so the table fills `available`, rather than leaving a
 /// ragged gap to the right of the last column and a header that stops short.
-List<GridColumn<T>> fillWidth<T>(List<GridColumn<T>> columns, double available) {
-  if (columns.isEmpty || !available.isFinite) return columns;
-  final natural = columns.fold<double>(_indicatorWidth, (sum, column) => sum + column.width);
+///
+/// `widths` are the widths the user has dragged columns to, by column id. They
+/// replace the defaults, and a column the user has sized is left exactly where
+/// they put it — so if that is the column that would have taken the spare
+/// width, nothing does, and the table simply ends short of the viewport.
+List<GridColumn<T>> fillWidth<T>(
+  List<GridColumn<T>> columns,
+  double available, {
+  Map<String, double> widths = const {},
+}) {
+  final sized = [
+    for (final column in columns)
+      switch (widths[column.id]) {
+        final width? => column._withWidth(width),
+        null => column,
+      },
+  ];
+  if (columns.isEmpty || !available.isFinite) return sized;
+  final natural = sized.fold<double>(
+    _indicatorWidth,
+    (sum, column) => sum + column.width,
+  );
   final spare = available - natural;
-  if (spare <= 0) return columns;
+  if (spare <= 0) return sized;
 
+  // Chosen from the default widths, not the dragged ones: widening the title
+  // past the URL should not move the spare width onto the title.
   var target = columns.indexWhere((column) => column.grow);
   if (target < 0) {
     target = 0;
@@ -92,9 +123,10 @@ List<GridColumn<T>> fillWidth<T>(List<GridColumn<T>> columns, double available) 
       if (columns[i].width > columns[target].width) target = i;
     }
   }
+  if (widths.containsKey(columns[target].id)) return sized;
   return [
-    for (var i = 0; i < columns.length; i++)
-      i == target ? columns[i]._withWidth(columns[i].width + spare) : columns[i],
+    for (var i = 0; i < sized.length; i++)
+      i == target ? sized[i]._withWidth(sized[i].width + spare) : sized[i],
   ];
 }
 
@@ -186,7 +218,8 @@ class _DataGridState<T> extends State<DataGrid<T>> {
 
   void _handleTap(int index, T row) {
     final now = DateTime.now();
-    final isDoubleClick = _lastTapRow == index &&
+    final isDoubleClick =
+        _lastTapRow == index &&
         _lastTapAt != null &&
         now.difference(_lastTapAt!) < _doubleClickWindow;
 
@@ -201,6 +234,49 @@ class _DataGridState<T> extends State<DataGrid<T>> {
     }
   }
 
+  /// Widths the user has dragged columns to, by column id.
+  ///
+  /// Keyed by id rather than position so a width follows its column when the
+  /// column chooser adds or removes the ones around it, and survives a switch
+  /// between tabs that share columns.
+  final Map<String, double> _widths = {};
+
+  /// The column whose edge is being dragged, so its handle stays lit even when
+  /// the pointer runs ahead of it.
+  String? _resizing;
+
+  /// Where the drag began. The new width is measured from these rather than
+  /// accumulated from per-frame deltas, so dragging past the minimum and back
+  /// leaves the edge under the pointer instead of drifting away from it.
+  double _resizeStartWidth = 0;
+  double _resizeStartX = 0;
+
+  void _startResize(GridColumn<T> column, double shownWidth, double x) {
+    setState(() {
+      _resizing = column.id;
+      // The width on screen, which for the filling column is more than its
+      // default. Starting from anything else would make the edge jump.
+      _resizeStartWidth = shownWidth;
+      _resizeStartX = x;
+      _widths[column.id] = shownWidth;
+    });
+  }
+
+  void _updateResize(GridColumn<T> column, double x) {
+    // Never narrower than the column was designed at, if that is already
+    // below the usual minimum.
+    final floor = column.width < _minColumnWidth
+        ? column.width
+        : _minColumnWidth;
+    final next = _resizeStartWidth + x - _resizeStartX;
+    setState(() => _widths[column.id] = next < floor ? floor : next);
+  }
+
+  void _endResize() => setState(() => _resizing = null);
+
+  void _resetWidth(GridColumn<T> column) =>
+      setState(() => _widths.remove(column.id));
+
   @override
   void dispose() {
     _vertical.dispose();
@@ -214,7 +290,9 @@ class _DataGridState<T> extends State<DataGrid<T>> {
     if (allowed == null) {
       return widget.columns.where((column) => column.defaultVisible).toList();
     }
-    return widget.columns.where((column) => allowed.contains(column.id)).toList();
+    return widget.columns
+        .where((column) => allowed.contains(column.id))
+        .toList();
   }
 
   void _moveCursor(int delta) {
@@ -240,10 +318,15 @@ class _DataGridState<T> extends State<DataGrid<T>> {
     final offset = _vertical.offset;
 
     if (top < offset) {
-      _vertical.jumpTo((top - height).clamp(0, _vertical.position.maxScrollExtent));
+      _vertical.jumpTo(
+        (top - height).clamp(0, _vertical.position.maxScrollExtent),
+      );
     } else if (top + height > offset + viewport) {
       _vertical.jumpTo(
-        (top + height * 2 - viewport).clamp(0, _vertical.position.maxScrollExtent),
+        (top + height * 2 - viewport).clamp(
+          0,
+          _vertical.position.maxScrollExtent,
+        ),
       );
     }
   }
@@ -267,8 +350,17 @@ class _DataGridState<T> extends State<DataGrid<T>> {
 
   Widget _grid(BuildContext context, double available) {
     final theme = Theme.of(context);
-    final columns = fillWidth(_visible, available);
-    final width = columns.fold<double>(_indicatorWidth, (sum, column) => sum + column.width);
+    final columns = fillWidth(_visible, available, widths: _widths);
+    final natural = columns.fold<double>(
+      _indicatorWidth,
+      (sum, column) => sum + column.width,
+    );
+    // Once the user has sized the filling column the columns can add up to
+    // less than the viewport. The header and row stripes still run to the
+    // edge, so the table does not look cut off.
+    final width = available.isFinite && natural < available
+        ? available
+        : natural;
 
     return Shortcuts(
       shortcuts: const {
@@ -319,7 +411,8 @@ class _DataGridState<T> extends State<DataGrid<T>> {
                           itemExtent: CrawlStatTheme.rowHeight,
                           // Fixed extents mean the list can jump straight to any
                           // offset without measuring the rows in between.
-                          itemBuilder: (context, index) => _row(context, columns, index),
+                          itemBuilder: (context, index) =>
+                              _row(context, columns, index),
                         ),
                       ),
                     ),
@@ -328,7 +421,8 @@ class _DataGridState<T> extends State<DataGrid<T>> {
                         height: 2,
                         child: LinearProgressIndicator(
                           minHeight: 2,
-                          backgroundColor: theme.colorScheme.surfaceContainerLow,
+                          backgroundColor:
+                              theme.colorScheme.surfaceContainerLow,
                         ),
                       ),
                   ],
@@ -361,11 +455,23 @@ class _DataGridState<T> extends State<DataGrid<T>> {
               onTap: column.sortKey == null || widget.onSort == null
                   ? null
                   : () => widget.onSort!(column.sortKey!),
+              resizing: _resizing == column.id,
+              // `column` is the laid-out one, so its width is what is on
+              // screen; the default comes from the unfilled original.
+              onResizeStart: (x) =>
+                  _startResize(_original(column), column.width, x),
+              onResizeUpdate: (x) => _updateResize(_original(column), x),
+              onResizeEnd: _endResize,
+              onResetWidth: () => _resetWidth(_original(column)),
             ),
         ],
       ),
     );
   }
+
+  /// The column as the screen declared it, before any filling or dragging.
+  GridColumn<T> _original(GridColumn<T> column) =>
+      widget.columns.firstWhere((each) => each.id == column.id);
 
   Widget _row(BuildContext context, List<GridColumn<T>> columns, int index) {
     final theme = Theme.of(context);
@@ -381,7 +487,8 @@ class _DataGridState<T> extends State<DataGrid<T>> {
     }
 
     final isCursor = index == _cursor;
-    final isSelected = widget.selectedKey != null &&
+    final isSelected =
+        widget.selectedKey != null &&
         widget.rowKey != null &&
         widget.rowKey!(row) == widget.selectedKey;
 
@@ -411,6 +518,11 @@ class _HeaderCell<T> extends StatelessWidget {
     required this.column,
     required this.sorted,
     required this.descending,
+    required this.resizing,
+    required this.onResizeStart,
+    required this.onResizeUpdate,
+    required this.onResizeEnd,
+    required this.onResetWidth,
     this.onTap,
   });
 
@@ -418,6 +530,15 @@ class _HeaderCell<T> extends StatelessWidget {
   final bool sorted;
   final bool descending;
   final VoidCallback? onTap;
+
+  /// This column's edge is being dragged.
+  final bool resizing;
+
+  /// Pointer positions are global x coordinates.
+  final void Function(double x) onResizeStart;
+  final void Function(double x) onResizeUpdate;
+  final VoidCallback onResizeEnd;
+  final VoidCallback onResetWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -427,7 +548,9 @@ class _HeaderCell<T> extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       textAlign: column.align,
       style: theme.textTheme.labelMedium?.copyWith(
-        color: sorted ? CrawlStatTheme.accent : theme.colorScheme.onSurfaceVariant,
+        color: sorted
+            ? CrawlStatTheme.accent
+            : theme.colorScheme.onSurfaceVariant,
       ),
     );
 
@@ -436,14 +559,15 @@ class _HeaderCell<T> extends StatelessWidget {
     final content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: _cellPadding),
       child: Row(
-        mainAxisAlignment:
-            column.align == TextAlign.right ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: column.align == TextAlign.right
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           Flexible(child: label),
           if (sorted) ...[
             const SizedBox(width: 3),
             Icon(
-              descending ? Icons.arrow_downward : Icons.arrow_upward,
+              descending ? AppIcon.sortDescending : AppIcon.sortAscending,
               size: 12,
               color: CrawlStatTheme.accent,
             ),
@@ -455,9 +579,114 @@ class _HeaderCell<T> extends StatelessWidget {
     return SizedBox(
       width: column.width,
       height: double.infinity,
-      child: Tooltip(
-        message: column.tooltip ?? (onTap == null ? '' : 'Sort by ${column.label}'),
-        child: onTap == null ? content : InkWell(onTap: onTap, child: content),
+      // The handle is a sibling laid over the cell's right edge, not a child
+      // of its InkWell, so grabbing the edge never also sorts the column.
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Tooltip(
+              message:
+                  column.tooltip ??
+                  (onTap == null ? '' : 'Sort by ${column.label}'),
+              child: onTap == null
+                  ? content
+                  : InkWell(onTap: onTap, child: content),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: _resizeHandleWidth,
+            child: _ResizeHandle(
+              label: column.label,
+              active: resizing,
+              onStart: onResizeStart,
+              onUpdate: onResizeUpdate,
+              onEnd: onResizeEnd,
+              onReset: onResetWidth,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The grab area on a header's right edge: drag to resize the column,
+/// double-click to put it back to its default width.
+class _ResizeHandle extends StatefulWidget {
+  const _ResizeHandle({
+    required this.label,
+    required this.active,
+    required this.onStart,
+    required this.onUpdate,
+    required this.onEnd,
+    required this.onReset,
+  });
+
+  final String label;
+  final bool active;
+  final void Function(double x) onStart;
+  final void Function(double x) onUpdate;
+  final VoidCallback onEnd;
+  final VoidCallback onReset;
+
+  @override
+  State<_ResizeHandle> createState() => _ResizeHandleState();
+}
+
+class _ResizeHandleState extends State<_ResizeHandle> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final Color line;
+    if (widget.active) {
+      line = CrawlStatTheme.accent;
+    } else if (_hovered) {
+      line = theme.colorScheme.onSurfaceVariant;
+    } else {
+      line = theme.dividerColor;
+    }
+
+    return Semantics(
+      label: 'Resize ${widget.label} column',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.resizeColumn,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        // Unlike the rows, waiting out the double-tap timeout costs nothing
+        // here: a single click on an edge does nothing anyway, and a drag is
+        // claimed as soon as the pointer moves.
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          // Measure from where the button went down, not from where the
+          // pointer had got to once it cleared the drag slop — otherwise the
+          // first few pixels of every drag are lost.
+          dragStartBehavior: DragStartBehavior.down,
+          onDoubleTap: widget.onReset,
+          onHorizontalDragStart: (details) =>
+              widget.onStart(details.globalPosition.dx),
+          onHorizontalDragUpdate: (details) =>
+              widget.onUpdate(details.globalPosition.dx),
+          onHorizontalDragEnd: (_) => widget.onEnd(),
+          onHorizontalDragCancel: widget.onEnd,
+          child: Align(
+            alignment: Alignment.centerRight,
+            // Inset at rest so the header reads as one strip, full height
+            // while it is in play so it is clear which edge is moving.
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              width: 1,
+              margin: EdgeInsets.symmetric(
+                vertical: widget.active || _hovered ? 0 : 8,
+              ),
+              color: line,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -493,12 +722,16 @@ class _GridRow<T> extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      hoverColor: theme.hoverColor,
+      // Explicit: the theme's hover is transparent so rounded panels stay
+      // clean, but a square table row is exactly the case that wants it.
+      hoverColor: theme.colorScheme.surfaceContainerHigh,
       child: Container(
         decoration: BoxDecoration(
           color: background,
           border: Border(
-            bottom: BorderSide(color: theme.dividerColor.withValues(alpha: 0.5)),
+            bottom: BorderSide(
+              color: theme.dividerColor.withValues(alpha: 0.5),
+            ),
           ),
         ),
         child: Row(
@@ -559,7 +792,10 @@ class _PlaceholderRow<T> extends StatelessWidget {
           SizedBox(
             width: column.width,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: _cellPadding, vertical: 12),
+              padding: const EdgeInsets.symmetric(
+                horizontal: _cellPadding,
+                vertical: 12,
+              ),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: FractionallySizedBox(

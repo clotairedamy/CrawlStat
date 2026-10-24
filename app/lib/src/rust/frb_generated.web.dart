@@ -85,6 +85,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DepthBucket dco_decode_depth_bucket(dynamic raw);
 
   @protected
+  DepthCount dco_decode_depth_count(dynamic raw);
+
+  @protected
   double dco_decode_f_64(dynamic raw);
 
   @protected
@@ -112,6 +115,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<DepthBucket> dco_decode_list_depth_bucket(dynamic raw);
 
   @protected
+  List<DepthCount> dco_decode_list_depth_count(dynamic raw);
+
+  @protected
   List<HeaderPair> dco_decode_list_header_pair(dynamic raw);
 
   @protected
@@ -128,6 +134,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<RedirectHop> dco_decode_list_redirect_hop(dynamic raw);
+
+  @protected
+  List<SiteEdge> dco_decode_list_site_edge(dynamic raw);
+
+  @protected
+  List<SiteNode> dco_decode_list_site_node(dynamic raw);
+
+  @protected
+  List<SiteSection> dco_decode_list_site_section(dynamic raw);
 
   @protected
   List<StatusCount> dco_decode_list_status_count(dynamic raw);
@@ -166,7 +181,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RedirectHop dco_decode_redirect_hop(dynamic raw);
 
   @protected
+  SiteEdge dco_decode_site_edge(dynamic raw);
+
+  @protected
+  SiteNode dco_decode_site_node(dynamic raw);
+
+  @protected
+  SiteSection dco_decode_site_section(dynamic raw);
+
+  @protected
+  SiteStructure dco_decode_site_structure(dynamic raw);
+
+  @protected
   StatusCount dco_decode_status_count(dynamic raw);
+
+  @protected
+  int dco_decode_u_32(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -257,6 +287,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DepthBucket sse_decode_depth_bucket(SseDeserializer deserializer);
 
   @protected
+  DepthCount sse_decode_depth_count(SseDeserializer deserializer);
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
@@ -284,6 +317,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<DepthBucket> sse_decode_list_depth_bucket(SseDeserializer deserializer);
 
   @protected
+  List<DepthCount> sse_decode_list_depth_count(SseDeserializer deserializer);
+
+  @protected
   List<HeaderPair> sse_decode_list_header_pair(SseDeserializer deserializer);
 
   @protected
@@ -300,6 +336,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<RedirectHop> sse_decode_list_redirect_hop(SseDeserializer deserializer);
+
+  @protected
+  List<SiteEdge> sse_decode_list_site_edge(SseDeserializer deserializer);
+
+  @protected
+  List<SiteNode> sse_decode_list_site_node(SseDeserializer deserializer);
+
+  @protected
+  List<SiteSection> sse_decode_list_site_section(SseDeserializer deserializer);
 
   @protected
   List<StatusCount> sse_decode_list_status_count(SseDeserializer deserializer);
@@ -338,7 +383,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RedirectHop sse_decode_redirect_hop(SseDeserializer deserializer);
 
   @protected
+  SiteEdge sse_decode_site_edge(SseDeserializer deserializer);
+
+  @protected
+  SiteNode sse_decode_site_node(SseDeserializer deserializer);
+
+  @protected
+  SiteSection sse_decode_site_section(SseDeserializer deserializer);
+
+  @protected
+  SiteStructure sse_decode_site_structure(SseDeserializer deserializer);
+
+  @protected
   StatusCount sse_decode_status_count(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -449,6 +509,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_depth_bucket(DepthBucket self, SseSerializer serializer);
 
   @protected
+  void sse_encode_depth_count(DepthCount self, SseSerializer serializer);
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
@@ -479,6 +542,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_depth_count(
+    List<DepthCount> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_header_pair(
     List<HeaderPair> self,
     SseSerializer serializer,
@@ -502,6 +571,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_redirect_hop(
     List<RedirectHop> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_site_edge(List<SiteEdge> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_site_node(List<SiteNode> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_site_section(
+    List<SiteSection> self,
     SseSerializer serializer,
   );
 
@@ -551,7 +632,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_redirect_hop(RedirectHop self, SseSerializer serializer);
 
   @protected
+  void sse_encode_site_edge(SiteEdge self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_site_node(SiteNode self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_site_section(SiteSection self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_site_structure(SiteStructure self, SseSerializer serializer);
+
+  @protected
   void sse_encode_status_count(StatusCount self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);

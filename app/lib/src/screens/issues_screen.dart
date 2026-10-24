@@ -1,19 +1,19 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../theme/icons.dart';
 import '../router.dart';
 import '../rust/api/project.dart' as rust;
 import '../rust/api/types.dart';
 import '../state/projects.dart';
 import '../state/results.dart';
-import '../state/settings.dart';
+import '../widgets/export.dart';
 import '../theme/theme.dart';
 import '../widgets/common.dart';
 import 'shell.dart';
+import '../theme/soft.dart';
 
 /// The audit results: what is wrong, how bad it is, and how to fix it.
 ///
@@ -38,38 +38,21 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
       ref.invalidate(auditReportProvider(path));
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Audit failed: $error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Audit failed: $error')));
       }
     } finally {
       if (mounted) setState(() => _auditing = false);
     }
   }
 
-  Future<void> _exportIssues(String path) async {
-    final settings = ref.read(settingsProvider);
-    final directory = Directory(settings.resolvedExportDirectory);
-    if (!directory.existsSync()) directory.createSync(recursive: true);
-    final file =
-        '${directory.path}${Platform.pathSeparator}crawlstat-issues-'
-        '${DateTime.now().millisecondsSinceEpoch}.csv';
-
-    try {
-      await rust.exportIssuesCsv(dbPath: path, outPath: file);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Issue summary exported'),
-          action: SnackBarAction(
-            label: 'Copy path',
-            onPressed: () => Clipboard.setData(ClipboardData(text: file)),
-          ),
-        ),
-      );
-    } on Object catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $error')));
-    }
-  }
+  Future<void> _exportIssues(String path) => exportCsv(
+    context,
+    ref,
+    name: 'issues',
+    write: (file) => rust.exportIssuesCsv(dbPath: path, outPath: file),
+    done: (rows) => 'Exported ${formatCount(rows)} issue types',
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -106,12 +89,12 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
                       height: 12,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.refresh_rounded, size: 16),
+                  : const Icon(AppIcon.refresh, size: 16),
               label: Text(_auditing ? 'Auditing…' : 'Re-run audits'),
             ),
             OutlinedButton.icon(
               onPressed: () => _exportIssues(path),
-              icon: const Icon(Icons.file_download_outlined, size: 16),
+              icon: const Icon(AppIcon.download, size: 16),
               label: const Text('Export CSV'),
             ),
           ],
@@ -126,7 +109,7 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
               ),
             ),
             error: (error, _) => EmptyState(
-              icon: Icons.error_outline,
+              icon: AppIcon.error,
               title: 'Could not read the audits',
               message: '$error',
               action: OutlinedButton(
@@ -137,7 +120,7 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
             data: (data) {
               if (data.issues.isEmpty) {
                 return EmptyState(
-                  icon: Icons.verified_outlined,
+                  icon: AppIcon.indexable,
                   title: 'No issues found',
                   message:
                       'Either this site is in good shape, or the audits have not '
@@ -166,7 +149,7 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
                   children: [
                     SizedBox(
                       width: 360,
-                      child: Card(
+                      child: SoftPanel(
                         child: _IssueList(
                           report: data,
                           selectedId: selected.id,
@@ -176,7 +159,7 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
                     ),
                     const SizedBox(width: 14),
                     Expanded(
-                      child: Card(
+                      child: SoftPanel(
                         child: _IssueDetail(issue: selected, path: path),
                       ),
                     ),
@@ -192,7 +175,11 @@ class _IssuesScreenState extends ConsumerState<IssuesScreen> {
 }
 
 class _IssueList extends StatelessWidget {
-  const _IssueList({required this.report, required this.selectedId, required this.onSelect});
+  const _IssueList({
+    required this.report,
+    required this.selectedId,
+    required this.onSelect,
+  });
 
   final AuditReport report;
   final String selectedId;
@@ -203,9 +190,15 @@ class _IssueList extends StatelessWidget {
     final theme = Theme.of(context);
     // Grouped by severity, because that is the order to fix things in.
     final groups = <String, List<Issue>>{
-      'error': report.issues.where((issue) => issue.severity == 'error').toList(),
-      'warning': report.issues.where((issue) => issue.severity == 'warning').toList(),
-      'notice': report.issues.where((issue) => issue.severity == 'notice').toList(),
+      'error': report.issues
+          .where((issue) => issue.severity == 'error')
+          .toList(),
+      'warning': report.issues
+          .where((issue) => issue.severity == 'warning')
+          .toList(),
+      'notice': report.issues
+          .where((issue) => issue.severity == 'notice')
+          .toList(),
     };
 
     return ListView(
@@ -219,9 +212,15 @@ class _IssueList extends StatelessWidget {
                 children: [
                   SeverityDot(entry.key),
                   const SizedBox(width: 8),
-                  Text('${entry.key.toUpperCase()}S', style: theme.textTheme.labelMedium),
+                  Text(
+                    '${entry.key.toUpperCase()}S',
+                    style: theme.textTheme.labelMedium,
+                  ),
                   const Spacer(),
-                  TonePill('${entry.value.length}', color: CrawlStatTheme.severityColor(entry.key)),
+                  TonePill(
+                    '${entry.value.length}',
+                    color: CrawlStatTheme.severityColor(entry.key),
+                  ),
                 ],
               ),
             ),
@@ -238,7 +237,11 @@ class _IssueList extends StatelessWidget {
 }
 
 class _IssueRow extends StatelessWidget {
-  const _IssueRow({required this.issue, required this.selected, required this.onTap});
+  const _IssueRow({
+    required this.issue,
+    required this.selected,
+    required this.onTap,
+  });
 
   final Issue issue;
   final bool selected;
@@ -255,7 +258,9 @@ class _IssueRow extends StatelessWidget {
         constraints: const BoxConstraints(minHeight: 38),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? CrawlStatTheme.accent.withValues(alpha: 0.14) : null,
+          color: selected
+              ? CrawlStatTheme.accent.withValues(alpha: 0.14)
+              : null,
           borderRadius: radius,
         ),
         child: Row(
@@ -291,31 +296,18 @@ class _IssueDetail extends ConsumerWidget {
   final Issue issue;
   final String path;
 
-  Future<void> _exportAffected(BuildContext context, WidgetRef ref) async {
-    final settings = ref.read(settingsProvider);
-    final directory = Directory(settings.resolvedExportDirectory);
-    if (!directory.existsSync()) directory.createSync(recursive: true);
-    final file =
-        '${directory.path}${Platform.pathSeparator}'
-        'crawlstat-${issue.id}-${DateTime.now().millisecondsSinceEpoch}.csv';
-
-    try {
-      final rows = await rust.exportIssueUrlsCsv(dbPath: path, issueId: issue.id, outPath: file);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Exported ${formatCount(rows)} affected URLs'),
-          action: SnackBarAction(
-            label: 'Copy path',
-            onPressed: () => Clipboard.setData(ClipboardData(text: file)),
-          ),
+  Future<void> _exportAffected(BuildContext context, WidgetRef ref) =>
+      exportCsv(
+        context,
+        ref,
+        name: issue.id,
+        write: (file) => rust.exportIssueUrlsCsv(
+          dbPath: path,
+          issueId: issue.id,
+          outPath: file,
         ),
+        done: (rows) => 'Exported ${formatCount(rows)} affected URLs',
       );
-    } on Object catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $error')));
-    }
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -332,13 +324,19 @@ class _IssueDetail extends ConsumerWidget {
               dot: true,
             ),
             const SizedBox(width: 8),
-            TonePill('${formatCount(issue.urlCount)} URLs affected', color: CrawlStatTheme.notice),
+            TonePill(
+              '${formatCount(issue.urlCount)} URLs affected',
+              color: CrawlStatTheme.notice,
+            ),
           ],
         ),
         const SizedBox(height: 14),
         Text(issue.title, style: theme.textTheme.titleLarge),
         const SizedBox(height: 14),
-        Text(issue.description, style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
+        Text(
+          issue.description,
+          style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+        ),
         const SizedBox(height: 22),
         Text('HOW TO FIX', style: theme.textTheme.labelMedium),
         const SizedBox(height: 8),
@@ -346,10 +344,17 @@ class _IssueDetail extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: CrawlStatTheme.accent.withValues(alpha: 0.07),
-            border: Border.all(color: CrawlStatTheme.accent.withValues(alpha: 0.25)),
-            borderRadius: BorderRadius.circular(CrawlStatTheme.controlRadius + 2),
+            border: Border.all(
+              color: CrawlStatTheme.accent.withValues(alpha: 0.25),
+            ),
+            borderRadius: BorderRadius.circular(
+              CrawlStatTheme.controlRadius + 2,
+            ),
           ),
-          child: Text(issue.howToFix, style: theme.textTheme.bodyMedium?.copyWith(height: 1.55)),
+          child: Text(
+            issue.howToFix,
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
+          ),
         ),
         const SizedBox(height: 20),
         Wrap(
@@ -363,19 +368,21 @@ class _IssueDetail extends ConsumerWidget {
                 ref.read(urlTableProvider.notifier).setIssue(issue.id);
                 context.go('${Routes.results}?tab=internal');
               },
-              icon: const Icon(Icons.filter_alt_outlined, size: 15),
+              icon: const Icon(AppIcon.filter, size: 15),
               label: Text('Show ${formatCount(issue.urlCount)} URLs'),
             ),
             OutlinedButton.icon(
               onPressed: () => _exportAffected(context, ref),
-              icon: const Icon(Icons.file_download_outlined, size: 14),
+              icon: const Icon(AppIcon.download, size: 14),
               label: const Text('Export affected'),
             ),
             OutlinedButton.icon(
               onPressed: () => Clipboard.setData(
-                ClipboardData(text: 'https://crawlstat.com/docs/audits/${issue.docsSlug}'),
+                ClipboardData(
+                  text: 'https://crawlstat.com/docs/audits/${issue.docsSlug}',
+                ),
               ),
-              icon: const Icon(Icons.link, size: 14),
+              icon: const Icon(AppIcon.link, size: 14),
               label: const Text('Copy docs link'),
             ),
           ],

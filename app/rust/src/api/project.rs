@@ -275,3 +275,120 @@ fn audit_config(
         .map(|config| config.audits)
         .unwrap_or_default())
 }
+
+// ─── site structure, for the Visualise screen ────────────────────────────
+
+/// A page in the link diagram.
+#[derive(Debug, Clone)]
+pub struct SiteNode {
+    pub id: i64,
+    pub url: String,
+    pub label: String,
+    pub depth: i64,
+    pub status: Option<i64>,
+    pub inlinks: i64,
+    pub outlinks: i64,
+}
+
+/// A followed internal link between two pages in the diagram.
+#[derive(Debug, Clone)]
+pub struct SiteEdge {
+    pub source: i64,
+    pub target: i64,
+}
+
+/// One top-level section of the site.
+#[derive(Debug, Clone)]
+pub struct SiteSection {
+    pub path: String,
+    pub pages: i64,
+    pub issues: i64,
+}
+
+/// Everything the Visualise screen draws, in one call.
+///
+/// One call rather than four, because every one of these crosses the
+/// Dart/Rust boundary and opens the same database: a screen that assembles
+/// itself from four futures spends more time waiting than drawing.
+#[derive(Debug, Clone)]
+pub struct SiteStructure {
+    pub nodes: Vec<SiteNode>,
+    pub edges: Vec<SiteEdge>,
+    pub sections: Vec<SiteSection>,
+    /// `(depth, pages)`, shallowest first.
+    pub depths: Vec<DepthCount>,
+    pub statuses: Vec<StatusCount>,
+    /// How many internal HTML pages the crawl holds, so the screen can say
+    /// when the diagram is showing only part of the site.
+    pub total_pages: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct DepthCount {
+    pub depth: i64,
+    pub count: i64,
+}
+
+/// Read the site structure. `node_limit` caps the diagram; 400 draws fast and
+/// still shows the shape of a large site.
+pub fn site_structure(db_path: String, node_limit: u32) -> Result<SiteStructure, String> {
+    runtime::with_store(&db_path, |store| {
+        let conn = store.connection();
+        let (nodes, edges) = queries::site_graph(conn, node_limit)?;
+        let sections = queries::directory_breakdown(conn, 12)?;
+        let depths = queries::depth_distribution(conn)?;
+        let statuses = queries::status_code_summary(conn)?;
+        let total_pages: i64 = conn.query_row(
+            "SELECT count(*) FROM urls
+             WHERE is_internal = 1 AND kind = 0 AND status_code IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )?;
+
+        Ok(SiteStructure {
+            nodes: nodes
+                .into_iter()
+                .map(|node| SiteNode {
+                    id: node.id,
+                    url: node.url,
+                    label: node.label,
+                    depth: node.depth as i64,
+                    status: node.status.map(i64::from),
+                    inlinks: node.inlinks as i64,
+                    outlinks: node.outlinks as i64,
+                })
+                .collect(),
+            edges: edges
+                .into_iter()
+                .map(|edge| SiteEdge {
+                    source: edge.source,
+                    target: edge.target,
+                })
+                .collect(),
+            sections: sections
+                .into_iter()
+                .map(|(path, pages, issues)| SiteSection {
+                    path,
+                    pages: pages as i64,
+                    issues: issues as i64,
+                })
+                .collect(),
+            depths: depths
+                .into_iter()
+                .map(|(depth, count)| DepthCount {
+                    depth: depth as i64,
+                    count: count as i64,
+                })
+                .collect(),
+            statuses: statuses
+                .into_iter()
+                .map(|(status, count)| StatusCount {
+                    status: status as i64,
+                    count: count as i64,
+                })
+                .collect(),
+            total_pages,
+        })
+    })
+    .map_err(|error| error.to_string())
+}

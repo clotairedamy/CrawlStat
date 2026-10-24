@@ -10,7 +10,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
 // These functions are ignored because they are not marked as `pub`: `audit_config`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Open a crawl file and describe it, for the projects screen.
 Future<ProjectInfo> openProject({required String dbPath}) =>
@@ -102,6 +102,171 @@ Future<PlatformInt64> exportLinksCsv({
   dbPath: dbPath,
   outPath: outPath,
 );
+
+/// Read the site structure. `node_limit` caps the diagram; 400 draws fast and
+/// still shows the shape of a large site.
+Future<SiteStructure> siteStructure({
+  required String dbPath,
+  required int nodeLimit,
+}) => RustLib.instance.api.crateApiProjectSiteStructure(
+  dbPath: dbPath,
+  nodeLimit: nodeLimit,
+);
+
+class DepthCount {
+  final PlatformInt64 depth;
+  final PlatformInt64 count;
+
+  const DepthCount({required this.depth, required this.count});
+
+  @override
+  int get hashCode => depth.hashCode ^ count.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DepthCount &&
+          runtimeType == other.runtimeType &&
+          depth == other.depth &&
+          count == other.count;
+}
+
+/// A followed internal link between two pages in the diagram.
+class SiteEdge {
+  final PlatformInt64 source;
+  final PlatformInt64 target;
+
+  const SiteEdge({required this.source, required this.target});
+
+  @override
+  int get hashCode => source.hashCode ^ target.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SiteEdge &&
+          runtimeType == other.runtimeType &&
+          source == other.source &&
+          target == other.target;
+}
+
+/// A page in the link diagram.
+class SiteNode {
+  final PlatformInt64 id;
+  final String url;
+  final String label;
+  final PlatformInt64 depth;
+  final PlatformInt64? status;
+  final PlatformInt64 inlinks;
+  final PlatformInt64 outlinks;
+
+  const SiteNode({
+    required this.id,
+    required this.url,
+    required this.label,
+    required this.depth,
+    this.status,
+    required this.inlinks,
+    required this.outlinks,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      url.hashCode ^
+      label.hashCode ^
+      depth.hashCode ^
+      status.hashCode ^
+      inlinks.hashCode ^
+      outlinks.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SiteNode &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          url == other.url &&
+          label == other.label &&
+          depth == other.depth &&
+          status == other.status &&
+          inlinks == other.inlinks &&
+          outlinks == other.outlinks;
+}
+
+/// One top-level section of the site.
+class SiteSection {
+  final String path;
+  final PlatformInt64 pages;
+  final PlatformInt64 issues;
+
+  const SiteSection({
+    required this.path,
+    required this.pages,
+    required this.issues,
+  });
+
+  @override
+  int get hashCode => path.hashCode ^ pages.hashCode ^ issues.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SiteSection &&
+          runtimeType == other.runtimeType &&
+          path == other.path &&
+          pages == other.pages &&
+          issues == other.issues;
+}
+
+/// Everything the Visualise screen draws, in one call.
+///
+/// One call rather than four, because every one of these crosses the
+/// Dart/Rust boundary and opens the same database: a screen that assembles
+/// itself from four futures spends more time waiting than drawing.
+class SiteStructure {
+  final List<SiteNode> nodes;
+  final List<SiteEdge> edges;
+  final List<SiteSection> sections;
+
+  /// `(depth, pages)`, shallowest first.
+  final List<DepthCount> depths;
+  final List<StatusCount> statuses;
+
+  /// How many internal HTML pages the crawl holds, so the screen can say
+  /// when the diagram is showing only part of the site.
+  final PlatformInt64 totalPages;
+
+  const SiteStructure({
+    required this.nodes,
+    required this.edges,
+    required this.sections,
+    required this.depths,
+    required this.statuses,
+    required this.totalPages,
+  });
+
+  @override
+  int get hashCode =>
+      nodes.hashCode ^
+      edges.hashCode ^
+      sections.hashCode ^
+      depths.hashCode ^
+      statuses.hashCode ^
+      totalPages.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SiteStructure &&
+          runtimeType == other.runtimeType &&
+          nodes == other.nodes &&
+          edges == other.edges &&
+          sections == other.sections &&
+          depths == other.depths &&
+          statuses == other.statuses &&
+          totalPages == other.totalPages;
+}
 
 class StatusCount {
   final PlatformInt64 status;

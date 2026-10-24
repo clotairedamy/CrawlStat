@@ -76,7 +76,8 @@ class UrlQuerySpec {
       issueId != null ||
       maxDepth != null;
 
-  UrlQuerySpec cleared() => UrlQuerySpec(tab: tab, sortBy: sortBy, descending: descending);
+  UrlQuerySpec cleared() =>
+      UrlQuerySpec(tab: tab, sortBy: sortBy, descending: descending);
 
   /// Convert to the bridge's request for one window of rows.
   UrlQuery toRequest({required int offset, required int limit}) {
@@ -109,15 +110,15 @@ class UrlQuerySpec {
 
   @override
   int get hashCode => Object.hash(
-        tab,
-        sortBy,
-        descending,
-        search,
-        statusCode,
-        statusClass,
-        issueId,
-        maxDepth,
-      );
+    tab,
+    sortBy,
+    descending,
+    search,
+    statusCode,
+    statusClass,
+    issueId,
+    maxDepth,
+  );
 }
 
 /// A window onto the results table.
@@ -205,17 +206,21 @@ class UrlTable extends Notifier<UrlTableState> {
 
   void setTab(String tab) => setQuery(state.query.copyWith(tab: tab));
 
-  void setSearch(String? search) =>
-      setQuery(state.query.copyWith(search: search, clearSearch: search == null));
+  void setSearch(String? search) => setQuery(
+    state.query.copyWith(search: search, clearSearch: search == null),
+  );
 
-  void setIssue(String? issueId) =>
-      setQuery(state.query.copyWith(issueId: issueId, clearIssue: issueId == null));
+  void setIssue(String? issueId) => setQuery(
+    state.query.copyWith(issueId: issueId, clearIssue: issueId == null),
+  );
 
   void clearFilters() => setQuery(state.query.cleared());
 
   /// Sort by a column, flipping the direction when it is already sorted.
   void sortBy(String column) {
-    final descending = state.query.sortBy == column ? !state.query.descending : false;
+    final descending = state.query.sortBy == column
+        ? !state.query.descending
+        : false;
     setQuery(state.query.copyWith(sortBy: column, descending: descending));
   }
 
@@ -230,7 +235,9 @@ class UrlTable extends Notifier<UrlTableState> {
   void ensureIndexLoaded(int index) {
     if (index < 0) return;
     final chunk = index ~/ chunkSize;
-    if (state.chunks.containsKey(chunk) || state.pending.contains(chunk)) return;
+    if (state.chunks.containsKey(chunk) || state.pending.contains(chunk)) {
+      return;
+    }
     _loadChunk(chunk);
   }
 
@@ -238,7 +245,10 @@ class UrlTable extends Notifier<UrlTableState> {
     final path = _path;
     if (path == null) return;
 
-    state = state.copyWith(pending: {...state.pending, chunk}, clearError: true);
+    state = state.copyWith(
+      pending: {...state.pending, chunk},
+      clearError: true,
+    );
     final query = state.query;
 
     try {
@@ -275,7 +285,9 @@ class UrlTable extends Notifier<UrlTableState> {
   }
 }
 
-final urlTableProvider = NotifierProvider<UrlTable, UrlTableState>(UrlTable.new);
+final urlTableProvider = NotifierProvider<UrlTable, UrlTableState>(
+  UrlTable.new,
+);
 
 /// The URL the detail panel is showing, or `null` when it is closed.
 class SelectedUrl extends Notifier<int?> {
@@ -286,12 +298,15 @@ class SelectedUrl extends Notifier<int?> {
   void clear() => state = null;
 }
 
-final selectedUrlProvider = NotifierProvider<SelectedUrl, int?>(SelectedUrl.new);
+final selectedUrlProvider = NotifierProvider<SelectedUrl, int?>(
+  SelectedUrl.new,
+);
 
 /// Detail for the selected URL.
-final urlDetailProvider = FutureProvider.family<UrlDetail, ({String path, int urlId})>(
-  (ref, args) => rust.urlDetail(dbPath: args.path, urlId: args.urlId),
-);
+final urlDetailProvider =
+    FutureProvider.family<UrlDetail, ({String path, int urlId})>(
+      (ref, args) => rust.urlDetail(dbPath: args.path, urlId: args.urlId),
+    );
 
 /// The audit report for the open project.
 final auditReportProvider = FutureProvider.family<AuditReport, String>(
@@ -299,6 +314,7 @@ final auditReportProvider = FutureProvider.family<AuditReport, String>(
 );
 
 /// Response-code counts, for the Response Codes tab.
-final statusSummaryProvider = FutureProvider.family<List<rust.StatusCount>, String>(
-  (ref, path) => rust.statusSummary(dbPath: path),
-);
+final statusSummaryProvider =
+    FutureProvider.family<List<rust.StatusCount>, String>(
+      (ref, path) => rust.statusSummary(dbPath: path),
+    );

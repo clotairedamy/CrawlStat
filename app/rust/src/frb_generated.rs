@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -108172683;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 510350563;
 
 // Section: executor
 
@@ -945,6 +945,41 @@ fn wire__crate__api__project__run_audit_impl(
         },
     )
 }
+fn wire__crate__api__project__site_structure_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "site_structure",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_db_path = <String>::sse_decode(&mut deserializer);
+            let api_node_limit = <u32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok =
+                        crate::api::project::site_structure(api_db_path, api_node_limit)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__crawl__start_crawl_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1326,6 +1361,18 @@ impl SseDecode for crate::api::types::DepthBucket {
     }
 }
 
+impl SseDecode for crate::api::project::DepthCount {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_depth = <i64>::sse_decode(deserializer);
+        let mut var_count = <i64>::sse_decode(deserializer);
+        return crate::api::project::DepthCount {
+            depth: var_depth,
+            count: var_count,
+        };
+    }
+}
+
 impl SseDecode for f64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1468,6 +1515,18 @@ impl SseDecode for Vec<crate::api::types::DepthBucket> {
     }
 }
 
+impl SseDecode for Vec<crate::api::project::DepthCount> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::project::DepthCount>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::types::HeaderPair> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1535,6 +1594,42 @@ impl SseDecode for Vec<crate::api::types::RedirectHop> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::types::RedirectHop>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::project::SiteEdge> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::project::SiteEdge>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::project::SiteNode> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::project::SiteNode>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::project::SiteSection> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::project::SiteSection>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -1731,6 +1826,74 @@ impl SseDecode for crate::api::types::RedirectHop {
     }
 }
 
+impl SseDecode for crate::api::project::SiteEdge {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_source = <i64>::sse_decode(deserializer);
+        let mut var_target = <i64>::sse_decode(deserializer);
+        return crate::api::project::SiteEdge {
+            source: var_source,
+            target: var_target,
+        };
+    }
+}
+
+impl SseDecode for crate::api::project::SiteNode {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <i64>::sse_decode(deserializer);
+        let mut var_url = <String>::sse_decode(deserializer);
+        let mut var_label = <String>::sse_decode(deserializer);
+        let mut var_depth = <i64>::sse_decode(deserializer);
+        let mut var_status = <Option<i64>>::sse_decode(deserializer);
+        let mut var_inlinks = <i64>::sse_decode(deserializer);
+        let mut var_outlinks = <i64>::sse_decode(deserializer);
+        return crate::api::project::SiteNode {
+            id: var_id,
+            url: var_url,
+            label: var_label,
+            depth: var_depth,
+            status: var_status,
+            inlinks: var_inlinks,
+            outlinks: var_outlinks,
+        };
+    }
+}
+
+impl SseDecode for crate::api::project::SiteSection {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_path = <String>::sse_decode(deserializer);
+        let mut var_pages = <i64>::sse_decode(deserializer);
+        let mut var_issues = <i64>::sse_decode(deserializer);
+        return crate::api::project::SiteSection {
+            path: var_path,
+            pages: var_pages,
+            issues: var_issues,
+        };
+    }
+}
+
+impl SseDecode for crate::api::project::SiteStructure {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_nodes = <Vec<crate::api::project::SiteNode>>::sse_decode(deserializer);
+        let mut var_edges = <Vec<crate::api::project::SiteEdge>>::sse_decode(deserializer);
+        let mut var_sections = <Vec<crate::api::project::SiteSection>>::sse_decode(deserializer);
+        let mut var_depths = <Vec<crate::api::project::DepthCount>>::sse_decode(deserializer);
+        let mut var_statuses = <Vec<crate::api::project::StatusCount>>::sse_decode(deserializer);
+        let mut var_totalPages = <i64>::sse_decode(deserializer);
+        return crate::api::project::SiteStructure {
+            nodes: var_nodes,
+            edges: var_edges,
+            sections: var_sections,
+            depths: var_depths,
+            statuses: var_statuses,
+            total_pages: var_totalPages,
+        };
+    }
+}
+
 impl SseDecode for crate::api::project::StatusCount {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1740,6 +1903,13 @@ impl SseDecode for crate::api::project::StatusCount {
             status: var_status,
             count: var_count,
         };
+    }
+}
+
+impl SseDecode for u32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u32::<NativeEndian>().unwrap()
     }
 }
 
@@ -1943,9 +2113,10 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         28 => wire__crate__api__project__run_audit_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__project__status_summary_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__project__url_detail_impl(port, ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__types__url_query_default_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__project__site_structure_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__project__status_summary_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__project__url_detail_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__types__url_query_default_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1971,7 +2142,7 @@ fn pde_ffi_dispatcher_sync_impl(
         21 => wire__crate__api__crawl__pause_crawl_impl(ptr, rust_vec_len, data_len),
         26 => wire__crate__api__crawl__resume_crawl_impl(ptr, rust_vec_len, data_len),
         27 => wire__crate__api__crawl__resume_paused_crawl_impl(ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__crawl__start_crawl_impl(ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__crawl__start_crawl_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2180,6 +2351,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::DepthBucket>
     for crate::api::types::DepthBucket
 {
     fn into_into_dart(self) -> crate::api::types::DepthBucket {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::project::DepthCount {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.depth.into_into_dart().into_dart(),
+            self.count.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::project::DepthCount
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::project::DepthCount>
+    for crate::api::project::DepthCount
+{
+    fn into_into_dart(self) -> crate::api::project::DepthCount {
         self
     }
 }
@@ -2401,6 +2593,94 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::RedirectHop>
     for crate::api::types::RedirectHop
 {
     fn into_into_dart(self) -> crate::api::types::RedirectHop {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::project::SiteEdge {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.source.into_into_dart().into_dart(),
+            self.target.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::project::SiteEdge {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::project::SiteEdge>
+    for crate::api::project::SiteEdge
+{
+    fn into_into_dart(self) -> crate::api::project::SiteEdge {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::project::SiteNode {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.url.into_into_dart().into_dart(),
+            self.label.into_into_dart().into_dart(),
+            self.depth.into_into_dart().into_dart(),
+            self.status.into_into_dart().into_dart(),
+            self.inlinks.into_into_dart().into_dart(),
+            self.outlinks.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::project::SiteNode {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::project::SiteNode>
+    for crate::api::project::SiteNode
+{
+    fn into_into_dart(self) -> crate::api::project::SiteNode {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::project::SiteSection {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.path.into_into_dart().into_dart(),
+            self.pages.into_into_dart().into_dart(),
+            self.issues.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::project::SiteSection
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::project::SiteSection>
+    for crate::api::project::SiteSection
+{
+    fn into_into_dart(self) -> crate::api::project::SiteSection {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::project::SiteStructure {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.nodes.into_into_dart().into_dart(),
+            self.edges.into_into_dart().into_dart(),
+            self.sections.into_into_dart().into_dart(),
+            self.depths.into_into_dart().into_dart(),
+            self.statuses.into_into_dart().into_dart(),
+            self.total_pages.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::project::SiteStructure
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::project::SiteStructure>
+    for crate::api::project::SiteStructure
+{
+    fn into_into_dart(self) -> crate::api::project::SiteStructure {
         self
     }
 }
@@ -2724,6 +3004,14 @@ impl SseEncode for crate::api::types::DepthBucket {
     }
 }
 
+impl SseEncode for crate::api::project::DepthCount {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.depth, serializer);
+        <i64>::sse_encode(self.count, serializer);
+    }
+}
+
 impl SseEncode for f64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2820,6 +3108,16 @@ impl SseEncode for Vec<crate::api::types::DepthBucket> {
     }
 }
 
+impl SseEncode for Vec<crate::api::project::DepthCount> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::project::DepthCount>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::types::HeaderPair> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2876,6 +3174,36 @@ impl SseEncode for Vec<crate::api::types::RedirectHop> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::types::RedirectHop>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::project::SiteEdge> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::project::SiteEdge>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::project::SiteNode> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::project::SiteNode>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::project::SiteSection> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::project::SiteSection>::sse_encode(item, serializer);
         }
     }
 }
@@ -3018,11 +3346,60 @@ impl SseEncode for crate::api::types::RedirectHop {
     }
 }
 
+impl SseEncode for crate::api::project::SiteEdge {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.source, serializer);
+        <i64>::sse_encode(self.target, serializer);
+    }
+}
+
+impl SseEncode for crate::api::project::SiteNode {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.url, serializer);
+        <String>::sse_encode(self.label, serializer);
+        <i64>::sse_encode(self.depth, serializer);
+        <Option<i64>>::sse_encode(self.status, serializer);
+        <i64>::sse_encode(self.inlinks, serializer);
+        <i64>::sse_encode(self.outlinks, serializer);
+    }
+}
+
+impl SseEncode for crate::api::project::SiteSection {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.path, serializer);
+        <i64>::sse_encode(self.pages, serializer);
+        <i64>::sse_encode(self.issues, serializer);
+    }
+}
+
+impl SseEncode for crate::api::project::SiteStructure {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<crate::api::project::SiteNode>>::sse_encode(self.nodes, serializer);
+        <Vec<crate::api::project::SiteEdge>>::sse_encode(self.edges, serializer);
+        <Vec<crate::api::project::SiteSection>>::sse_encode(self.sections, serializer);
+        <Vec<crate::api::project::DepthCount>>::sse_encode(self.depths, serializer);
+        <Vec<crate::api::project::StatusCount>>::sse_encode(self.statuses, serializer);
+        <i64>::sse_encode(self.total_pages, serializer);
+    }
+}
+
 impl SseEncode for crate::api::project::StatusCount {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.status, serializer);
         <i64>::sse_encode(self.count, serializer);
+    }
+}
+
+impl SseEncode for u32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_u32::<NativeEndian>(self).unwrap();
     }
 }
 

@@ -56,9 +56,12 @@ class LiveCrawl {
   final int seeded;
   final bool resumed;
 
-  bool get isRunning => phase == CrawlPhase.running || phase == CrawlPhase.paused;
+  bool get isRunning =>
+      phase == CrawlPhase.running || phase == CrawlPhase.paused;
   bool get isFinished =>
-      phase == CrawlPhase.finished || phase == CrawlPhase.cancelled || phase == CrawlPhase.failed;
+      phase == CrawlPhase.finished ||
+      phase == CrawlPhase.cancelled ||
+      phase == CrawlPhase.failed;
 
   /// Crawled over discovered, or `null` when there is no limit to measure
   /// against — a spider crawl has no total until it ends.
@@ -98,7 +101,16 @@ class LiveCrawl {
   }
 }
 
-enum CrawlPhase { idle, starting, running, paused, auditing, finished, cancelled, failed }
+enum CrawlPhase {
+  idle,
+  starting,
+  running,
+  paused,
+  auditing,
+  finished,
+  cancelled,
+  failed,
+}
 
 /// A warning with the time it arrived, so the panel can order them.
 class CrawlWarning {
@@ -138,7 +150,11 @@ class CrawlController extends Notifier<LiveCrawl> {
   /// Continue an interrupted crawl.
   Future<void> resumeProject(String dbPath) async {
     await _subscription?.cancel();
-    state = LiveCrawl(phase: CrawlPhase.starting, dbPath: dbPath, resumed: true);
+    state = LiveCrawl(
+      phase: CrawlPhase.starting,
+      dbPath: dbPath,
+      resumed: true,
+    );
     _listen(rust.resumeCrawl(dbPath: dbPath));
     await _rememberQuietly(dbPath);
   }
@@ -154,7 +170,9 @@ class CrawlController extends Notifier<LiveCrawl> {
     try {
       await ref.read(recentProjectsProvider.notifier).remember(dbPath);
     } on Object catch (error, stack) {
-      debugPrint('could not record the crawl in the recents list: $error\n$stack');
+      debugPrint(
+        'could not record the crawl in the recents list: $error\n$stack',
+      );
     }
   }
 
@@ -162,7 +180,10 @@ class CrawlController extends Notifier<LiveCrawl> {
     _subscription = events.listen(
       _apply,
       onError: (Object error) {
-        state = state.copyWith(phase: CrawlPhase.failed, error: error.toString());
+        state = state.copyWith(
+          phase: CrawlPhase.failed,
+          error: error.toString(),
+        );
       },
       onDone: () {
         // The engine always sends `Finished` before closing, so reaching here
@@ -194,7 +215,10 @@ class CrawlController extends Notifier<LiveCrawl> {
       case CrawlEvent_Progress(:final field0):
         state = state.copyWith(snapshot: field0);
       case CrawlEvent_Warning(:final message, :final url):
-        final warnings = [CrawlWarning(message, url, DateTime.now()), ...state.warnings];
+        final warnings = [
+          CrawlWarning(message, url, DateTime.now()),
+          ...state.warnings,
+        ];
         state = state.copyWith(
           warnings: warnings.take(liveWarningLimit).toList(growable: false),
         );
@@ -258,5 +282,6 @@ class CrawlController extends Notifier<LiveCrawl> {
   }
 }
 
-final crawlControllerProvider =
-    NotifierProvider<CrawlController, LiveCrawl>(CrawlController.new);
+final crawlControllerProvider = NotifierProvider<CrawlController, LiveCrawl>(
+  CrawlController.new,
+);

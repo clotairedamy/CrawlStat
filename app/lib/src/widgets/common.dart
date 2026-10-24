@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../theme/icons.dart';
 import '../theme/theme.dart';
+import '../theme/soft.dart';
 
 final _thousands = NumberFormat.decimalPattern();
 
@@ -128,27 +130,21 @@ class StatTile extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
-          height: 26,
+          height: 32,
           child: Row(
             children: [
               if (icon != null) ...[
-                Container(
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    color: tone.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, size: 15, color: tone),
-                ),
-                const SizedBox(width: 10),
+                IconBadge(icon!, color: tone, size: 32),
+                const SizedBox(width: 11),
               ],
               Expanded(
                 child: Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -176,10 +172,61 @@ class StatTile extends StatelessWidget {
       ],
     );
 
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 12), child: content),
+    return SoftPanel(
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      child: content,
+    );
+  }
+}
+
+/// An icon on its own moulded tile, tinted with the colour it stands for.
+///
+/// The face is the card's own surface warmed a little towards [color], so
+/// the badge belongs to the card it sits on; the glyph casts a soft glow of
+/// its own colour, which is what makes it read as lit rather than printed.
+class IconBadge extends StatelessWidget {
+  const IconBadge(this.icon, {super.key, required this.color, this.size = 32});
+
+  final IconData icon;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final surface = theme.colorScheme.surface;
+    final radius = size * 0.32;
+    return Container(
+      width: size,
+      height: size,
+      padding: const EdgeInsets.all(1),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        gradient: Soft.rim(context, base: surface),
+        boxShadow: Soft.raised(context, depth: size / 90),
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius - 1),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color.lerp(surface, color, dark ? 0.2 : 0.16)!,
+              Color.lerp(surface, color, dark ? 0.07 : 0.05)!,
+            ],
+          ),
+        ),
+        child: Icon(
+          icon,
+          size: size * 0.48,
+          color: color,
+          shadows: [
+            Shadow(color: color.withValues(alpha: 0.55), blurRadius: size / 5),
+          ],
+        ),
       ),
     );
   }
@@ -187,7 +234,12 @@ class StatTile extends StatelessWidget {
 
 /// A short coloured label: a crawl phase, a plan, a count.
 class TonePill extends StatelessWidget {
-  const TonePill(this.label, {super.key, required this.color, this.dot = false});
+  const TonePill(
+    this.label, {
+    super.key,
+    required this.color,
+    this.dot = false,
+  });
 
   final String label;
   final Color color;
@@ -251,7 +303,7 @@ class SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
+    return SoftPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -277,7 +329,8 @@ class SectionCard extends StatelessWidget {
               ),
             ),
           Padding(
-            padding: padding ??
+            padding:
+                padding ??
                 (title == null
                     ? const EdgeInsets.all(18)
                     : const EdgeInsets.fromLTRB(18, 4, 18, 18)),
@@ -316,17 +369,13 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: CrawlStatTheme.accent.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 26, color: CrawlStatTheme.accent),
+            IconBadge(icon, color: CrawlStatTheme.accent, size: 64),
+            const SizedBox(height: 20),
+            Text(
+              title,
+              style: theme.textTheme.titleMedium,
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
-            Text(title, style: theme.textTheme.titleMedium, textAlign: TextAlign.center),
             const SizedBox(height: 6),
             Text(
               message,
@@ -352,7 +401,8 @@ class Toolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: padding ?? const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding:
+          padding ?? const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: theme.dividerColor)),
       ),
@@ -378,25 +428,16 @@ class ToolbarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Tooltip(
-      message: tooltip,
-      child: IconButton(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 16),
-        iconSize: 16,
-        visualDensity: VisualDensity.compact,
-        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-        padding: EdgeInsets.zero,
-        style: IconButton.styleFrom(
-          foregroundColor: active ? CrawlStatTheme.accent : theme.colorScheme.onSurfaceVariant,
-          backgroundColor:
-              active ? CrawlStatTheme.accent.withValues(alpha: 0.14) : Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(CrawlStatTheme.controlRadius - 1),
-          ),
-        ),
-      ),
+    // Every icon action in the app is the same soft circle. Routing them all
+    // through one widget is what makes the style read as deliberate rather
+    // than as decoration sprinkled on a few screens.
+    return SoftCircleButton(
+      icon: icon,
+      tooltip: tooltip,
+      onPressed: onPressed,
+      size: 38,
+      iconSize: 17,
+      iconColor: active ? CrawlStatTheme.accent : null,
     );
   }
 }
@@ -433,17 +474,24 @@ class InlineMessage extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            severity == 'error' ? Icons.error_outline : Icons.warning_amber_outlined,
+            severity == 'error' ? AppIcon.error : AppIcon.warning,
             size: 15,
             color: color,
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(message, style: theme.textTheme.bodySmall?.copyWith(color: color)),
+            child: Text(
+              message,
+              style: theme.textTheme.bodySmall?.copyWith(color: color),
+            ),
           ),
           ?action,
           if (onDismiss != null)
-            ToolbarButton(icon: Icons.close, tooltip: 'Dismiss', onPressed: onDismiss),
+            ToolbarButton(
+              icon: AppIcon.close,
+              tooltip: 'Dismiss',
+              onPressed: onDismiss,
+            ),
         ],
       ),
     );
@@ -469,7 +517,7 @@ class ColumnChooser extends StatelessWidget {
     return PopupMenuButton<String>(
       tooltip: 'Choose columns',
       position: PopupMenuPosition.under,
-      icon: const Icon(Icons.view_column_outlined, size: 16),
+      icon: const Icon(AppIcon.columns, size: 16),
       iconSize: 16,
       constraints: const BoxConstraints(maxHeight: 420, minWidth: 220),
       // Closing on every tick would make choosing several columns tedious.

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../theme/icons.dart';
 import '../router.dart';
 import '../rust/api/types.dart';
 import '../state/crawl.dart';
@@ -14,6 +15,7 @@ import '../theme/theme.dart';
 import '../widgets/common.dart';
 import 'new_crawl_dialog.dart';
 import 'shell.dart';
+import '../theme/soft.dart';
 
 /// The crawls the user has run, newest first.
 class ProjectsScreen extends ConsumerWidget {
@@ -32,16 +34,17 @@ class ProjectsScreen extends ConsumerWidget {
           subtitle: projects.isEmpty
               ? 'Every crawl is a single file on this machine.'
               : '${projects.length} crawl${projects.length == 1 ? '' : 's'}  ·  '
-                  '${defaultProjectsDirectory()}',
+                    '${defaultProjectsDirectory()}',
           actions: [
             ToolbarButton(
-              icon: Icons.refresh_rounded,
+              icon: AppIcon.refresh,
               tooltip: 'Refresh',
-              onPressed: () => ref.read(recentProjectsProvider.notifier).refresh(),
+              onPressed: () =>
+                  ref.read(recentProjectsProvider.notifier).refresh(),
             ),
             FilledButton.icon(
               onPressed: () => showNewCrawlDialog(context),
-              icon: const Icon(Icons.add_rounded, size: 17),
+              icon: const Icon(AppIcon.add, size: 17),
               label: const Text('New crawl'),
             ),
           ],
@@ -49,14 +52,14 @@ class ProjectsScreen extends ConsumerWidget {
         Expanded(
           child: projects.isEmpty
               ? EmptyState(
-                  icon: Icons.travel_explore_outlined,
+                  icon: AppIcon.discovered,
                   title: 'No crawls yet',
                   message:
                       'Point CrawlStat at a site and it will fetch every page, store the '
                       'results locally, and tell you what is wrong with them.',
                   action: FilledButton.icon(
                     onPressed: () => showNewCrawlDialog(context),
-                    icon: const Icon(Icons.add_rounded, size: 17),
+                    icon: const Icon(AppIcon.add, size: 17),
                     label: const Text('Start your first crawl'),
                   ),
                 )
@@ -70,7 +73,10 @@ class ProjectsScreen extends ConsumerWidget {
                   children: [
                     _Overview(projects: projects),
                     const SizedBox(height: 28),
-                    Text('Recent crawls', style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      'Recent crawls',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 14),
                     _ProjectGrid(projects: projects, openPath: openPath),
                   ],
@@ -92,35 +98,39 @@ class _Overview extends StatelessWidget {
     final crawled = projects.fold<int>(0, (sum, p) => sum + p.stats.crawled);
     final errors = projects.fold<int>(0, (sum, p) => sum + p.errors);
     final warnings = projects.fold<int>(0, (sum, p) => sum + p.warnings);
-    final broken = projects.fold<int>(0, (sum, p) => sum + p.stats.status4Xx + p.stats.status5Xx);
+    final broken = projects.fold<int>(
+      0,
+      (sum, p) => sum + p.stats.status4Xx + p.stats.status5Xx,
+    );
 
     final tiles = [
       StatTile(
         label: 'Crawls',
-        icon: Icons.folder_outlined,
+        icon: AppIcon.folder,
         value: formatCount(projects.length),
         hint: 'On this machine',
       ),
       StatTile(
         label: 'URLs crawled',
-        icon: Icons.language_rounded,
+        icon: AppIcon.web,
         color: CrawlStatTheme.success,
         value: formatCount(crawled),
         hint: 'Across every crawl',
       ),
       StatTile(
         label: 'Broken URLs',
-        icon: Icons.link_off_rounded,
+        icon: AppIcon.brokenLink,
         color: broken > 0 ? CrawlStatTheme.error : CrawlStatTheme.notice,
         value: formatCount(broken),
         hint: '4xx and 5xx responses',
       ),
       StatTile(
         label: 'Issues',
-        icon: Icons.fact_check_outlined,
+        icon: AppIcon.issues,
         color: errors > 0 ? CrawlStatTheme.warning : CrawlStatTheme.notice,
         value: formatCount(errors + warnings),
-        hint: '${formatCount(errors)} errors, ${formatCount(warnings)} warnings',
+        hint:
+            '${formatCount(errors)} errors, ${formatCount(warnings)} warnings',
       ),
     ];
 
@@ -149,7 +159,9 @@ class _ProjectGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = ((constraints.maxWidth + _gap) / (_minCardWidth + _gap)).floor().clamp(1, 4);
+        final columns = ((constraints.maxWidth + _gap) / (_minCardWidth + _gap))
+            .floor()
+            .clamp(1, 4);
         final width = (constraints.maxWidth - _gap * (columns - 1)) / columns;
         return Wrap(
           spacing: _gap,
@@ -158,7 +170,10 @@ class _ProjectGrid extends StatelessWidget {
             for (final project in projects)
               SizedBox(
                 width: width,
-                child: _ProjectCard(project: project, isOpen: project.path == openPath),
+                child: _ProjectCard(
+                  project: project,
+                  isOpen: project.path == openPath,
+                ),
               ),
           ],
         );
@@ -181,7 +196,9 @@ class _ProjectCard extends ConsumerWidget {
 
   Future<void> _resume(BuildContext context, WidgetRef ref) async {
     ref.read(openProjectProvider.notifier).open(project.path);
-    await ref.read(crawlControllerProvider.notifier).resumeProject(project.path);
+    await ref
+        .read(crawlControllerProvider.notifier)
+        .resumeProject(project.path);
     if (context.mounted) context.go(Routes.crawl);
   }
 
@@ -189,126 +206,124 @@ class _ProjectCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final stats = project.stats;
-    final resumable = project.state == 'cancelled' ||
+    final resumable =
+        project.state == 'cancelled' ||
         project.state == 'paused' ||
         project.state == 'running' ||
         stats.queued > 0;
     final host = project.rootHost ?? _fileName(project.path);
 
-    return Card(
-      shape: isOpen
-          ? RoundedRectangleBorder(
-              side: BorderSide(color: CrawlStatTheme.accent.withValues(alpha: 0.6), width: 1.2),
-              borderRadius: BorderRadius.circular(CrawlStatTheme.radius),
-            )
-          : null,
-      child: InkWell(
-        onTap: () => _open(context, ref),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 16, 10, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    return SoftPanel(
+      // The crawl you have open is pressed into the page rather than outlined:
+      // soft UI has no borders to thicken.
+      pressed: isOpen,
+      glow: isOpen ? CrawlStatTheme.accent : null,
+      // The tap belongs to the panel, not to an InkWell inside it: an InkWell
+      // paints its hover as a square, which showed as a grey box poking out
+      // of the card's rounded corners.
+      onTap: () => _open(context, ref),
+      padding: const EdgeInsets.fromLTRB(18, 16, 10, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  _HostAvatar(host: host),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          host,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall?.copyWith(fontSize: 15),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          project.startUrl ?? project.path,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: CrawlStatTheme.mono(
-                            context,
-                            size: 11.5,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _ProjectMenu(project: project),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Row(
+              _HostAvatar(host: host),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _StateBadge(state: project.state),
-                    if (isOpen) ...[
-                      const SizedBox(width: 6),
-                      const TonePill('Open', color: CrawlStatTheme.accent),
-                    ],
-                    const Spacer(),
                     Text(
-                      _shortDate(project.finishedAt ?? project.createdAt),
-                      style: theme.textTheme.bodySmall,
+                      host,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(fontSize: 15),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      project.startUrl ?? project.path,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: CrawlStatTheme.mono(
+                        context,
+                        size: 11.5,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 14),
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: _StatusBreakdown(stats: stats),
-              ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Row(
-                  children: [
-                    _Metric(label: 'Crawled', value: formatCount(stats.crawled)),
-                    _Metric(
-                      label: 'Errors',
-                      value: formatCount(project.errors),
-                      color: project.errors > 0 ? CrawlStatTheme.error : null,
-                    ),
-                    _Metric(
-                      label: 'Warnings',
-                      value: formatCount(project.warnings),
-                      color: project.warnings > 0 ? CrawlStatTheme.warning : null,
-                    ),
-                    _Metric(label: 'Size', value: formatBytes(project.sizeBytes)),
-                  ],
-                ),
-              ),
-              if (resumable) ...[
-                const SizedBox(height: 14),
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          stats.queued > 0
-                              ? '${formatCount(stats.queued)} URLs still queued'
-                              : 'Interrupted before it finished',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: () => _resume(context, ref),
-                        icon: const Icon(Icons.play_arrow_rounded, size: 16),
-                        label: const Text('Resume'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              _ProjectMenu(project: project),
             ],
           ),
-        ),
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Row(
+              children: [
+                _StateBadge(state: project.state),
+                if (isOpen) ...[
+                  const SizedBox(width: 6),
+                  const TonePill('Open', color: CrawlStatTheme.accent),
+                ],
+                const Spacer(),
+                Text(
+                  _shortDate(project.finishedAt ?? project.createdAt),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: _StatusBreakdown(stats: stats),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Row(
+              children: [
+                _Metric(label: 'Crawled', value: formatCount(stats.crawled)),
+                _Metric(
+                  label: 'Errors',
+                  value: formatCount(project.errors),
+                  color: project.errors > 0 ? CrawlStatTheme.error : null,
+                ),
+                _Metric(
+                  label: 'Warnings',
+                  value: formatCount(project.warnings),
+                  color: project.warnings > 0 ? CrawlStatTheme.warning : null,
+                ),
+                _Metric(label: 'Size', value: formatBytes(project.sizeBytes)),
+              ],
+            ),
+          ),
+          if (resumable) ...[
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      stats.queued > 0
+                          ? '${formatCount(stats.queued)} URLs still queued'
+                          : 'Interrupted before it finished',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _resume(context, ref),
+                    icon: const Icon(AppIcon.play, size: 16),
+                    label: const Text('Resume'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -321,11 +336,22 @@ class _ProjectCard extends ConsumerWidget {
     final parsed = DateTime.tryParse(iso);
     if (parsed == null) return iso;
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final local = parsed.toLocal();
-    final time = '${local.hour.toString().padLeft(2, '0')}:'
+    final time =
+        '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}';
     return '${local.day} ${months[local.month - 1]} $time';
   }
@@ -349,18 +375,40 @@ class _HostAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _palette[host.codeUnits.fold<int>(0, (a, b) => a + b) % _palette.length];
+    final color =
+        _palette[host.codeUnits.fold<int>(0, (a, b) => a + b) %
+            _palette.length];
+    // A soft disc rather than a tinted square: the hero elements on each card
+    // carry the style, and a flat rounded rectangle here undoes the panel it
+    // is sitting on.
     return Container(
-      width: 38,
-      height: 38,
+      width: 42,
+      height: 42,
+      padding: const EdgeInsets.all(1),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(10),
+        shape: BoxShape.circle,
+        gradient: Soft.rim(context),
+        boxShadow: Soft.raised(context, depth: 0.45),
+      ),
+      foregroundDecoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            color.withValues(alpha: 0.26),
+            color.withValues(alpha: 0.10),
+          ],
+        ),
       ),
       alignment: Alignment.center,
       child: Text(
         host.isEmpty ? '?' : host.characters.first.toUpperCase(),
-        style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 16),
+        style: TextStyle(
+          color: Color.lerp(color, Colors.white, 0.45),
+          fontWeight: FontWeight.w700,
+          fontSize: 17,
+        ),
       ),
     );
   }
@@ -387,25 +435,36 @@ class _StatusBreakdown extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: SizedBox(
-            height: 6,
-            child: total == 0
-                ? ColoredBox(color: theme.colorScheme.surfaceContainer)
-                : Row(
-                    children: [
-                      for (final (_, count, color) in segments)
-                        if (count > 0)
-                          Expanded(
-                            flex: (count * 1000 / total).ceil(),
-                            child: Container(
-                              color: color,
-                              margin: const EdgeInsets.only(right: 2),
+        // A recessed track with the segments lying in it, rather than a flat
+        // strip painted on the card. Each segment keeps its own colour but
+        // gets the same top-lit gloss as everything else.
+        SoftWell(
+          radius: 5,
+          depth: 0.6,
+          padding: const EdgeInsets.all(1.5),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              height: 7,
+              child: total == 0
+                  ? const SizedBox.shrink()
+                  : Row(
+                      children: [
+                        for (final (_, count, color) in segments)
+                          if (count > 0)
+                            Expanded(
+                              flex: (count * 1000 / total).ceil(),
+                              child: Container(
+                                margin: const EdgeInsets.only(right: 2),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(4),
+                                  gradient: glossOf(color),
+                                ),
+                              ),
                             ),
-                          ),
-                    ],
-                  ),
+                      ],
+                    ),
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -419,9 +478,12 @@ class _StatusBreakdown extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 7,
-                      height: 7,
-                      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        gradient: glossOf(color),
+                        shape: BoxShape.circle,
+                      ),
                     ),
                     const SizedBox(width: 5),
                     Text('$label ', style: theme.textTheme.bodySmall),
@@ -502,7 +564,7 @@ class _ProjectMenu extends ConsumerWidget {
     return PopupMenuButton<String>(
       tooltip: 'More',
       position: PopupMenuPosition.under,
-      icon: const Icon(Icons.more_vert_rounded, size: 18),
+      icon: const Icon(AppIcon.more, size: 18),
       iconSize: 16,
       onSelected: (action) async {
         final notifier = ref.read(recentProjectsProvider.notifier);
@@ -520,14 +582,28 @@ class _ProjectMenu extends ConsumerWidget {
             await notifier.forget(project.path);
           case 'delete':
             final confirmed = await _confirmDelete(context);
-            if (confirmed) await notifier.forget(project.path, deleteFile: true);
+            if (confirmed) {
+              await notifier.forget(project.path, deleteFile: true);
+            }
         }
       },
       itemBuilder: (context) => const [
-        PopupMenuItem(value: 'reveal', height: 34, child: Text('Copy file path')),
-        PopupMenuItem(value: 'forget', height: 34, child: Text('Remove from list')),
+        PopupMenuItem(
+          value: 'reveal',
+          height: 34,
+          child: Text('Copy file path'),
+        ),
+        PopupMenuItem(
+          value: 'forget',
+          height: 34,
+          child: Text('Remove from list'),
+        ),
         PopupMenuDivider(),
-        PopupMenuItem(value: 'delete', height: 34, child: Text('Delete crawl file…')),
+        PopupMenuItem(
+          value: 'delete',
+          height: 34,
+          child: Text('Delete crawl file…'),
+        ),
       ],
     );
   }
@@ -549,7 +625,9 @@ class _ProjectMenu extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: CrawlStatTheme.error),
+            style: FilledButton.styleFrom(
+              backgroundColor: CrawlStatTheme.error,
+            ),
             child: const Text('Delete'),
           ),
         ],

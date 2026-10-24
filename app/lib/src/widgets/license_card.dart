@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../theme/icons.dart';
 import '../state/license.dart';
 import '../theme/theme.dart';
 import 'common.dart';
@@ -122,7 +123,9 @@ class _LicenseCardState extends ConsumerState<LicenseCard> {
                 controller: _key,
                 enabled: !_busy,
                 style: CrawlStatTheme.mono(context),
-                decoration: const InputDecoration(hintText: 'Paste your licence key'),
+                decoration: const InputDecoration(
+                  hintText: 'Paste your licence key',
+                ),
                 onSubmitted: (_) => _activate(),
               ),
             ),
@@ -157,16 +160,16 @@ class _LicenseCardState extends ConsumerState<LicenseCard> {
           onPressed: _busy
               ? null
               : () => _run(
-                    ref.read(licenseProvider.notifier).refreshNow,
-                    success: 'Licence re-checked.',
-                  ),
-          icon: const Icon(Icons.refresh, size: 14),
+                  ref.read(licenseProvider.notifier).refreshNow,
+                  success: 'Licence re-checked.',
+                ),
+          icon: const Icon(AppIcon.refresh, size: 14),
           label: const Text('Check now'),
         ),
         const SizedBox(width: 8),
         OutlinedButton.icon(
           onPressed: _busy ? null : () => _confirmDeactivate(context),
-          icon: const Icon(Icons.logout, size: 14),
+          icon: const Icon(AppIcon.signOut, size: 14),
           label: const Text('Deactivate'),
         ),
       ],

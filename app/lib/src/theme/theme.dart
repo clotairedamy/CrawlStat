@@ -29,52 +29,62 @@ class CrawlStatTheme {
   static const double gutter = 24;
 
   /// Corner radius of cards.
-  static const double radius = 14;
+  ///
+  /// Large on purpose. Soft UI reads as moulded rather than drawn, and a
+  /// tight 8pt corner immediately looks like a stock dashboard again — the
+  /// radius is doing as much of the work here as the shadows are.
+  static const double radius = 20;
 
   /// Corner radius of buttons, inputs and chips inside a card.
-  static const double controlRadius = 9;
+  static const double controlRadius = 13;
+
+  /// Fully round, for pills and circular icon buttons.
+  static const double pillRadius = 999;
 
   /// The single accent, used for selection, focus and primary actions.
-  static const Color accent = Color(0xFF6366F1);
+  static const Color accent = Color(0xFFFF6A14);
 
   /// Severity colours. These are the only other colours with meaning, and
   /// they are tuned to read on both the light and the dark canvas.
-  static const Color error = Color(0xFFEF4565);
-  static const Color warning = Color(0xFFF2A12E);
-  static const Color notice = Color(0xFF8189A8);
-  static const Color success = Color(0xFF22B573);
+  static const Color error = Color(0xFFF2543D);
+  static const Color warning = Color(0xFFE8A33D);
+  static const Color notice = Color(0xFF8A8A94);
+  static const Color success = Color(0xFF4ABD7F);
 
   /// The system UI font on each platform, named explicitly so every text style
   /// — buttons included — uses the same family.
   static String? get fontFamily => switch (defaultTargetPlatform) {
-        TargetPlatform.macOS || TargetPlatform.iOS => '.AppleSystemUIFont',
-        TargetPlatform.windows => 'Segoe UI',
-        _ => null,
-      };
+    TargetPlatform.macOS || TargetPlatform.iOS => '.AppleSystemUIFont',
+    TargetPlatform.windows => 'Segoe UI',
+    _ => null,
+  };
 
   static ThemeData light() => _build(
-        brightness: Brightness.light,
-        surface: const Color(0xFFFFFFFF),
-        canvas: const Color(0xFFF3F4F9),
-        panel: const Color(0xFFFFFFFF),
-        raised: const Color(0xFFF6F7FB),
-        border: const Color(0xFFE3E5EF),
-        text: const Color(0xFF151728),
-        subdued: const Color(0xFF6B7092),
-        hover: const Color(0xFFEFF0F8),
-      );
+    brightness: Brightness.light,
+    surface: const Color(0xFFECECEF),
+    canvas: const Color(0xFFE2E2E6),
+    panel: const Color(0xFFF3F3F6),
+    raised: const Color(0xFFF7F7FA),
+    border: const Color(0xFFDBDBE1),
+    text: const Color(0xFF1A1A1D),
+    subdued: const Color(0xFF75757E),
+    hover: const Color(0xFFE9E9EE),
+  );
 
   static ThemeData dark() => _build(
-        brightness: Brightness.dark,
-        surface: const Color(0xFF1A1C30),
-        canvas: const Color(0xFF13152A),
-        panel: const Color(0xFF1F2238),
-        raised: const Color(0xFF272A44),
-        border: const Color(0xFF2D3050),
-        text: const Color(0xFFEDEEF8),
-        subdued: const Color(0xFF9398BC),
-        hover: const Color(0xFF282B47),
-      );
+    brightness: Brightness.dark,
+    surface: const Color(0xFF26262A),
+    canvas: const Color(0xFF1B1B1E),
+    panel: const Color(0xFF2E2E33),
+    raised: const Color(0xFF313137),
+    // Nearly invisible: rows are separated by a whisper, not a rule.
+    border: const Color(0xFF2C2C31),
+    text: const Color(0xFFF3F3F5),
+    // Neutral grey. The old subdued was blue-tinted, which is what made
+    // the whole app read cold next to the reference's warm charcoal.
+    subdued: const Color(0xFF8B8B93),
+    hover: const Color(0xFF303036),
+  );
 
   static ThemeData _build({
     required Brightness brightness,
@@ -128,8 +138,12 @@ class CrawlStatTheme {
       dividerColor: border,
       splashFactory: NoSplash.splashFactory,
       // A pointer-driven app does not need ink ripples; they read as lag.
-      highlightColor: hover,
-      hoverColor: hover,
+      // Both of these are transparent on purpose: Material paints them as a
+      // *rectangle* behind the child, which on a rounded panel appears as a
+      // grey box around the corners. Surfaces that respond to the pointer do
+      // it themselves, by lifting their own shadow.
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
       visualDensity: VisualDensity.compact,
       dividerTheme: DividerThemeData(color: border, thickness: 1, space: 1),
       textTheme: TextTheme(
@@ -137,11 +151,14 @@ class CrawlStatTheme {
         bodySmall: body.copyWith(fontSize: 12, color: subdued),
         titleSmall: body.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
         titleMedium: body.copyWith(fontSize: 15, fontWeight: FontWeight.w600),
+        // Screen titles are big and heavy, with a quiet line under them. That
+        // contrast — one loud thing, one soft thing — is the typographic half
+        // of the look; a 22pt semibold title reads as a settings pane.
         titleLarge: body.copyWith(
-          fontSize: 22,
+          fontSize: 27,
           fontWeight: FontWeight.w700,
-          height: 1.2,
-          letterSpacing: -0.2,
+          height: 1.15,
+          letterSpacing: -0.45,
         ),
         labelLarge: body.copyWith(fontWeight: FontWeight.w500),
         labelMedium: body.copyWith(
@@ -157,29 +174,47 @@ class CrawlStatTheme {
         filled: true,
         fillColor: raised,
         hintStyle: body.copyWith(color: subdued),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-        border: _inputBorder(border),
-        enabledBorder: _inputBorder(border),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 11,
+        ),
+        // A field is a recess, so its resting edge is a shade *darker* than
+        // the surface rather than a drawn line.
+        border: _inputBorder(Color.lerp(surface, Colors.black, 0.18)!),
+        enabledBorder: _inputBorder(Color.lerp(surface, Colors.black, 0.18)!),
         focusedBorder: _inputBorder(accent, width: 1.5),
         errorBorder: _inputBorder(error),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          textStyle: body.copyWith(fontWeight: FontWeight.w600),
-          shape: controlShape,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          minimumSize: const Size(0, 36),
+          textStyle: body.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
+          minimumSize: const Size(0, 40),
+          // The halo is cast in the accent, not in black, so the pill looks
+          // lit rather than merely elevated.
+          elevation: 10,
+          shadowColor: accent.withValues(alpha: 0.55),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: text,
           backgroundColor: panel,
-          side: BorderSide(color: border),
+          // Borderless: a secondary button is a soft slab, raised off the
+          // page by its shadow alone.
+          side: BorderSide.none,
           textStyle: body.copyWith(fontWeight: FontWeight.w500),
-          shape: controlShape,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          minimumSize: const Size(0, 36),
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+          minimumSize: const Size(0, 40),
+          elevation: 6,
+          shadowColor: Colors.black.withValues(
+            alpha: brightness == Brightness.dark ? 0.6 : 0.22,
+          ),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -198,13 +233,14 @@ class CrawlStatTheme {
           foregroundColor: subdued,
           selectedBackgroundColor: accent,
           selectedForegroundColor: Colors.white,
-          side: BorderSide(color: border),
-          shape: controlShape,
+          side: BorderSide.none,
+          shape: const StadiumBorder(),
         ),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? Colors.white : subdued,
+          (states) =>
+              states.contains(WidgetState.selected) ? Colors.white : subdued,
         ),
         trackColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected) ? accent : raised,
@@ -219,8 +255,7 @@ class CrawlStatTheme {
         shadowColor: Colors.black.withValues(alpha: 0.4),
         textStyle: body,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: border),
-          borderRadius: BorderRadius.circular(controlRadius + 2),
+          borderRadius: BorderRadius.circular(controlRadius + 3),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -229,8 +264,7 @@ class CrawlStatTheme {
         contentTextStyle: body,
         actionTextColor: accent,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: border),
-          borderRadius: BorderRadius.circular(controlRadius + 2),
+          borderRadius: BorderRadius.circular(controlRadius + 3),
         ),
       ),
       tooltipTheme: TooltipThemeData(
@@ -250,19 +284,18 @@ class CrawlStatTheme {
         color: panel,
         elevation: 0,
         margin: EdgeInsets.zero,
-        clipBehavior: Clip.antiAlias,
+        // Borderless on purpose: in soft UI an edge is implied by light, not
+        // drawn. Anything still using a raw Card gets the shape without an
+        // outline that would clash with the panels around it.
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: border.withValues(alpha: 0.7)),
           borderRadius: BorderRadius.circular(radius),
         ),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: panel,
-        elevation: 24,
-        shadowColor: Colors.black.withValues(alpha: 0.5),
+        backgroundColor: surface,
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: border),
-          borderRadius: BorderRadius.circular(radius + 2),
+          borderRadius: BorderRadius.circular(radius + 4),
         ),
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(
@@ -327,9 +360,18 @@ class CrawlStatShortcuts {
   const CrawlStatShortcuts._();
 
   static const newCrawl = SingleActivator(LogicalKeyboardKey.keyN, meta: true);
-  static const openProject = SingleActivator(LogicalKeyboardKey.keyO, meta: true);
-  static const focusFilter = SingleActivator(LogicalKeyboardKey.keyF, meta: true);
+  static const openProject = SingleActivator(
+    LogicalKeyboardKey.keyO,
+    meta: true,
+  );
+  static const focusFilter = SingleActivator(
+    LogicalKeyboardKey.keyF,
+    meta: true,
+  );
   static const exportCsv = SingleActivator(LogicalKeyboardKey.keyE, meta: true);
-  static const pauseResume = SingleActivator(LogicalKeyboardKey.space, meta: true);
+  static const pauseResume = SingleActivator(
+    LogicalKeyboardKey.space,
+    meta: true,
+  );
   static const closePanel = SingleActivator(LogicalKeyboardKey.escape);
 }

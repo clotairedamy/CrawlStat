@@ -577,3 +577,270 @@ pub fn structured_data_summary(conn: &Connection) -> Result<Vec<(String, u64)>> 
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(rows)
 }
+
+// ─── site structure ──────────────────────────────────────────────────────
+
+/// One page in the site graph.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GraphNode {
+    pub id: i64,
+    pub url: String,
+    /// The last meaningful path segment, for labelling a node without drawing
+    /// the whole URL next to it.
+    pub label: String,
+    pub depth: u32,
+    pub status: Option<u16>,
+    pub inlinks: u64,
+    pub outlinks: u64,
+}
+
+/// A followed internal link between two pages in the graph.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct GraphEdge {
+    pub source: i64,
+    pub target: i64,
+}
+
+/// The label to draw on a node: the last path segment, or the host for the
+/// home page. `/blog/how-to-crawl/` becomes `how-to-crawl`.
+pub fn node_label(url: &str) -> String {
+    let without_scheme = url.split("://").nth(1).unwrap_or(url);
+    let (host, path) = match without_scheme.find('/') {
+        Some(at) => (&without_scheme[..at], &without_scheme[at..]),
+        None => (without_scheme, ""),
+    };
+    let last = path
+        .split('?')
+        .next()
+        .unwrap_or("")
+        .trim_end_matches('/')
+        .rsplit('/')
+        .find(|segment| !segment.is_empty());
+    match last {
+        Some(segment) => segment.to_string(),
+        // The root of the site, which is the one node worth naming by host.
+        None => host.trim_start_matches("www.").to_string(),
+    }
+}
+
+/// The internal link graph, capped to the `limit` best-connected pages.
+///
+/// A 50,000-page crawl cannot be drawn as a node-link diagram — not by this
+/// app and not by any other — so the graph is the most *linked-to* pages and
+/// the links among them. Those are the pages a visitor actually reaches, which
+/// is what the picture is for; the long tail of leaf pages would be a grey
+/// haze around the edge either way.
+///
+/// Only HTML pages that were actually fetched are included: a diagram of a
+/// site's shape has no room for its images and stylesheets.
+pub fn site_graph(conn: &Connection, limit: u32) -> Result<(Vec<GraphNode>, Vec<GraphEdge>)> {
+    use std::collections::{HashMap, HashSet};
+
+    // Inlinks and outlinks in two grouped passes rather than a correlated
+    // subquery per row, which on a large crawl is the difference between a
+    // moment and a minute.
+    let mut inlinks: HashMap<String, u64> = HashMap::new();
+    {
+        let mut stmt = conn.prepare(
+            "SELECT target_key, count(*) FROM links
+             WHERE is_internal = 1 AND target_key IS NOT NULL
+             GROUP BY target_key",
+        )?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)? as u64)))?;
+        for row in rows {
+            let (key, count) = row?;
+            inlinks.insert(key, count);
+        }
+    }
+
+    let mut outlinks: HashMap<i64, u64> = HashMap::new();
+    {
+        let mut stmt = conn.prepare(
+            "SELECT source_id, count(*) FROM links
+             WHERE is_internal = 1 GROUP BY source_id",
+        )?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)? as u64)))?;
+        for row in rows {
+            let (id, count) = row?;
+            outlinks.insert(id, count);
+        }
+    }
+
+    let mut candidates: Vec<(GraphNode, String)> = {
+        let mut stmt = conn.prepare(
+            "SELECT id, url, dedup_key, depth,
+                    coalesce(final_status_code, status_code)
+             FROM urls
+             WHERE is_internal = 1 AND kind = 0 AND status_code IS NOT NULL",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            let dedup_key: String = r.get(2)?;
+            let url: String = r.get(1)?;
+            Ok((
+                GraphNode {
+                    id: r.get(0)?,
+                    label: node_label(&url),
+                    url,
+                    depth: r.get::<_, i64>(3)?.max(0) as u32,
+                    status: r.get::<_, Option<i64>>(4)?.map(|code| code as u16),
+                    inlinks: 0,
+                    outlinks: 0,
+                },
+                dedup_key,
+            ))
+        })?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()?
+    };
+
+    for (node, dedup_key) in &mut candidates {
+        node.inlinks = inlinks.get(dedup_key.as_str()).copied().unwrap_or(0);
+        node.outlinks = outlinks.get(&node.id).copied().unwrap_or(0);
+    }
+
+    // Shallow first, then best connected: the home page and the top-level
+    // sections should survive the cap even on a site where a footer link makes
+    // some deep page the most linked-to thing in the crawl.
+    candidates.sort_by(|a, b| {
+        a.0.depth
+            .cmp(&b.0.depth)
+            .then(b.0.inlinks.cmp(&a.0.inlinks))
+            .then(a.0.id.cmp(&b.0.id))
+    });
+    candidates.truncate(limit as usize);
+
+    // The edges are filtered in SQLite rather than in Rust.
+    //
+    // A real crawl has far more links than pages — a 1,900-page site here has
+    // 370,000 internal links, and a large one has millions. Reading them all
+    // across the boundary to throw away all but a few thousand is the kind of
+    // thing that makes a screen take a second to open for no reason, so the
+    // chosen pages go into a temporary table and the join happens where the
+    // data already is.
+    conn.execute_batch(
+        "CREATE TEMP TABLE IF NOT EXISTS graph_pick (id INTEGER PRIMARY KEY, dedup_key TEXT NOT NULL);
+         DELETE FROM graph_pick;
+         CREATE INDEX IF NOT EXISTS graph_pick_key ON graph_pick (dedup_key);",
+    )?;
+    {
+        let mut insert = conn.prepare("INSERT INTO graph_pick (id, dedup_key) VALUES (?1, ?2)")?;
+        for (node, dedup_key) in &candidates {
+            insert.execute(rusqlite::params![node.id, dedup_key])?;
+        }
+    }
+
+    let mut edges: HashSet<GraphEdge> = HashSet::new();
+    {
+        let mut stmt = conn.prepare(
+            "SELECT l.source_id, target.id
+             FROM links l
+             JOIN graph_pick source ON source.id = l.source_id
+             JOIN graph_pick target ON target.dedup_key = l.target_key
+             WHERE l.is_internal = 1 AND l.nofollow = 0 AND l.source_id != target.id",
+        )?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)))?;
+        for row in rows {
+            let (source, target) = row?;
+            // A page linking to itself tells the reader nothing and draws as a
+            // smudge on the node.
+            edges.insert(GraphEdge { source, target });
+        }
+    }
+    conn.execute_batch("DELETE FROM graph_pick;")?;
+
+    let nodes = candidates.into_iter().map(|(node, _)| node).collect();
+    let mut edges: Vec<GraphEdge> = edges.into_iter().collect();
+    edges.sort_by_key(|edge| (edge.source, edge.target));
+    Ok((nodes, edges))
+}
+
+/// Pages grouped by their first path segment: the site's top-level sections.
+///
+/// Returns `(segment, pages, issues)` ordered by page count, so a treemap can
+/// show which part of the site is big and which part is in trouble.
+pub fn directory_breakdown(conn: &Connection, limit: u32) -> Result<Vec<(String, u64, u64)>> {
+    use std::collections::HashMap;
+
+    let mut stmt = conn.prepare(
+        "SELECT u.url, coalesce(final_status_code, status_code),
+                (SELECT count(*) FROM issue_urls i WHERE i.url_id = u.id)
+         FROM urls u
+         WHERE u.is_internal = 1 AND u.kind = 0 AND u.status_code IS NOT NULL",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, Option<i64>>(1)?,
+            r.get::<_, i64>(2)?.max(0) as u64,
+        ))
+    })?;
+
+    let mut buckets: HashMap<String, (u64, u64)> = HashMap::new();
+    for row in rows {
+        let (url, status, issues) = row?;
+        let section = top_level_section(&url);
+        let entry = buckets.entry(section).or_insert((0, 0));
+        entry.0 += 1;
+        entry.1 += issues + u64::from(status.is_some_and(|code| code >= 400));
+    }
+
+    let mut sections: Vec<(String, u64, u64)> = buckets
+        .into_iter()
+        .map(|(name, (pages, issues))| (name, pages, issues))
+        .collect();
+    sections.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    sections.truncate(limit as usize);
+    Ok(sections)
+}
+
+/// The first path segment of a URL, or `/` for the site root.
+pub fn top_level_section(url: &str) -> String {
+    let without_scheme = url.split("://").nth(1).unwrap_or(url);
+    let path = match without_scheme.find('/') {
+        Some(at) => &without_scheme[at + 1..],
+        None => "",
+    };
+    let first = path
+        .split(['?', '#'])
+        .next()
+        .unwrap_or("")
+        .split('/')
+        .find(|segment| !segment.is_empty());
+    match first {
+        // A file at the root, like /about.html, is still the root section.
+        Some(segment) if segment.contains('.') => "/".to_string(),
+        Some(segment) => format!("/{segment}"),
+        None => "/".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod structure_tests {
+    use super::*;
+
+    #[test]
+    fn a_node_is_labelled_by_its_last_path_segment() {
+        assert_eq!(node_label("https://example.com/blog/how-to-crawl/"), "how-to-crawl");
+        assert_eq!(node_label("https://example.com/about"), "about");
+        assert_eq!(node_label("https://example.com/a/b?page=2"), "b");
+    }
+
+    #[test]
+    fn the_home_page_is_labelled_by_its_host() {
+        assert_eq!(node_label("https://www.example.com/"), "example.com");
+        assert_eq!(node_label("https://example.com"), "example.com");
+    }
+
+    #[test]
+    fn sections_come_from_the_first_path_segment() {
+        assert_eq!(top_level_section("https://example.com/blog/post"), "/blog");
+        assert_eq!(top_level_section("https://example.com/"), "/");
+        assert_eq!(top_level_section("https://example.com/shop/"), "/shop");
+    }
+
+    #[test]
+    fn a_file_at_the_root_belongs_to_the_root() {
+        // Otherwise every page of a flat .html site becomes its own section,
+        // and the treemap is a hundred slivers.
+        assert_eq!(top_level_section("https://example.com/about.html"), "/");
+    }
+}

@@ -13,27 +13,44 @@ import '../rust/api/types.dart';
 /// native plugin dependencies and therefore buildable with just the Flutter
 /// SDK.
 String appSupportDirectory() {
-  final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '.';
+  final home =
+      Platform.environment['HOME'] ??
+      Platform.environment['USERPROFILE'] ??
+      '.';
   if (Platform.isMacOS) {
     return '$home/Library/Application Support/CrawlStat';
   }
   if (Platform.isWindows) {
-    final appData = Platform.environment['APPDATA'] ?? '$home\\AppData\\Roaming';
+    final appData =
+        Platform.environment['APPDATA'] ?? '$home\\AppData\\Roaming';
     return '$appData\\CrawlStat';
   }
   // Linux, per the XDG base directory spec.
-  final dataHome = Platform.environment['XDG_DATA_HOME'] ?? '$home/.local/share';
+  final dataHome =
+      Platform.environment['XDG_DATA_HOME'] ?? '$home/.local/share';
   return '$dataHome/crawlstat';
 }
 
 /// Where new crawls are saved by default.
-String defaultProjectsDirectory() => '${appSupportDirectory()}${Platform.pathSeparator}projects';
+String defaultProjectsDirectory() =>
+    '${appSupportDirectory()}${Platform.pathSeparator}projects';
 
 /// Where exports go by default.
 String defaultExportDirectory() {
-  final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '.';
+  final home =
+      Platform.environment['HOME'] ??
+      Platform.environment['USERPROFILE'] ??
+      '.';
   final downloads = Directory('$home${Platform.pathSeparator}Downloads');
-  return downloads.existsSync() ? downloads.path : home;
+  if (!downloads.existsSync()) return home;
+  // Inside the macOS sandbox, HOME is the app's container and its Downloads
+  // is a symlink out to the real one. Following it means the path the user
+  // is shown is the folder they actually know.
+  try {
+    return downloads.resolveSymbolicLinksSync();
+  } on FileSystemException {
+    return downloads.path;
+  }
 }
 
 /// The list of crawls the user has opened, newest first.
@@ -155,10 +172,15 @@ class OpenProject extends Notifier<String?> {
   }
 }
 
-final openProjectProvider = NotifierProvider<OpenProject, String?>(OpenProject.new);
+final openProjectProvider = NotifierProvider<OpenProject, String?>(
+  OpenProject.new,
+);
 
 /// Summary of the open project, refreshed on demand.
-final projectInfoProvider = FutureProvider.family<ProjectInfo, String>((ref, path) {
+final projectInfoProvider = FutureProvider.family<ProjectInfo, String>((
+  ref,
+  path,
+) {
   return rust.projectInfo(dbPath: path);
 });
 
@@ -176,7 +198,10 @@ List<String> promoteToFront(
   String path, {
   int limit = recentProjectLimit,
 }) {
-  return [path, ...existing.where((candidate) => candidate != path)].take(limit).toList();
+  return [
+    path,
+    ...existing.where((candidate) => candidate != path),
+  ].take(limit).toList();
 }
 
 /// The list without `path`.
@@ -199,6 +224,7 @@ String suggestedProjectFileName(String startUrl, {DateTime? now}) {
   if (host.isEmpty) host = 'crawl';
 
   String two(int value) => value.toString().padLeft(2, '0');
-  final stamp = '${at.year}${two(at.month)}${two(at.day)}-${two(at.hour)}${two(at.minute)}';
+  final stamp =
+      '${at.year}${two(at.month)}${two(at.day)}-${two(at.hour)}${two(at.minute)}';
   return '$host-$stamp.db';
 }

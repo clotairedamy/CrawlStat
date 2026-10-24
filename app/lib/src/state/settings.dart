@@ -55,12 +55,14 @@ class Settings {
   final String? projectsDirectory;
   final String? exportDirectory;
 
-  /// The user's choice for the sidebar. `null` until they choose, in which
-  /// case it follows the window width.
+  /// The navigation shown as icons only. `null` until the user chooses, so
+  /// the window's width can decide in the meantime.
   final bool? sidebarCollapsed;
 
-  String get resolvedProjectsDirectory => projectsDirectory ?? defaultProjectsDirectory();
-  String get resolvedExportDirectory => exportDirectory ?? defaultExportDirectory();
+  String get resolvedProjectsDirectory =>
+      projectsDirectory ?? defaultProjectsDirectory();
+  String get resolvedExportDirectory =>
+      exportDirectory ?? defaultExportDirectory();
 
   Settings copyWith({
     String? userAgent,
@@ -105,32 +107,35 @@ class Settings {
   }
 
   Map<String, Object?> toJson() => {
-        'userAgent': userAgent,
-        'themeMode': themeMode.name,
-        'concurrency': concurrency,
-        'crawlDelayMs': crawlDelayMs,
-        'requestTimeoutMs': requestTimeoutMs,
-        'respectRobots': respectRobots,
-        'crawlSubdomains': crawlSubdomains,
-        'checkExternalLinks': checkExternalLinks,
-        'followNofollow': followNofollow,
-        'crawlImages': crawlImages,
-        'crawlCss': crawlCss,
-        'crawlJavascript': crawlJavascript,
-        'crawlDocuments': crawlDocuments,
-        'storeHtml': storeHtml,
-        'runAudits': runAudits,
-        'projectsDirectory': projectsDirectory,
-        'exportDirectory': exportDirectory,
-        'sidebarCollapsed': sidebarCollapsed,
-      };
+    'userAgent': userAgent,
+    'themeMode': themeMode.name,
+    'concurrency': concurrency,
+    'crawlDelayMs': crawlDelayMs,
+    'requestTimeoutMs': requestTimeoutMs,
+    'respectRobots': respectRobots,
+    'crawlSubdomains': crawlSubdomains,
+    'checkExternalLinks': checkExternalLinks,
+    'followNofollow': followNofollow,
+    'crawlImages': crawlImages,
+    'crawlCss': crawlCss,
+    'crawlJavascript': crawlJavascript,
+    'crawlDocuments': crawlDocuments,
+    'storeHtml': storeHtml,
+    'runAudits': runAudits,
+    'projectsDirectory': projectsDirectory,
+    'exportDirectory': exportDirectory,
+    'sidebarCollapsed': sidebarCollapsed,
+  };
 
   /// Read settings, falling back to the engine's defaults for anything absent.
   ///
   /// Unknown and missing keys are tolerated on purpose: a settings file written
   /// by an older build must still open, and one written by a newer build must
   /// not crash this one.
-  static Settings fromJson(Map<String, Object?> json, {required String fallbackUserAgent}) {
+  static Settings fromJson(
+    Map<String, Object?> json, {
+    required String fallbackUserAgent,
+  }) {
     T? pick<T>(String key) => json[key] is T ? json[key] as T : null;
     final defaults = Settings(userAgent: fallbackUserAgent);
 
@@ -142,14 +147,18 @@ class Settings {
       ),
       concurrency: pick<int>('concurrency') ?? defaults.concurrency,
       crawlDelayMs: pick<int>('crawlDelayMs') ?? defaults.crawlDelayMs,
-      requestTimeoutMs: pick<int>('requestTimeoutMs') ?? defaults.requestTimeoutMs,
+      requestTimeoutMs:
+          pick<int>('requestTimeoutMs') ?? defaults.requestTimeoutMs,
       respectRobots: pick<bool>('respectRobots') ?? defaults.respectRobots,
-      crawlSubdomains: pick<bool>('crawlSubdomains') ?? defaults.crawlSubdomains,
-      checkExternalLinks: pick<bool>('checkExternalLinks') ?? defaults.checkExternalLinks,
+      crawlSubdomains:
+          pick<bool>('crawlSubdomains') ?? defaults.crawlSubdomains,
+      checkExternalLinks:
+          pick<bool>('checkExternalLinks') ?? defaults.checkExternalLinks,
       followNofollow: pick<bool>('followNofollow') ?? defaults.followNofollow,
       crawlImages: pick<bool>('crawlImages') ?? defaults.crawlImages,
       crawlCss: pick<bool>('crawlCss') ?? defaults.crawlCss,
-      crawlJavascript: pick<bool>('crawlJavascript') ?? defaults.crawlJavascript,
+      crawlJavascript:
+          pick<bool>('crawlJavascript') ?? defaults.crawlJavascript,
       crawlDocuments: pick<bool>('crawlDocuments') ?? defaults.crawlDocuments,
       storeHtml: pick<bool>('storeHtml') ?? defaults.storeHtml,
       runAudits: pick<bool>('runAudits') ?? defaults.runAudits,
@@ -225,21 +234,27 @@ class SettingsController extends Notifier<Settings> {
   void update(Settings Function(Settings) change) {
     state = change(state);
     try {
-      _file.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(state.toJson()));
+      _file.writeAsStringSync(
+        const JsonEncoder.withIndent('  ').convert(state.toJson()),
+      );
     } on Object {
       // Settings that fail to persist still apply for this session.
     }
   }
 
-  void resetUserAgent() => update((s) => s.copyWith(userAgent: rust.defaultUserAgent()));
+  void resetUserAgent() =>
+      update((s) => s.copyWith(userAgent: rust.defaultUserAgent()));
 
-  void setThemeMode(ThemeMode mode) => update((s) => s.copyWith(themeMode: mode));
+  void setThemeMode(ThemeMode mode) =>
+      update((s) => s.copyWith(themeMode: mode));
 
   void setSidebarCollapsed(bool collapsed) =>
       update((s) => s.copyWith(sidebarCollapsed: collapsed));
 }
 
-final settingsProvider = NotifierProvider<SettingsController, Settings>(SettingsController.new);
+final settingsProvider = NotifierProvider<SettingsController, Settings>(
+  SettingsController.new,
+);
 
 /// URLs per crawl allowed without a licence. Phase 4 raises this on activation.
 final freeTierLimitProvider = Provider<int>((ref) => rust.freeTierMaxUrls());

@@ -13,7 +13,11 @@ void main() {
     });
 
     test('copyWith can clear a filter as well as set one', () {
-      const query = UrlQuerySpec(search: 'blog', statusClass: 4, issueId: 'status_4xx');
+      const query = UrlQuerySpec(
+        search: 'blog',
+        statusClass: 4,
+        issueId: 'status_4xx',
+      );
       expect(query.copyWith(clearSearch: true).search, isNull);
       expect(query.copyWith(clearStatusClass: true).statusClass, isNull);
       expect(query.copyWith(clearIssue: true).issueId, isNull);
@@ -45,10 +49,12 @@ void main() {
     });
 
     test('an empty search is sent as absent rather than as an empty match', () {
-      final request = const UrlQuerySpec(search: '').toRequest(offset: 0, limit: 50);
+      final request = const UrlQuerySpec(search: '')
+          .toRequest(offset: 0, limit: 50);
       expect(request.urlContains, isNull);
 
-      final searching = const UrlQuerySpec(search: 'blog').toRequest(offset: 0, limit: 50);
+      final searching = const UrlQuerySpec(search: 'blog')
+          .toRequest(offset: 0, limit: 50);
       expect(searching.urlContains, 'blog');
     });
 
@@ -101,12 +107,12 @@ void main() {
 
 /// A row with only the fields these tests read.
 UrlRow _row(int id) => UrlRow(
-      id: id,
-      url: 'https://a.test/$id',
-      state: 'done',
-      kind: 'html',
-      isInternal: true,
-      depth: 1,
-      inlinks: 0,
-      redirectCount: 0,
-    );
+  id: id,
+  url: 'https://a.test/$id',
+  state: 'done',
+  kind: 'html',
+  isInternal: true,
+  depth: 1,
+  inlinks: 0,
+  redirectCount: 0,
+);

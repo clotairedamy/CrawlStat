@@ -39,11 +39,15 @@ void main() {
 
     test('says a day, not days, when there is one left', () {
       expect(
-        describeLicense(info(status: 'active', plan: 'pro', daysRemaining: 1, maxUrls: null)),
+        describeLicense(
+          info(status: 'active', plan: 'pro', daysRemaining: 1, maxUrls: null),
+        ),
         contains('1 day'),
       );
       expect(
-        describeLicense(info(status: 'active', plan: 'pro', daysRemaining: 1, maxUrls: null)),
+        describeLicense(
+          info(status: 'active', plan: 'pro', daysRemaining: 1, maxUrls: null),
+        ),
         isNot(contains('1 days')),
       );
     });
@@ -66,7 +70,9 @@ void main() {
 
     test('an unreadable licence shows the reason it gave', () {
       expect(
-        describeLicense(info(status: 'invalid', reason: 'the signature does not match')),
+        describeLicense(
+          info(status: 'invalid', reason: 'the signature does not match'),
+        ),
         'the signature does not match',
       );
     });
@@ -90,11 +96,18 @@ void main() {
       expect(info().features, isEmpty);
     });
 
-    test('a feature this build has never heard of does not break the lookup', () {
-      final granted = info(plan: 'pro', features: const ['time_travel'], maxUrls: null);
-      expect(hasFeature(granted, 'time_travel'), isTrue);
-      expect(hasFeature(granted, ProFeatures.unlimitedUrls), isFalse);
-    });
+    test(
+      'a feature this build has never heard of does not break the lookup',
+      () {
+        final granted = info(
+          plan: 'pro',
+          features: const ['time_travel'],
+          maxUrls: null,
+        );
+        expect(hasFeature(granted, 'time_travel'), isTrue);
+        expect(hasFeature(granted, ProFeatures.unlimitedUrls), isFalse);
+      },
+    );
   });
 
   group('the URL limit', () {

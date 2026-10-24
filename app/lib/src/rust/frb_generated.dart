@@ -71,7 +71,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -108172683;
+  int get rustContentHash => 510350563;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -160,6 +160,11 @@ abstract class RustLibApi extends BaseApi {
   Future<AuditReport> crateApiProjectRunAudit({
     required String dbPath,
     String? thresholdsJson,
+  });
+
+  Future<SiteStructure> crateApiProjectSiteStructure({
+    required String dbPath,
+    required int nodeLimit,
   });
 
   Stream<CrawlEvent> crateApiCrawlStartCrawl({
@@ -957,6 +962,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<SiteStructure> crateApiProjectSiteStructure({
+    required String dbPath,
+    required int nodeLimit,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(dbPath, serializer);
+          sse_encode_u_32(nodeLimit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 29,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_site_structure,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiProjectSiteStructureConstMeta,
+        argValues: [dbPath, nodeLimit],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiProjectSiteStructureConstMeta =>
+      const TaskConstMeta(
+        debugName: "site_structure",
+        argNames: ["dbPath", "nodeLimit"],
+      );
+
+  @override
   Stream<CrawlEvent> crateApiCrawlStartCrawl({
     required CrawlRequest request,
     required String dbPath,
@@ -969,7 +1009,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_box_autoadd_crawl_request(request, serializer);
           sse_encode_String(dbPath, serializer);
           sse_encode_StreamSink_crawl_event_Sse(sink, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -1000,7 +1040,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1032,7 +1072,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1061,7 +1101,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1303,6 +1343,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DepthCount dco_decode_depth_count(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return DepthCount(
+      depth: dco_decode_i_64(arr[0]),
+      count: dco_decode_i_64(arr[1]),
+    );
+  }
+
+  @protected
   double dco_decode_f_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
@@ -1409,6 +1461,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<DepthCount> dco_decode_list_depth_count(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_depth_count).toList();
+  }
+
+  @protected
   List<HeaderPair> dco_decode_list_header_pair(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_header_pair).toList();
@@ -1442,6 +1500,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<RedirectHop> dco_decode_list_redirect_hop(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_redirect_hop).toList();
+  }
+
+  @protected
+  List<SiteEdge> dco_decode_list_site_edge(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_site_edge).toList();
+  }
+
+  @protected
+  List<SiteNode> dco_decode_list_site_node(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_site_node).toList();
+  }
+
+  @protected
+  List<SiteSection> dco_decode_list_site_section(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_site_section).toList();
   }
 
   @protected
@@ -1567,6 +1643,64 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SiteEdge dco_decode_site_edge(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return SiteEdge(
+      source: dco_decode_i_64(arr[0]),
+      target: dco_decode_i_64(arr[1]),
+    );
+  }
+
+  @protected
+  SiteNode dco_decode_site_node(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return SiteNode(
+      id: dco_decode_i_64(arr[0]),
+      url: dco_decode_String(arr[1]),
+      label: dco_decode_String(arr[2]),
+      depth: dco_decode_i_64(arr[3]),
+      status: dco_decode_opt_box_autoadd_i_64(arr[4]),
+      inlinks: dco_decode_i_64(arr[5]),
+      outlinks: dco_decode_i_64(arr[6]),
+    );
+  }
+
+  @protected
+  SiteSection dco_decode_site_section(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return SiteSection(
+      path: dco_decode_String(arr[0]),
+      pages: dco_decode_i_64(arr[1]),
+      issues: dco_decode_i_64(arr[2]),
+    );
+  }
+
+  @protected
+  SiteStructure dco_decode_site_structure(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return SiteStructure(
+      nodes: dco_decode_list_site_node(arr[0]),
+      edges: dco_decode_list_site_edge(arr[1]),
+      sections: dco_decode_list_site_section(arr[2]),
+      depths: dco_decode_list_depth_count(arr[3]),
+      statuses: dco_decode_list_status_count(arr[4]),
+      totalPages: dco_decode_i_64(arr[5]),
+    );
+  }
+
+  @protected
   StatusCount dco_decode_status_count(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -1576,6 +1710,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       status: dco_decode_i_64(arr[0]),
       count: dco_decode_i_64(arr[1]),
     );
+  }
+
+  @protected
+  int dco_decode_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
   }
 
   @protected
@@ -1967,6 +2107,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DepthCount sse_decode_depth_count(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_depth = sse_decode_i_64(deserializer);
+    var var_count = sse_decode_i_64(deserializer);
+    return DepthCount(depth: var_depth, count: var_count);
+  }
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getFloat64();
@@ -2099,6 +2247,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<DepthCount> sse_decode_list_depth_count(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <DepthCount>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_depth_count(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<HeaderPair> sse_decode_list_header_pair(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -2161,6 +2321,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <RedirectHop>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_redirect_hop(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<SiteEdge> sse_decode_list_site_edge(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SiteEdge>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_site_edge(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<SiteNode> sse_decode_list_site_node(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SiteNode>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_site_node(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<SiteSection> sse_decode_list_site_section(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SiteSection>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_site_section(deserializer));
     }
     return ans_;
   }
@@ -2353,11 +2549,74 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SiteEdge sse_decode_site_edge(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_source = sse_decode_i_64(deserializer);
+    var var_target = sse_decode_i_64(deserializer);
+    return SiteEdge(source: var_source, target: var_target);
+  }
+
+  @protected
+  SiteNode sse_decode_site_node(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_url = sse_decode_String(deserializer);
+    var var_label = sse_decode_String(deserializer);
+    var var_depth = sse_decode_i_64(deserializer);
+    var var_status = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_inlinks = sse_decode_i_64(deserializer);
+    var var_outlinks = sse_decode_i_64(deserializer);
+    return SiteNode(
+      id: var_id,
+      url: var_url,
+      label: var_label,
+      depth: var_depth,
+      status: var_status,
+      inlinks: var_inlinks,
+      outlinks: var_outlinks,
+    );
+  }
+
+  @protected
+  SiteSection sse_decode_site_section(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_path = sse_decode_String(deserializer);
+    var var_pages = sse_decode_i_64(deserializer);
+    var var_issues = sse_decode_i_64(deserializer);
+    return SiteSection(path: var_path, pages: var_pages, issues: var_issues);
+  }
+
+  @protected
+  SiteStructure sse_decode_site_structure(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_nodes = sse_decode_list_site_node(deserializer);
+    var var_edges = sse_decode_list_site_edge(deserializer);
+    var var_sections = sse_decode_list_site_section(deserializer);
+    var var_depths = sse_decode_list_depth_count(deserializer);
+    var var_statuses = sse_decode_list_status_count(deserializer);
+    var var_totalPages = sse_decode_i_64(deserializer);
+    return SiteStructure(
+      nodes: var_nodes,
+      edges: var_edges,
+      sections: var_sections,
+      depths: var_depths,
+      statuses: var_statuses,
+      totalPages: var_totalPages,
+    );
+  }
+
+  @protected
   StatusCount sse_decode_status_count(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_status = sse_decode_i_64(deserializer);
     var var_count = sse_decode_i_64(deserializer);
     return StatusCount(status: var_status, count: var_count);
+  }
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint32();
   }
 
   @protected
@@ -2753,6 +3012,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_depth_count(DepthCount self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.depth, serializer);
+    sse_encode_i_64(self.count, serializer);
+  }
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putFloat64(self);
@@ -2843,6 +3109,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_depth_count(
+    List<DepthCount> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_depth_count(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_header_pair(
     List<HeaderPair> self,
     SseSerializer serializer,
@@ -2903,6 +3181,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_redirect_hop(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_site_edge(
+    List<SiteEdge> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_site_edge(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_site_node(
+    List<SiteNode> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_site_node(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_site_section(
+    List<SiteSection> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_site_section(item, serializer);
     }
   }
 
@@ -3050,10 +3364,54 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_site_edge(SiteEdge self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.source, serializer);
+    sse_encode_i_64(self.target, serializer);
+  }
+
+  @protected
+  void sse_encode_site_node(SiteNode self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_String(self.url, serializer);
+    sse_encode_String(self.label, serializer);
+    sse_encode_i_64(self.depth, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.status, serializer);
+    sse_encode_i_64(self.inlinks, serializer);
+    sse_encode_i_64(self.outlinks, serializer);
+  }
+
+  @protected
+  void sse_encode_site_section(SiteSection self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.path, serializer);
+    sse_encode_i_64(self.pages, serializer);
+    sse_encode_i_64(self.issues, serializer);
+  }
+
+  @protected
+  void sse_encode_site_structure(SiteStructure self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_site_node(self.nodes, serializer);
+    sse_encode_list_site_edge(self.edges, serializer);
+    sse_encode_list_site_section(self.sections, serializer);
+    sse_encode_list_depth_count(self.depths, serializer);
+    sse_encode_list_status_count(self.statuses, serializer);
+    sse_encode_i_64(self.totalPages, serializer);
+  }
+
+  @protected
   void sse_encode_status_count(StatusCount self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_64(self.status, serializer);
     sse_encode_i_64(self.count, serializer);
+  }
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint32(self);
   }
 
   @protected

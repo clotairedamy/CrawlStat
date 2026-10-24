@@ -740,3 +740,104 @@ fn a_crawl_survives_being_closed_and_reopened() {
     assert_eq!((stats.total, stats.done, stats.queued), (2, 1, 1));
     assert_eq!(store.stored_config().unwrap().unwrap().seeds.len(), 1);
 }
+
+// ─── site structure ──────────────────────────────────────────────────────
+
+/// Three pages: a home page linking to two children, one of them a 404.
+fn store_with_a_small_site() -> Store {
+    let mut store = Store::open_in_memory().unwrap();
+    store
+        .initialise_crawl(&CrawlConfig::spider("https://a.test/"), "a.test")
+        .unwrap();
+    store
+        .enqueue(&[
+            frontier("https://a.test/", 0),
+            frontier("https://a.test/blog", 1),
+            frontier("https://a.test/gone", 1),
+        ])
+        .unwrap();
+    let claimed = store.claim(3).unwrap();
+    let results = claimed
+        .iter()
+        .map(|url| result_for(url.id, &url.url))
+        .collect();
+    store
+        .apply(&WriteBatch {
+            results,
+            ..Default::default()
+        })
+        .unwrap();
+
+    // Links are written directly: the parser's own output is tested
+    // elsewhere, and what matters here is the shape the graph query sees.
+    // The shared fixture body carries links of its own, which would muddle
+    // the counts this test is about. Start from an empty links table so the
+    // graph under test is exactly the one written below.
+    store.connection().execute("DELETE FROM links", []).unwrap();
+
+    // The dedup key is read back from the row the store wrote, rather than
+    // recomputed here: the graph joins on exactly that value, so a test that
+    // derived its own would pass while the real join found nothing.
+    let home = claimed[0].id;
+    for target in ["https://a.test/blog", "https://a.test/gone"] {
+        store
+            .connection()
+            .execute(
+                "INSERT INTO links (source_id, target_key, target_url, raw_href, is_internal, nofollow)
+                 SELECT ?1, dedup_key, url, url, 1, 0 FROM urls WHERE url = ?2",
+                rusqlite::params![home, target],
+            )
+            .unwrap();
+    }
+    store
+}
+
+#[test]
+fn the_site_graph_returns_the_pages_and_the_links_between_them() {
+    let store = store_with_a_small_site();
+    let (nodes, edges) = queries::site_graph(store.connection(), 100).unwrap();
+
+    assert_eq!(nodes.len(), 3, "every fetched HTML page is a node");
+    assert_eq!(edges.len(), 2, "both internal links become edges");
+
+    let home = nodes.iter().find(|n| n.depth == 0).unwrap();
+    assert_eq!(home.outlinks, 2);
+    for edge in &edges {
+        assert_eq!(edge.source, home.id, "both links start at the home page");
+    }
+}
+
+#[test]
+fn the_graph_counts_inlinks_so_hubs_can_be_sized() {
+    let store = store_with_a_small_site();
+    let (nodes, _) = queries::site_graph(store.connection(), 100).unwrap();
+    let blog = nodes.iter().find(|n| n.url.ends_with("/blog")).unwrap();
+    assert_eq!(blog.inlinks, 1);
+}
+
+#[test]
+fn the_graph_is_capped_shallowest_first() {
+    let store = store_with_a_small_site();
+    // Room for one node only: it must be the home page, not whichever child
+    // happens to sort first.
+    let (nodes, edges) = queries::site_graph(store.connection(), 1).unwrap();
+    assert_eq!(nodes.len(), 1);
+    assert_eq!(nodes[0].depth, 0);
+    assert!(edges.is_empty(), "an edge needs both ends to be drawn");
+}
+
+#[test]
+fn the_section_breakdown_groups_by_the_first_path_segment() {
+    // This is the query that shipped broken: it joined `issues`, which is the
+    // per-issue summary table, instead of `issue_urls`, which is the one with
+    // a url_id. Running it against a real schema is the only thing that
+    // catches that.
+    let store = store_with_a_small_site();
+    let sections = queries::directory_breakdown(store.connection(), 12).unwrap();
+
+    let names: Vec<&str> = sections.iter().map(|(name, _, _)| name.as_str()).collect();
+    assert!(names.contains(&"/"), "the home page is its own section");
+    assert!(names.contains(&"/blog"));
+    let total: u64 = sections.iter().map(|(_, pages, _)| pages).sum();
+    assert_eq!(total, 3);
+}

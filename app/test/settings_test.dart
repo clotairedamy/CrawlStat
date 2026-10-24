@@ -27,7 +27,10 @@ void main() {
         exportDirectory: '/tmp/exports',
       );
 
-      final restored = Settings.fromJson(original.toJson(), fallbackUserAgent: _fallback);
+      final restored = Settings.fromJson(
+        original.toJson(),
+        fallbackUserAgent: _fallback,
+      );
 
       expect(restored.userAgent, 'MyBot/2.0');
       expect(restored.themeMode, ThemeMode.dark);
@@ -50,10 +53,9 @@ void main() {
 
     test('a file from an older build still opens', () {
       // Only one key: everything else must fall back to a default.
-      final restored = Settings.fromJson(
-        {'concurrency': 3},
-        fallbackUserAgent: _fallback,
-      );
+      final restored = Settings.fromJson({
+        'concurrency': 3,
+      }, fallbackUserAgent: _fallback);
       expect(restored.concurrency, 3);
       expect(restored.userAgent, _fallback);
       expect(restored.respectRobots, isTrue);
@@ -61,27 +63,26 @@ void main() {
     });
 
     test('a file from a newer build does not crash this one', () {
-      final restored = Settings.fromJson(
-        {'concurrency': 7, 'somethingFromTheFuture': {'nested': true}},
-        fallbackUserAgent: _fallback,
-      );
+      final restored = Settings.fromJson({
+        'concurrency': 7,
+        'somethingFromTheFuture': {'nested': true},
+      }, fallbackUserAgent: _fallback);
       expect(restored.concurrency, 7);
     });
 
     test('a value of the wrong type falls back rather than throwing', () {
-      final restored = Settings.fromJson(
-        {'concurrency': 'lots', 'respectRobots': 'yes'},
-        fallbackUserAgent: _fallback,
-      );
+      final restored = Settings.fromJson({
+        'concurrency': 'lots',
+        'respectRobots': 'yes',
+      }, fallbackUserAgent: _fallback);
       expect(restored.concurrency, 5);
       expect(restored.respectRobots, isTrue);
     });
 
     test('an unknown theme name falls back to following the system', () {
-      final restored = Settings.fromJson(
-        {'themeMode': 'sepia'},
-        fallbackUserAgent: _fallback,
-      );
+      final restored = Settings.fromJson({
+        'themeMode': 'sepia',
+      }, fallbackUserAgent: _fallback);
       expect(restored.themeMode, ThemeMode.system);
     });
   });

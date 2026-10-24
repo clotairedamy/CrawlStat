@@ -41,10 +41,13 @@ void main() {
       expect(segments[2].start, closeTo(math.pi, 1e-9));
     });
 
-    test('an all-zero or empty series charts nothing rather than dividing by zero', () {
-      expect(donutSegments([]), isEmpty);
-      expect(donutSegments([0, 0]), isEmpty);
-    });
+    test(
+      'an all-zero or empty series charts nothing rather than dividing by zero',
+      () {
+        expect(donutSegments([]), isEmpty);
+        expect(donutSegments([0, 0]), isEmpty);
+      },
+    );
 
     test('negative values are ignored rather than inverting the ring', () {
       final segments = donutSegments([-5, 10]);
@@ -64,8 +67,11 @@ void main() {
 
     test('never sits below the data it has to contain', () {
       for (final value in [1, 3, 17, 64, 128, 999, 1001, 45678]) {
-        expect(niceAxisMax(value), greaterThanOrEqualTo(value),
-            reason: 'axis clipped the largest bar at $value');
+        expect(
+          niceAxisMax(value),
+          greaterThanOrEqualTo(value),
+          reason: 'axis clipped the largest bar at $value',
+        );
       }
     });
 
@@ -125,12 +131,16 @@ void main() {
   group('rendering', () {
     Future<void> pump(WidgetTester tester, Widget child) async {
       await tester.pumpWidget(
-        MaterialApp(home: Scaffold(body: Center(child: child))),
+        MaterialApp(
+          home: Scaffold(body: Center(child: child)),
+        ),
       );
       await tester.pumpAndSettle();
     }
 
-    testWidgets('a donut shows its total and a legend row per slice', (tester) async {
+    testWidgets('a donut shows its total and a legend row per slice', (
+      tester,
+    ) async {
       await pump(
         tester,
         const DonutChart(
@@ -149,7 +159,9 @@ void main() {
       expect(find.text('10%'), findsOneWidget);
     });
 
-    testWidgets('an empty donut says so instead of drawing a blank ring', (tester) async {
+    testWidgets('an empty donut says so instead of drawing a blank ring', (
+      tester,
+    ) async {
       await pump(tester, const DonutChart(data: []));
       expect(find.textContaining('Nothing to chart'), findsOneWidget);
     });
@@ -173,7 +185,9 @@ void main() {
       expect(find.text('50'), findsOneWidget);
     });
 
-    testWidgets('a healthy severity bar renders without any issues', (tester) async {
+    testWidgets('a healthy severity bar renders without any issues', (
+      tester,
+    ) async {
       await pump(tester, const SeverityBar(errors: 0, warnings: 0, notices: 0));
       expect(tester.takeException(), isNull);
     });

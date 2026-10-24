@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../theme/icons.dart';
 import '../rust/api/types.dart';
 import '../state/results.dart';
 import '../theme/theme.dart';
@@ -25,22 +26,38 @@ class UrlDetailPanel extends ConsumerStatefulWidget {
 class _UrlDetailPanelState extends ConsumerState<UrlDetailPanel> {
   int _tab = 0;
 
-  static const _tabs = ['Overview', 'Issues', 'Inlinks', 'Outlinks', 'Images', 'Headers'];
+  static const _tabs = [
+    'Overview',
+    'Issues',
+    'Inlinks',
+    'Outlinks',
+    'Images',
+    'Headers',
+  ];
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final detail = ref.watch(urlDetailProvider((path: widget.path, urlId: widget.urlId)));
+    final detail = ref.watch(
+      urlDetailProvider((path: widget.path, urlId: widget.urlId)),
+    );
 
     return SizedBox(
       width: 420,
       child: detail.when(
         loading: () => const Center(
-          child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
         ),
         error: (error, _) => Padding(
           padding: const EdgeInsets.all(14),
-          child: Text('Could not load this URL: $error', style: theme.textTheme.bodySmall),
+          child: Text(
+            'Could not load this URL: $error',
+            style: theme.textTheme.bodySmall,
+          ),
         ),
         data: (data) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -95,22 +112,30 @@ class _Header extends ConsumerWidget {
               StatusChip(row.statusCode),
               const SizedBox(width: 8),
               Expanded(
-                child: IndexablePill(indexable: row.indexable, reason: row.indexabilityReason),
+                child: IndexablePill(
+                  indexable: row.indexable,
+                  reason: row.indexabilityReason,
+                ),
               ),
               ToolbarButton(
-                icon: Icons.copy_all_outlined,
+                icon: AppIcon.copy,
                 tooltip: 'Copy URL',
-                onPressed: () => Clipboard.setData(ClipboardData(text: row.url)),
+                onPressed: () =>
+                    Clipboard.setData(ClipboardData(text: row.url)),
               ),
               ToolbarButton(
-                icon: Icons.close,
+                icon: AppIcon.close,
                 tooltip: 'Close  (Esc)',
                 onPressed: ref.read(selectedUrlProvider.notifier).clear,
               ),
             ],
           ),
           const SizedBox(height: 8),
-          SelectableText(row.url, style: CrawlStatTheme.mono(context, size: 12.5), maxLines: 3),
+          SelectableText(
+            row.url,
+            style: CrawlStatTheme.mono(context, size: 12.5),
+            maxLines: 3,
+          ),
         ],
       ),
     );
@@ -147,11 +172,16 @@ class _PanelTabs extends StatelessWidget {
               InkWell(
                 onTap: () => onSelect(index),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     border: Border(
                       bottom: BorderSide(
-                        color: selected == index ? CrawlStatTheme.accent : Colors.transparent,
+                        color: selected == index
+                            ? CrawlStatTheme.accent
+                            : Colors.transparent,
                         width: 2,
                       ),
                     ),
@@ -196,7 +226,12 @@ class _OverviewTab extends StatelessWidget {
                 children: [
                   StatusChip(hop.status),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(hop.toUrl, style: CrawlStatTheme.mono(context, size: 11.5))),
+                  Expanded(
+                    child: Text(
+                      hop.toUrl,
+                      style: CrawlStatTheme.mono(context, size: 11.5),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -208,7 +243,11 @@ class _OverviewTab extends StatelessWidget {
           value: row.metaDescription,
           suffix: _len(row.metaDescriptionLength),
         ),
-        _Pair(label: 'H1', value: row.h1, suffix: row.h1Count == null ? null : '${row.h1Count}'),
+        _Pair(
+          label: 'H1',
+          value: row.h1,
+          suffix: row.h1Count == null ? null : '${row.h1Count}',
+        ),
         _Pair(label: 'Canonical', value: row.canonical, mono: true),
         _Pair(label: 'Meta robots', value: row.metaRobots),
         _Pair(label: 'Language', value: row.htmlLang),
@@ -230,10 +269,18 @@ class _OverviewTab extends StatelessWidget {
               ? null
               : '${row.internalLinks} internal, ${row.externalLinks ?? 0} external',
         ),
-        _Pair(label: 'Link score', value: row.linkScore?.toStringAsFixed(1), suffix: 'of 100'),
+        _Pair(
+          label: 'Link score',
+          value: row.linkScore?.toStringAsFixed(1),
+          suffix: 'of 100',
+        ),
         if (row.errorKind != null) ...[
           const Divider(height: 22),
-          _Pair(label: 'Error', value: row.errorKind, color: CrawlStatTheme.error),
+          _Pair(
+            label: 'Error',
+            value: row.errorKind,
+            color: CrawlStatTheme.error,
+          ),
         ],
       ],
     );
@@ -251,7 +298,7 @@ class _IssuesTab extends StatelessWidget {
   Widget build(BuildContext context) {
     if (issues.isEmpty) {
       return const EmptyState(
-        icon: Icons.check_circle_outline,
+        icon: AppIcon.ok,
         title: 'No issues',
         message: 'Nothing the audits look for applies to this URL.',
       );
@@ -276,7 +323,8 @@ class _IssuesTab extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(issue.title, style: theme.textTheme.bodyMedium),
-                  if (issue.detail != null) Text(issue.detail!, style: theme.textTheme.bodySmall),
+                  if (issue.detail != null)
+                    Text(issue.detail!, style: theme.textTheme.bodySmall),
                 ],
               ),
             ),
@@ -297,7 +345,7 @@ class _LinksTab extends StatelessWidget {
   Widget build(BuildContext context) {
     if (links.isEmpty) {
       return EmptyState(
-        icon: Icons.link_off,
+        icon: AppIcon.brokenLink,
         title: showSource ? 'No inlinks' : 'No outlinks',
         message: showSource
             ? 'Nothing on this site references this URL — it is an orphan.'
@@ -309,10 +357,13 @@ class _LinksTab extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.all(14),
       itemCount: links.length,
-      separatorBuilder: (_, _) => Divider(height: 14, color: theme.dividerColor),
+      separatorBuilder: (_, _) =>
+          Divider(height: 14, color: theme.dividerColor),
       itemBuilder: (context, index) {
         final link = links[index];
-        final url = showSource ? link.sourceUrl : (link.targetUrl ?? link.anchorText);
+        final url = showSource
+            ? link.sourceUrl
+            : (link.targetUrl ?? link.anchorText);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -337,14 +388,19 @@ class _LinksTab extends StatelessWidget {
               spacing: 8,
               children: [
                 if (link.anchorText.isNotEmpty)
-                  Text('“${link.anchorText}”', style: theme.textTheme.bodySmall),
+                  Text(
+                    '“${link.anchorText}”',
+                    style: theme.textTheme.bodySmall,
+                  ),
                 Text(link.linkType, style: theme.textTheme.bodySmall),
                 if (link.position != 'unknown')
                   Text(link.position, style: theme.textTheme.bodySmall),
                 if (link.nofollow)
                   Text(
                     'nofollow',
-                    style: theme.textTheme.bodySmall?.copyWith(color: CrawlStatTheme.warning),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: CrawlStatTheme.warning,
+                    ),
                   ),
               ],
             ),
@@ -364,7 +420,7 @@ class _ImagesTab extends StatelessWidget {
   Widget build(BuildContext context) {
     if (images.isEmpty) {
       return const EmptyState(
-        icon: Icons.image_not_supported_outlined,
+        icon: AppIcon.noImage,
         title: 'No images',
         message: 'This page has no <img> elements.',
       );
@@ -374,7 +430,8 @@ class _ImagesTab extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.all(14),
       itemCount: images.length,
-      separatorBuilder: (_, _) => Divider(height: 14, color: theme.dividerColor),
+      separatorBuilder: (_, _) =>
+          Divider(height: 14, color: theme.dividerColor),
       itemBuilder: (context, index) {
         final image = images[index];
         return Column(
@@ -393,14 +450,22 @@ class _ImagesTab extends StatelessWidget {
                 if (image.altMissing)
                   Text(
                     'no alt attribute',
-                    style: theme.textTheme.bodySmall?.copyWith(color: CrawlStatTheme.warning),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: CrawlStatTheme.warning,
+                    ),
                   )
                 else if ((image.alt ?? '').isEmpty)
-                  Text('decorative (empty alt)', style: theme.textTheme.bodySmall)
+                  Text(
+                    'decorative (empty alt)',
+                    style: theme.textTheme.bodySmall,
+                  )
                 else
                   Text('“${image.alt}”', style: theme.textTheme.bodySmall),
                 if (image.sizeBytes != null)
-                  Text(formatBytes(image.sizeBytes), style: theme.textTheme.bodySmall),
+                  Text(
+                    formatBytes(image.sizeBytes),
+                    style: theme.textTheme.bodySmall,
+                  ),
                 if (image.declaredWidth != null && image.declaredHeight != null)
                   Text(
                     '${image.declaredWidth}×${image.declaredHeight}',
@@ -424,7 +489,7 @@ class _HeadersTab extends StatelessWidget {
   Widget build(BuildContext context) {
     if (headers.isEmpty) {
       return const EmptyState(
-        icon: Icons.http,
+        icon: AppIcon.web,
         title: 'No headers stored',
         message: 'This URL was never fetched, or the headers were not kept.',
       );
@@ -441,7 +506,10 @@ class _HeadersTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(header.name, style: Theme.of(context).textTheme.labelMedium),
-              SelectableText(header.value, style: CrawlStatTheme.mono(context, size: 11.5)),
+              SelectableText(
+                header.value,
+                style: CrawlStatTheme.mono(context, size: 11.5),
+              ),
             ],
           ),
         );
@@ -459,7 +527,10 @@ class _Field extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Text(label.toUpperCase(), style: Theme.of(context).textTheme.labelMedium),
+      child: Text(
+        label.toUpperCase(),
+        style: Theme.of(context).textTheme.labelMedium,
+      ),
     );
   }
 }

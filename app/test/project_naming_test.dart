@@ -34,7 +34,10 @@ void main() {
       );
       expect(early, 'a-test-20260102-0304.db');
       // String sorting and time ordering agree.
-      expect(early.compareTo(suggestedProjectFileName('a.test', now: at)), lessThan(0));
+      expect(
+        early.compareTo(suggestedProjectFileName('a.test', now: at)),
+        lessThan(0),
+      );
     });
 
     test('strips anything that would be awkward in a filename', () {
@@ -47,7 +50,10 @@ void main() {
     test('an unusable URL still produces a filename', () {
       // The dialog validates URLs, but a filename must never come back empty.
       expect(suggestedProjectFileName('', now: at), 'crawl-20260224-1432.db');
-      expect(suggestedProjectFileName('///', now: at), 'crawl-20260224-1432.db');
+      expect(
+        suggestedProjectFileName('///', now: at),
+        'crawl-20260224-1432.db',
+      );
     });
   });
 
@@ -59,7 +65,11 @@ void main() {
     });
 
     test('a reopened crawl moves to the front without duplicating', () {
-      expect(promoteToFront(['/a.db', '/b.db', '/c.db'], '/b.db'), ['/b.db', '/a.db', '/c.db']);
+      expect(promoteToFront(['/a.db', '/b.db', '/c.db'], '/b.db'), [
+        '/b.db',
+        '/a.db',
+        '/c.db',
+      ]);
     });
 
     test('the list is capped', () {
