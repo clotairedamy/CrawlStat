@@ -1,0 +1,36 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'router.dart';
+import 'state/settings.dart';
+import 'theme/theme.dart';
+
+class CrawlStatApp extends ConsumerStatefulWidget {
+  const CrawlStatApp({super.key});
+
+  @override
+  ConsumerState<CrawlStatApp> createState() => _CrawlStatAppState();
+}
+
+class _CrawlStatAppState extends ConsumerState<CrawlStatApp> {
+  // Built once: rebuilding a GoRouter would reset the navigation stack on every
+  // theme change.
+  final _router = buildRouter();
+
+  @override
+  Widget build(BuildContext context) {
+    final themeMode = ref.watch(settingsProvider.select((settings) => settings.themeMode));
+
+    return MaterialApp.router(
+      title: 'CrawlStat',
+      debugShowCheckedModeBanner: false,
+      theme: CrawlStatTheme.light(),
+      darkTheme: CrawlStatTheme.dark(),
+      themeMode: themeMode,
+      routerConfig: _router,
+      // Desktop users resize windows; a scroll behaviour that shows scrollbars
+      // on every axis is the right default here, unlike on a phone.
+      scrollBehavior: const MaterialScrollBehavior(),
+    );
+  }
+}

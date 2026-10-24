@@ -1,0 +1,65 @@
+name: engine
+
+on:
+  push:
+    branches: [main]
+    paths: ['engine/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', '.github/workflows/engine.yml']
+  pull_request:
+    paths: ['engine/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', '.github/workflows/engine.yml']
+
+env:
+  CARGO_TERM_COLOR: always
+  # Keep CI logs readable; the engine is quiet unless something is wrong.
+  RUST_LOG: warn
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --all-features
+
+      # The engine must stay usable on its own, with no app in the picture.
+      - name: Engine builds standalone
+        run: cargo build -p crawlstat-engine --bin crawlstat-cli --release
+
+  # The performance suite is slow and machine-dependent, so it runs on one
+  # platform only and reports rather than gates — except the memory budget,
+  # which it asserts.
+  perf:
+    name: performance
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # The flatness test runs the example as a subprocess, so it has to exist.
+      - name: Build the memory profiler
+        run: cargo build --release --example memory_profile
+
+      - name: Memory budget (asserted)
+        run: cargo test --release --test perf_memory -- --ignored --nocapture
+
+      - name: Memory flatness (asserted)
+        run: cargo test --release --test perf_flatness -- --ignored --nocapture
+
+      - name: Throughput (reported)
+        run: cargo test --release --test perf_throughput -- --ignored --nocapture

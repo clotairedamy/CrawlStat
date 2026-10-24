@@ -1,0 +1,46 @@
+# Rust
+target/
+**/*.rs.bk
+*.pdb
+
+# Crawl artifacts
+*.db
+*.db-wal
+*.db-shm
+/tmp/
+scratch/
+
+# Flutter / Dart
+app/.dart_tool/
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/ios/Pods/
+app/macos/Pods/
+app/**/Flutter/ephemeral/
+app/**/flutter/ephemeral/
+*.iml
+app/macos/Flutter/GeneratedPluginRegistrant.swift
+app/linux/flutter/generated_*
+app/windows/flutter/generated_*
+
+# Node / Nuxt
+node_modules/
+site/.nuxt/
+site/.output/
+site/.vercel/
+site/.data/
+signing.pem
+site/dist/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Secrets
+.env
+.env.*
+!.env.example

@@ -1,0 +1,9 @@
+# flutter_rust_bridge codegen configuration.
+#
+# Regenerate after changing anything under `rust/src/api/`:
+#   cd app && flutter_rust_bridge_codegen generate
+#
+# Everything under `lib/src/rust/` is generated; do not edit it by hand.
+rust_input: crate::api
+rust_root: rust/
+dart_output: lib/src/rust

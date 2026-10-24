@@ -1,0 +1,53 @@
+name: app
+
+on:
+  push:
+    branches: [main]
+    paths: ['app/**', 'engine/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/app.yml']
+  pull_request:
+    paths: ['app/**', 'engine/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/app.yml']
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  analyse:
+    name: analyse and test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # The bridge crate must compile before the generated Dart means anything.
+      - name: Build the bridge
+        run: cargo build -p crawlstat-bridge
+
+      - name: Bridge tests
+        run: cargo test -p crawlstat-bridge
+
+      - name: Dependencies
+        working-directory: app
+        run: flutter pub get
+
+      # The generated bindings are committed, so CI checks them rather than
+      # regenerating: a stale binding is a real break, and finding it here is
+      # cheaper than finding it at runtime.
+      - name: Bindings are up to date
+        run: |
+          cargo install flutter_rust_bridge_codegen --locked --version 2.13.0
+          cd app && flutter_rust_bridge_codegen generate
+          git diff --exit-code -- app/lib/src/rust app/rust/src/frb_generated.rs \
+            || (echo "::error::Generated bindings are stale — run flutter_rust_bridge_codegen generate" && exit 1)
+
+      - name: Analyze
+        working-directory: app
+        run: flutter analyze
+
+      - name: Test
+        working-directory: app
+        run: flutter test

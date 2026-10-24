@@ -1,0 +1,31 @@
+[package]
+name = "crawlstat-bridge"
+description = "flutter_rust_bridge glue between the CrawlStat engine and the Flutter app."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "crawlstat_bridge"
+# cdylib for the desktop app to load; lib so the tests can use it directly.
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+crawlstat-engine = { path = "../../engine" }
+flutter_rust_bridge = "=2.13.0"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+tracing = "0.1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints.rust]
+# `flutter_rust_bridge`'s `#[frb]` macro expands to code guarded by this cfg,
+# which is set by the code generator and not by cargo. Declaring it keeps
+# `-D warnings` usable in CI without silencing real cfg mistakes.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

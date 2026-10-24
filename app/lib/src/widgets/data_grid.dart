@@ -1,0 +1,529 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../theme/theme.dart';
+
+/// Width of the bar marking the keyboard cursor.
+///
+/// Reserved permanently rather than drawn as a border, because a border on the
+/// focused row would shrink that row's content box and overflow the
+/// fixed-width columns by exactly its own width.
+const double _indicatorWidth = 2;
+
+/// One column of a [DataGrid].
+class GridColumn<T> {
+  const GridColumn({
+    required this.id,
+    required this.label,
+    required this.width,
+    required this.value,
+    this.sortKey,
+    this.align = TextAlign.left,
+    this.mono = false,
+    this.color,
+    this.tooltip,
+    this.defaultVisible = true,
+    this.cell,
+  });
+
+  /// Stable identifier, used by the column chooser and saved layouts.
+  final String id;
+  final String label;
+  final double width;
+
+  /// The text to show. Called for every visible cell, so keep it cheap.
+  final String Function(T row) value;
+
+  /// Column name the engine sorts by. `null` means not sortable — true for
+  /// anything the database has no index for.
+  final String? sortKey;
+
+  final TextAlign align;
+
+  /// Numbers, URLs and status codes are monospaced so they align down the
+  /// column.
+  final bool mono;
+
+  /// Optional per-row colour, for status codes and severities.
+  final Color? Function(T row)? color;
+
+  final String? tooltip;
+  final bool defaultVisible;
+
+  /// Full control over the cell, for chips and icons.
+  final Widget Function(BuildContext context, T row)? cell;
+}
+
+/// A dense, virtualized table backed by server-side paging.
+///
+/// The grid never holds the whole result: it renders `itemCount` rows from
+/// `total` and asks [onNeedRow] for each one as it scrolls into view. A row
+/// whose page has not arrived yet renders as a placeholder, so scrolling never
+/// blocks on the database.
+///
+/// Keyboard navigation is first-class — arrow keys move the selection, Enter
+/// opens the detail panel, Home/End jump to the ends — because this is the
+/// screen a user spends an hour in.
+class DataGrid<T> extends StatefulWidget {
+  const DataGrid({
+    super.key,
+    required this.columns,
+    required this.total,
+    required this.rowAt,
+    required this.onNeedRow,
+    this.visibleColumnIds,
+    this.sortBy,
+    this.descending = false,
+    this.onSort,
+    this.onSelect,
+    this.onActivate,
+    this.selectedKey,
+    this.rowKey,
+    this.emptyState,
+    this.loading = false,
+  });
+
+  final List<GridColumn<T>> columns;
+
+  /// How many rows match the query, from the database's own count.
+  final int total;
+
+  /// The row at an index, or `null` if it has not been fetched yet.
+  final T? Function(int index) rowAt;
+
+  /// Called when a row scrolls into view and is not loaded.
+  final void Function(int index) onNeedRow;
+
+  /// `null` shows every column with `defaultVisible`.
+  final Set<String>? visibleColumnIds;
+
+  final String? sortBy;
+  final bool descending;
+  final void Function(String sortKey)? onSort;
+
+  /// Selection changed, by click or by keyboard.
+  final void Function(T row)? onSelect;
+
+  /// Enter, or a double click.
+  final void Function(T row)? onActivate;
+
+  /// Identifies the selected row, so selection survives a reload.
+  final Object? selectedKey;
+  final Object Function(T row)? rowKey;
+
+  final Widget? emptyState;
+  final bool loading;
+
+  @override
+  State<DataGrid<T>> createState() => _DataGridState<T>();
+}
+
+class _DataGridState<T> extends State<DataGrid<T>> {
+  final ScrollController _vertical = ScrollController();
+  final ScrollController _horizontal = ScrollController();
+  final FocusNode _focus = FocusNode(debugLabel: 'DataGrid');
+
+  /// The row the keyboard is on. Kept separately from the selection so arrow
+  /// keys can move without loading a detail panel for every step.
+  int _cursor = 0;
+
+  /// Double-click detection, done by hand.
+  ///
+  /// `InkWell`'s `onDoubleTap` would make every *single* click wait out the
+  /// double-tap timeout before selecting — around 300ms of lag on the one
+  /// gesture a user performs most in this screen. Tracking it ourselves keeps
+  /// selection instant and still opens the row on a second click.
+  int? _lastTapRow;
+  DateTime? _lastTapAt;
+
+  /// Longer than the gap a deliberate double click leaves, shorter than the gap
+  /// between two separate clicks.
+  static const _doubleClickWindow = Duration(milliseconds: 350);
+
+  void _handleTap(int index, T row) {
+    final now = DateTime.now();
+    final isDoubleClick = _lastTapRow == index &&
+        _lastTapAt != null &&
+        now.difference(_lastTapAt!) < _doubleClickWindow;
+
+    _lastTapRow = index;
+    _lastTapAt = now;
+
+    setState(() => _cursor = index);
+    _focus.requestFocus();
+    widget.onSelect?.call(row);
+    if (isDoubleClick) {
+      widget.onActivate?.call(row);
+    }
+  }
+
+  @override
+  void dispose() {
+    _vertical.dispose();
+    _horizontal.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  List<GridColumn<T>> get _visible {
+    final allowed = widget.visibleColumnIds;
+    if (allowed == null) {
+      return widget.columns.where((column) => column.defaultVisible).toList();
+    }
+    return widget.columns.where((column) => allowed.contains(column.id)).toList();
+  }
+
+  void _moveCursor(int delta) {
+    if (widget.total == 0) return;
+    final next = (_cursor + delta).clamp(0, widget.total - 1);
+    if (next == _cursor) return;
+    setState(() => _cursor = next);
+    _revealCursor();
+    final row = widget.rowAt(next);
+    if (row != null) {
+      widget.onSelect?.call(row);
+    } else {
+      widget.onNeedRow(next);
+    }
+  }
+
+  /// Scroll the cursor into view, keeping one row of context.
+  void _revealCursor() {
+    if (!_vertical.hasClients) return;
+    const height = CrawlStatTheme.rowHeight;
+    final top = _cursor * height;
+    final viewport = _vertical.position.viewportDimension;
+    final offset = _vertical.offset;
+
+    if (top < offset) {
+      _vertical.jumpTo((top - height).clamp(0, _vertical.position.maxScrollExtent));
+    } else if (top + height > offset + viewport) {
+      _vertical.jumpTo(
+        (top + height * 2 - viewport).clamp(0, _vertical.position.maxScrollExtent),
+      );
+    }
+  }
+
+  void _activate() {
+    final row = widget.rowAt(_cursor);
+    if (row != null) {
+      widget.onActivate?.call(row);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final columns = _visible;
+    final width = columns.fold<double>(_indicatorWidth, (sum, column) => sum + column.width);
+
+    if (widget.total == 0 && !widget.loading) {
+      return widget.emptyState ?? const SizedBox.shrink();
+    }
+
+    return Shortcuts(
+      shortcuts: const {
+        SingleActivator(LogicalKeyboardKey.arrowDown): _MoveIntent(1),
+        SingleActivator(LogicalKeyboardKey.arrowUp): _MoveIntent(-1),
+        SingleActivator(LogicalKeyboardKey.pageDown): _MoveIntent(20),
+        SingleActivator(LogicalKeyboardKey.pageUp): _MoveIntent(-20),
+        SingleActivator(LogicalKeyboardKey.home): _MoveIntent(-1 << 30),
+        SingleActivator(LogicalKeyboardKey.end): _MoveIntent(1 << 30),
+        SingleActivator(LogicalKeyboardKey.enter): _ActivateRowIntent(),
+      },
+      child: Actions(
+        actions: {
+          _MoveIntent: CallbackAction<_MoveIntent>(
+            onInvoke: (intent) {
+              _moveCursor(intent.delta);
+              return null;
+            },
+          ),
+          _ActivateRowIntent: CallbackAction<_ActivateRowIntent>(
+            onInvoke: (_) {
+              _activate();
+              return null;
+            },
+          ),
+        },
+        child: Focus(
+          focusNode: _focus,
+          child: Scrollbar(
+            controller: _horizontal,
+            scrollbarOrientation: ScrollbarOrientation.bottom,
+            child: SingleChildScrollView(
+              controller: _horizontal,
+              scrollDirection: Axis.horizontal,
+              // The vertical constraint passes straight through a horizontal
+              // scroll view, so the header can stay put while the rows scroll.
+              child: SizedBox(
+                width: width,
+                child: Column(
+                  children: [
+                    _header(context, columns),
+                    Expanded(
+                      child: Scrollbar(
+                        controller: _vertical,
+                        child: ListView.builder(
+                          controller: _vertical,
+                          itemCount: widget.total,
+                          itemExtent: CrawlStatTheme.rowHeight,
+                          // Fixed extents mean the list can jump straight to any
+                          // offset without measuring the rows in between.
+                          itemBuilder: (context, index) => _row(context, columns, index),
+                        ),
+                      ),
+                    ),
+                    if (widget.loading)
+                      SizedBox(
+                        height: 2,
+                        child: LinearProgressIndicator(
+                          minHeight: 2,
+                          backgroundColor: theme.colorScheme.surface,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _header(BuildContext context, List<GridColumn<T>> columns) {
+    final theme = Theme.of(context);
+    return Container(
+      height: CrawlStatTheme.headerHeight,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        border: Border(bottom: BorderSide(color: theme.dividerColor)),
+      ),
+      child: Row(
+        children: [
+          // Keeps the header aligned with the rows' cursor bar.
+          const SizedBox(width: _indicatorWidth),
+          for (final column in columns)
+            _HeaderCell(
+              column: column,
+              sorted: widget.sortBy != null && widget.sortBy == column.sortKey,
+              descending: widget.descending,
+              onTap: column.sortKey == null || widget.onSort == null
+                  ? null
+                  : () => widget.onSort!(column.sortKey!),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(BuildContext context, List<GridColumn<T>> columns, int index) {
+    final theme = Theme.of(context);
+    final row = widget.rowAt(index);
+    if (row == null) {
+      // Ask for it, then show a placeholder until it arrives. Scheduled
+      // post-frame so a fast scroll does not fire a request per frame for rows
+      // it has already flown past.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onNeedRow(index);
+      });
+      return _PlaceholderRow(columns: columns);
+    }
+
+    final isCursor = index == _cursor;
+    final isSelected = widget.selectedKey != null &&
+        widget.rowKey != null &&
+        widget.rowKey!(row) == widget.selectedKey;
+
+    return _GridRow<T>(
+      row: row,
+      columns: columns,
+      striped: index.isOdd,
+      cursor: isCursor && _focus.hasFocus,
+      selected: isSelected,
+      onTap: () => _handleTap(index, row),
+      theme: theme,
+    );
+  }
+}
+
+class _MoveIntent extends Intent {
+  const _MoveIntent(this.delta);
+  final int delta;
+}
+
+class _ActivateRowIntent extends Intent {
+  const _ActivateRowIntent();
+}
+
+class _HeaderCell<T> extends StatelessWidget {
+  const _HeaderCell({
+    required this.column,
+    required this.sorted,
+    required this.descending,
+    this.onTap,
+  });
+
+  final GridColumn<T> column;
+  final bool sorted;
+  final bool descending;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = Text(
+      column.label,
+      overflow: TextOverflow.ellipsis,
+      textAlign: column.align,
+      style: theme.textTheme.labelMedium?.copyWith(
+        color: sorted ? CrawlStatTheme.accent : theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        mainAxisAlignment:
+            column.align == TextAlign.right ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: [
+          Flexible(child: label),
+          if (sorted)
+            Icon(
+              descending ? Icons.arrow_downward : Icons.arrow_upward,
+              size: 12,
+              color: CrawlStatTheme.accent,
+            ),
+        ],
+      ),
+    );
+
+    return SizedBox(
+      width: column.width,
+      child: Tooltip(
+        message: column.tooltip ?? (onTap == null ? '' : 'Sort by ${column.label}'),
+        child: onTap == null
+            ? Align(alignment: Alignment.centerLeft, child: content)
+            : InkWell(onTap: onTap, child: Center(child: content)),
+      ),
+    );
+  }
+}
+
+class _GridRow<T> extends StatelessWidget {
+  const _GridRow({
+    required this.row,
+    required this.columns,
+    required this.striped,
+    required this.cursor,
+    required this.selected,
+    required this.onTap,
+    required this.theme,
+  });
+
+  final T row;
+  final List<GridColumn<T>> columns;
+  final bool striped;
+  final bool cursor;
+  final bool selected;
+  final VoidCallback onTap;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    Color? background;
+    if (selected) {
+      background = CrawlStatTheme.accent.withValues(alpha: 0.14);
+    } else if (striped) {
+      background = theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5);
+    }
+
+    return InkWell(
+      onTap: onTap,
+      hoverColor: theme.hoverColor,
+      child: Container(
+        decoration: BoxDecoration(
+          color: background,
+          border: Border(
+            bottom: BorderSide(color: theme.dividerColor.withValues(alpha: 0.5)),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: _indicatorWidth,
+              color: cursor ? CrawlStatTheme.accent : Colors.transparent,
+            ),
+            for (final column in columns)
+              SizedBox(
+                width: column.width,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Align(
+                    alignment: column.align == TextAlign.right
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
+                    child: column.cell != null
+                        ? column.cell!(context, row)
+                        : Text(
+                            column.value(row),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: column.align,
+                            style: column.mono
+                                ? CrawlStatTheme.mono(
+                                    context,
+                                    color: column.color?.call(row),
+                                  )
+                                : theme.textTheme.bodyMedium?.copyWith(
+                                    color: column.color?.call(row),
+                                  ),
+                          ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A row whose page has not arrived. Shaped like real content, so the table
+/// does not jump when it does.
+class _PlaceholderRow<T> extends StatelessWidget {
+  const _PlaceholderRow({required this.columns});
+
+  final List<GridColumn<T>> columns;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        const SizedBox(width: _indicatorWidth),
+        for (final column in columns)
+          SizedBox(
+            width: column.width,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: 0.6,
+                  child: Container(
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: theme.dividerColor.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}

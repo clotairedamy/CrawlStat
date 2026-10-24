@@ -1,0 +1,28 @@
+# Cargo workspace for the CrawlStat Rust side.
+#
+#   engine/     crawler core library + `crawlstat-cli` binary
+#   app/rust/   flutter_rust_bridge glue between the engine and the Flutter app
+[workspace]
+resolver = "2"
+members = ["engine", "app/rust"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "proprietary"
+repository = "https://github.com/crawlstat/crawlstat"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+# NOTE: deliberately *not* `panic = "abort"`. The engine is loaded into the
+# Flutter app as a shared library, where a panic must be able to unwind and be
+# reported as an error instead of taking the whole UI process down.
+
+# Benchmarks and the fixture-site integration tests are far too slow in a
+# plain debug build, so give dependencies real optimisation while keeping
+# debug assertions on for our own code.
+[profile.dev.package."*"]
+opt-level = 2

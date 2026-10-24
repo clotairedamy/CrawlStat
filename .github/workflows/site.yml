@@ -1,0 +1,37 @@
+name: site
+
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', '.github/workflows/site.yml']
+  pull_request:
+    paths: ['site/**', '.github/workflows/site.yml']
+
+jobs:
+  test:
+    name: test and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - run: npm ci
+      - name: Test
+        run: npm test
+
+      # Catches a route that does not compile, which the unit tests cannot: they
+      # exercise the pure utilities, not the handlers.
+      - name: Build
+        run: npm run build
+        env:
+          # Build-time placeholders. The real values are Vercel environment
+          # variables and are never needed to compile.
+          NUXT_LICENSE_SIGNING_KEY: ''
+          NUXT_LICENSE_PROVIDER: lemonsqueezy
