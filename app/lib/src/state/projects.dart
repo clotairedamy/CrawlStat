@@ -60,15 +60,21 @@ class RecentProjects extends Notifier<List<ProjectInfo>> {
     return File('${directory.path}${Platform.pathSeparator}$_fileName');
   }
 
+  /// The stored paths, always as a **growable** list.
+  ///
+  /// Returning `const []` here would be a trap: callers below mutate the
+  /// result, and a const list throws "Cannot remove from an unmodifiable
+  /// list". That only bites on a fresh install, where there is no file yet —
+  /// which is the one run where it must not.
   List<String> _readPaths() {
     try {
-      if (!_file.existsSync()) return const [];
+      if (!_file.existsSync()) return <String>[];
       final decoded = jsonDecode(_file.readAsStringSync());
-      if (decoded is! List) return const [];
+      if (decoded is! List) return <String>[];
       return decoded.whereType<String>().toList();
     } on Object {
       // A corrupt list is not worth an error dialog: start fresh.
-      return const [];
+      return <String>[];
     }
   }
 
@@ -106,17 +112,14 @@ class RecentProjects extends Notifier<List<ProjectInfo>> {
 
   /// Record a crawl as the most recently used.
   Future<void> remember(String path) async {
-    final paths = _readPaths()..removeWhere((existing) => existing == path);
-    paths.insert(0, path);
-    // Twenty is enough to be useful and short enough to stay scannable.
-    _writePaths(paths.take(20).toList());
+    _writePaths(promoteToFront(_readPaths(), path));
     await refresh();
   }
 
   /// Remove a crawl from the list. The file itself is left alone unless
   /// `deleteFile` is set.
   Future<void> forget(String path, {bool deleteFile = false}) async {
-    _writePaths(_readPaths()..removeWhere((existing) => existing == path));
+    _writePaths(withoutPath(_readPaths(), path));
     if (deleteFile) {
       for (final suffix in ['', '-wal', '-shm']) {
         final file = File('$path$suffix');
@@ -158,6 +161,28 @@ final openProjectProvider = NotifierProvider<OpenProject, String?>(OpenProject.n
 final projectInfoProvider = FutureProvider.family<ProjectInfo, String>((ref, path) {
   return rust.projectInfo(dbPath: path);
 });
+
+/// How many crawls the recents list keeps. Enough to be useful, short enough
+/// to stay scannable.
+const int recentProjectLimit = 20;
+
+/// Move `path` to the front of the list, without duplicating it.
+///
+/// Pure, and returns a new list, so it can be tested without a filesystem or
+/// the engine — which is what the first version of this code lacked when it
+/// shipped a crash on the very first crawl.
+List<String> promoteToFront(
+  List<String> existing,
+  String path, {
+  int limit = recentProjectLimit,
+}) {
+  return [path, ...existing.where((candidate) => candidate != path)].take(limit).toList();
+}
+
+/// The list without `path`.
+List<String> withoutPath(List<String> existing, String path) {
+  return existing.where((candidate) => candidate != path).toList();
+}
 
 /// Build a filename for a new crawl from its start URL.
 ///

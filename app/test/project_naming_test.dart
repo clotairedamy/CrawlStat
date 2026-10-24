@@ -50,4 +50,28 @@ void main() {
       expect(suggestedProjectFileName('///', now: at), 'crawl-20260224-1432.db');
     });
   });
+
+  group('recent projects', () {
+    test('the first crawl on a fresh install is remembered', () {
+      // A fresh install reads an empty, unmodifiable list. Mutating it in place
+      // crashed the very first crawl before it could start.
+      expect(promoteToFront(const [], '/a.db'), ['/a.db']);
+    });
+
+    test('a reopened crawl moves to the front without duplicating', () {
+      expect(promoteToFront(['/a.db', '/b.db', '/c.db'], '/b.db'), ['/b.db', '/a.db', '/c.db']);
+    });
+
+    test('the list is capped', () {
+      final many = [for (var i = 0; i < 30; i++) '/$i.db'];
+      final result = promoteToFront(many, '/new.db');
+      expect(result, hasLength(recentProjectLimit));
+      expect(result.first, '/new.db');
+    });
+
+    test('forgetting works on an unmodifiable list', () {
+      expect(withoutPath(const [], '/a.db'), isEmpty);
+      expect(withoutPath(const ['/a.db', '/b.db'], '/a.db'), ['/b.db']);
+    });
+  });
 }
