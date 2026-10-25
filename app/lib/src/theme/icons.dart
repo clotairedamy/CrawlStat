@@ -79,4 +79,5 @@ class AppIcon {
   static const IconData sortDescending = LucideIcons.arrowDown;
   static const IconData chevronUp = LucideIcons.chevronUp;
   static const IconData chevronDown = LucideIcons.chevronDown;
+  static const IconData chevronRight = LucideIcons.chevronRight;
 }

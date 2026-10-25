@@ -337,3 +337,320 @@ fn an_empty_or_broken_document_does_not_panic() {
         let _ = report.issue_count();
     }
 }
+
+// ─── findings: the rules behind the compliance report ────────────────────
+
+/// A complete, accessible page, so a test can add one fault and check that
+/// exactly that fault is reported.
+fn page(body: &str) -> String {
+    format!(
+        r#"<html lang="en"><head><title>Page</title>
+           <meta name="viewport" content="width=device-width, initial-scale=1"></head>
+           <body><main><h1>Title</h1>{body}</main></body></html>"#
+    )
+}
+
+fn rules_on(body: &str) -> Vec<&'static str> {
+    analyse_html(&page(body))
+        .findings
+        .iter()
+        .map(|finding| finding.rule)
+        .collect()
+}
+
+#[test]
+fn the_accessible_template_page_has_no_findings() {
+    assert_eq!(rules_on(""), Vec::<&str>::new());
+}
+
+#[test]
+fn the_clean_page_has_no_findings_either() {
+    let report = analyse_html(
+        r##"<html lang="en-GB"><head><title>Home</title></head><body>
+             <a href="#main">Skip to content</a>
+             <nav><ul><li><a href="/">Home</a></li><li><a href="/about">About us</a></li></ul></nav>
+             <main id="main">
+               <h1>Title</h1>
+               <form>
+                 <label for="email">Email</label>
+                 <input id="email" type="email" autocomplete="email">
+                 <button type="submit" aria-label="Send the form">Send</button>
+               </form>
+               <img src="/divider.png" alt="">
+               <table><tr><th>Plan</th><th>Price</th></tr><tr><td>Basic</td><td>£5</td></tr></table>
+               <video controls><source src="/v.mp4"><track kind="captions" src="/v.vtt"></video>
+             </main>
+           </body></html>"##,
+    );
+    assert_eq!(report.findings, Vec::new(), "{:#?}", report.findings);
+}
+
+#[test]
+fn each_original_check_also_produces_a_finding_with_a_sample() {
+    let report = analyse_html(&page(r#"<a href="/x"></a>"#));
+    let finding = report.finding(rule::LINK_NO_NAME).unwrap();
+    assert_eq!(finding.count, 1);
+    assert_eq!(finding.samples, vec![r#"<a href="/x"></a>"#]);
+}
+
+#[test]
+fn samples_are_capped_and_distinct_but_every_instance_is_counted() {
+    let links: String = (0..6).map(|i| format!(r#"<a href="/{i}"></a>"#)).collect();
+    let report = analyse_html(&page(&format!("{links}<a href=\"/0\"></a>")));
+    let finding = report.finding(rule::LINK_NO_NAME).unwrap();
+    assert_eq!(finding.count, 7);
+    assert_eq!(finding.samples.len(), MAX_SAMPLES);
+}
+
+#[test]
+fn a_snippet_shows_the_child_of_an_empty_element() {
+    let report = analyse_html(&page(r#"<a href="/x"><img src="/i.png" alt=""></a>"#));
+    assert_eq!(
+        report.finding(rule::LINK_NO_NAME).unwrap().samples,
+        // Attributes come out in scraper's stable order, not source order.
+        vec![r#"<a href="/x"><img alt="" src="/i.png"></a>"#]
+    );
+}
+
+#[test]
+fn template_keys_ignore_the_numbers_that_differ_between_pages() {
+    assert_eq!(
+        template_key(r#"<a href="/post/12"></a>"#),
+        template_key(r#"<a href="/post/9781"></a>"#)
+    );
+    assert_ne!(template_key("<a href=\"/x\">"), template_key("<a href=\"/y\">"));
+}
+
+#[test]
+fn a_div_pretending_to_be_a_button_needs_a_name_and_a_tabindex() {
+    assert_eq!(
+        rules_on(r#"<div role="button"></div>"#),
+        vec![rule::BUTTON_NO_NAME, rule::ROLE_NOT_FOCUSABLE]
+    );
+    assert_eq!(rules_on(r#"<div role="button" tabindex="0">Save</div>"#), Vec::<&str>::new());
+    // Widgets managed by their container need no tabindex of their own.
+    assert_eq!(
+        rules_on(r#"<ul role="listbox" tabindex="0" aria-label="Fruit"><li role="option">Apple</li></ul>"#),
+        Vec::<&str>::new()
+    );
+}
+
+#[test]
+fn a_missing_alt_fails_but_an_empty_alt_is_a_decision() {
+    assert_eq!(rules_on(r#"<img src="/a.png">"#), vec![rule::IMG_NO_ALT]);
+    for markup in [
+        r#"<img src="/a.png" alt="">"#,
+        r#"<img src="/a.png" alt="A chart">"#,
+        r#"<img src="/a.png" role="presentation">"#,
+        r#"<img src="/a.png" aria-hidden="true">"#,
+        r#"<svg role="img" aria-label="Logo"></svg>"#,
+        r#"<svg role="img"><title>Logo</title></svg>"#,
+        r#"<input type="image" src="/go.png" alt="Search">"#,
+    ] {
+        assert_eq!(rules_on(markup), Vec::<&str>::new(), "flagged: {markup}");
+    }
+    assert_eq!(rules_on(r#"<svg role="img"></svg>"#), vec![rule::IMG_NO_ALT]);
+    assert_eq!(rules_on(r#"<input type="image" src="/go.png">"#), vec![rule::IMG_NO_ALT]);
+}
+
+#[test]
+fn a_viewport_that_blocks_zoom_is_caught() {
+    for content in [
+        "width=device-width, user-scalable=no",
+        "width=device-width, maximum-scale=1",
+        "width=device-width,maximum-scale=1.5",
+        "user-scalable=0",
+    ] {
+        assert!(viewport_blocks_zoom(content), "missed: {content}");
+    }
+    for content in ["width=device-width, initial-scale=1", "maximum-scale=5", "user-scalable=yes"] {
+        assert!(!viewport_blocks_zoom(content), "flagged: {content}");
+    }
+}
+
+#[test]
+fn page_level_checks_need_a_title_a_lang_and_a_way_past_the_header() {
+    let report = analyse_html("<body><p>Hello</p></body>");
+    for expected in [rule::PAGE_NO_LANG, rule::PAGE_NO_TITLE, rule::NO_BYPASS] {
+        assert!(report.finding(expected).is_some(), "missing {expected}");
+    }
+    // A skip link alone is a way past the header.
+    let report = analyse_html(r##"<body><a href="#content">Skip</a><p>Hi</p></body>"##);
+    assert!(report.finding(rule::NO_BYPASS).is_none());
+}
+
+#[test]
+fn an_invalid_language_is_caught_on_the_page_and_on_parts() {
+    assert!(is_valid_lang("en"));
+    assert!(is_valid_lang("en-GB"));
+    assert!(is_valid_lang("zh-Hant-TW"));
+    assert!(is_valid_lang("haw"));
+    for bad in ["english", "en_US", "xx", "e"] {
+        assert!(!is_valid_lang(bad), "{bad} should be invalid");
+    }
+    let report = analyse_html(r#"<html lang="english"><body><p lang="fr-FR">Bonjour</p><p lang="">?</p></body></html>"#);
+    assert_eq!(report.count(rule::LANG_INVALID), 1);
+}
+
+#[test]
+fn a_timed_refresh_fails_but_an_instant_redirect_does_not() {
+    let report = analyse_html(r#"<head><meta http-equiv="refresh" content="30"></head>"#);
+    assert_eq!(report.count(rule::META_REFRESH), 1);
+    let report = analyse_html(r#"<head><meta http-equiv="Refresh" content="0; url=/new"></head>"#);
+    assert_eq!(report.count(rule::META_REFRESH), 0);
+}
+
+#[test]
+fn media_checks() {
+    assert_eq!(
+        rules_on(r#"<video src="/v.mp4" autoplay></video>"#),
+        vec![rule::AUTOPLAY_AUDIO, rule::VIDEO_NO_CAPTIONS]
+    );
+    // Muted background video: nothing to hear, nothing to caption.
+    assert_eq!(rules_on(r#"<video src="/v.mp4" autoplay muted loop></video>"#), Vec::<&str>::new());
+    assert_eq!(rules_on("<marquee>Sale!</marquee>"), vec![rule::BLINK_MARQUEE]);
+}
+
+#[test]
+fn features_record_what_the_page_contains() {
+    let report = analyse_html(&page(
+        r#"<iframe title="Intro" src="https://www.youtube.com/embed/x"></iframe>
+           <form><label>Password <input type="password"></label></form>"#,
+    ));
+    assert!(report.has_feature(feature::VIDEO));
+    assert!(report.has_feature(feature::FORM));
+    assert!(report.has_feature(feature::PASSWORD));
+    assert!(!report.has_feature(feature::AUDIO));
+}
+
+#[test]
+fn focusable_content_inside_aria_hidden_is_caught() {
+    assert_eq!(
+        rules_on(r#"<div aria-hidden="true"><a href="/x">Pricing</a></div>"#),
+        vec![rule::HIDDEN_FOCUSABLE]
+    );
+    assert_eq!(
+        rules_on(r#"<div aria-hidden="true"><a href="/x" tabindex="-1">Pricing</a></div>"#),
+        Vec::<&str>::new()
+    );
+    // Nested hidden regions are reported once, at the outermost.
+    assert_eq!(
+        analyse_html(&page(r#"<div aria-hidden="true"><div aria-hidden="true"><button>Go</button></div></div>"#))
+            .count(rule::HIDDEN_FOCUSABLE),
+        1
+    );
+}
+
+#[test]
+fn interactive_elements_inside_each_other_are_caught() {
+    assert_eq!(
+        rules_on(r#"<a href="/x">Card <button>Buy</button></a>"#),
+        vec![rule::NESTED_INTERACTIVE]
+    );
+}
+
+#[test]
+fn an_empty_heading_is_caught() {
+    assert_eq!(rules_on("<h2></h2>"), vec![rule::EMPTY_HEADING]);
+    assert_eq!(rules_on(r#"<h2><img src="/l.png" alt="Pricing"></h2>"#), Vec::<&str>::new());
+}
+
+#[test]
+fn vague_link_text_is_flagged_unless_the_name_explains_it() {
+    assert_eq!(rules_on(r#"<a href="/x">Read more</a>"#), vec![rule::VAGUE_LINK_TEXT]);
+    assert_eq!(
+        rules_on(r#"<a href="/x" aria-label="Read more about pricing">Read more</a>"#),
+        Vec::<&str>::new()
+    );
+}
+
+#[test]
+fn a_visible_label_missing_from_the_accessible_name_is_flagged() {
+    assert_eq!(
+        rules_on(r#"<button aria-label="Submit form">Send</button>"#),
+        vec![rule::LABEL_NOT_IN_NAME]
+    );
+    assert_eq!(rules_on(r#"<button aria-label="Close dialog">×</button>"#), Vec::<&str>::new());
+    assert_eq!(rules_on(r#"<button aria-label="Send message">Send</button>"#), Vec::<&str>::new());
+}
+
+#[test]
+fn autocomplete_values_are_validated() {
+    for good in ["email", "on", "off", "shipping postal-code", "section-a billing tel", "username webauthn"] {
+        assert!(is_valid_autocomplete(good), "{good} should be valid");
+    }
+    for bad in ["nope", "false", "first-name", "email shipping"] {
+        assert!(!is_valid_autocomplete(bad), "{bad} should be invalid");
+    }
+    assert_eq!(
+        rules_on(r#"<label>Email <input type="email" autocomplete="nope"></label>"#),
+        vec![rule::INVALID_AUTOCOMPLETE]
+    );
+    assert_eq!(
+        rules_on(r#"<label>Email <input type="email"></label>"#),
+        vec![rule::MISSING_AUTOCOMPLETE]
+    );
+    // A search box is not personal data.
+    assert_eq!(rules_on(r#"<label>Search <input name="q"></label>"#), Vec::<&str>::new());
+}
+
+#[test]
+fn list_structure_is_checked_both_ways() {
+    assert_eq!(rules_on("<ul><div>Item</div></ul>"), vec![rule::LIST_STRUCTURE]);
+    assert_eq!(rules_on("<div><li>Orphan</li></div>"), vec![rule::LIST_STRUCTURE]);
+    assert_eq!(rules_on("<ol><li>One</li><li>Two</li></ol>"), Vec::<&str>::new());
+}
+
+#[test]
+fn a_data_table_without_headers_is_flagged_for_review() {
+    assert_eq!(
+        rules_on("<table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>"),
+        vec![rule::TABLE_NO_HEADERS]
+    );
+    assert_eq!(
+        rules_on(r#"<table role="presentation"><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>"#),
+        Vec::<&str>::new()
+    );
+}
+
+#[test]
+fn removing_the_focus_ring_is_flagged_unless_replaced() {
+    let flagged = |css: &str| {
+        analyse_html(&format!("<html><head><style>{css}</style></head></html>"))
+            .count(rule::FOCUS_OUTLINE_REMOVED)
+    };
+    assert_eq!(flagged("a:focus { outline: none }"), 1);
+    assert_eq!(flagged("button:focus{outline:0;}"), 1);
+    assert_eq!(flagged(":focus:not(:focus-visible) { outline: none }"), 0);
+    assert_eq!(flagged("a:focus { outline: none; box-shadow: 0 0 0 3px blue }"), 0);
+    assert_eq!(flagged("a:hover { outline: none }"), 0);
+}
+
+#[test]
+fn a_click_handler_on_a_plain_element_is_flagged_for_review() {
+    assert_eq!(
+        rules_on(r#"<div onclick="go()">Open</div>"#),
+        vec![rule::CLICK_HANDLER_NOT_FOCUSABLE]
+    );
+    assert_eq!(rules_on(r#"<button onclick="go()">Open</button>"#), Vec::<&str>::new());
+}
+
+#[test]
+fn a_referenced_duplicate_id_is_worse_than_an_unreferenced_one() {
+    let report = analyse_html(&page(
+        r#"<label for="email">Email</label><input id="email" autocomplete="email">
+           <input id="email" aria-label="Confirm" autocomplete="email">
+           <div id="card"></div><div id="card"></div>"#,
+    ));
+    assert_eq!(report.count(rule::DUPLICATE_ID_REFERENCED), 1);
+    assert_eq!(report.count(rule::DUPLICATE_ID), 1);
+    assert_eq!(report.duplicate_ids, 2, "the original counter counts both");
+}
+
+#[test]
+fn every_rule_listed_is_unique() {
+    let mut seen = std::collections::HashSet::new();
+    for id in rule::ALL {
+        assert!(seen.insert(id), "{id} listed twice");
+    }
+}

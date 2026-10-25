@@ -170,7 +170,7 @@ class _CrawlHeader extends ConsumerWidget {
           OutlinedButton.icon(
             onPressed: controller.cancel,
             style: OutlinedButton.styleFrom(
-              foregroundColor: CrawlStatTheme.error,
+              foregroundColor: CrawlStatTheme.palette(context).error,
             ),
             icon: const Icon(AppIcon.stop, size: 16),
             label: const Text('Stop'),
@@ -217,7 +217,7 @@ class _Counters extends ConsumerWidget {
       StatTile(
         label: 'Crawled',
         icon: AppIcon.ok,
-        color: CrawlStatTheme.success,
+        color: CrawlStatTheme.palette(context).success,
         value: formatCount(crawled),
         hint: 'Fetched and stored',
       ),
@@ -236,14 +236,18 @@ class _Counters extends ConsumerWidget {
       StatTile(
         label: 'Client errors',
         icon: AppIcon.brokenLink,
-        color: notFound > 0 ? CrawlStatTheme.error : CrawlStatTheme.notice,
+        color: notFound > 0
+            ? CrawlStatTheme.palette(context).error
+            : CrawlStatTheme.palette(context).notice,
         value: formatCount(notFound),
         hint: '4xx responses',
       ),
       StatTile(
         label: 'Server errors',
         icon: AppIcon.server,
-        color: serverErrors > 0 ? CrawlStatTheme.error : CrawlStatTheme.notice,
+        color: serverErrors > 0
+            ? CrawlStatTheme.palette(context).error
+            : CrawlStatTheme.palette(context).notice,
         value: formatCount(serverErrors),
         hint: '5xx responses',
       ),
@@ -252,8 +256,8 @@ class _Counters extends ConsumerWidget {
           label: 'Issues',
           icon: AppIcon.issues,
           color: audit.errors > 0
-              ? CrawlStatTheme.error
-              : CrawlStatTheme.warning,
+              ? CrawlStatTheme.palette(context).error
+              : CrawlStatTheme.palette(context).warning,
           value: formatCount(audit.errors + audit.warnings),
           hint: '${audit.errors} errors, ${audit.warnings} warnings',
           onTap: () => context.go(Routes.issues),
@@ -262,7 +266,9 @@ class _Counters extends ConsumerWidget {
         StatTile(
           label: 'Failed',
           icon: AppIcon.error,
-          color: errors > 0 ? CrawlStatTheme.error : CrawlStatTheme.notice,
+          color: errors > 0
+              ? CrawlStatTheme.palette(context).error
+              : CrawlStatTheme.palette(context).notice,
           value: formatCount(errors),
           hint: 'Could not be fetched',
         ),
@@ -506,11 +512,14 @@ class _WarningsState extends State<_Warnings> {
     final latest = widget.warnings.first;
 
     return Material(
-      color: CrawlStatTheme.warning.withValues(alpha: 0.09),
+      color: CrawlStatTheme.palette(context).warning.withValues(alpha: 0.09),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(CrawlStatTheme.controlRadius + 1),
-        side: BorderSide(color: CrawlStatTheme.warning.withValues(alpha: 0.25)),
+        side: BorderSide(
+          color: CrawlStatTheme.palette(context).warning
+              .withValues(alpha: 0.25),
+        ),
       ),
       child: Column(
         children: [
@@ -520,10 +529,10 @@ class _WarningsState extends State<_Warnings> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     AppIcon.warning,
                     size: 16,
-                    color: CrawlStatTheme.warning,
+                    color: CrawlStatTheme.palette(context).warning,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -535,7 +544,7 @@ class _WarningsState extends State<_Warnings> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: CrawlStatTheme.warning,
+                        color: CrawlStatTheme.palette(context).warning,
                       ),
                     ),
                   ),
@@ -543,13 +552,13 @@ class _WarningsState extends State<_Warnings> {
                     Text(
                       '+${widget.warnings.length - 1}',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: CrawlStatTheme.warning,
+                        color: CrawlStatTheme.palette(context).warning,
                       ),
                     ),
                   Icon(
                     _expanded ? AppIcon.chevronUp : AppIcon.chevronDown,
                     size: 15,
-                    color: CrawlStatTheme.warning,
+                    color: CrawlStatTheme.palette(context).warning,
                   ),
                 ],
               ),
@@ -648,7 +657,7 @@ class _LiveTable extends StatelessWidget {
         label: 'Error',
         width: 220,
         value: (row) => row.error ?? '',
-        color: (_) => CrawlStatTheme.error,
+        color: (_) => CrawlStatTheme.palette(context).error,
       ),
     ];
 

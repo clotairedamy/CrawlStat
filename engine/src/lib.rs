@@ -1,5 +1,7 @@
 //! The CrawlStat crawl engine.
 
+pub mod a11y;
+pub mod architecture;
 pub mod audit;
 pub mod compare;
 pub mod config;

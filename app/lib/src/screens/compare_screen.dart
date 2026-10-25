@@ -274,7 +274,7 @@ class _Result extends StatelessWidget {
           _DeltaList(
             title: 'Fixed',
             subtitle: 'Pages that had the problem and no longer do.',
-            tone: CrawlStatTheme.success,
+            tone: CrawlStatTheme.palette(context).success,
             issues: improvements,
           ),
         ],
@@ -283,7 +283,7 @@ class _Result extends StatelessWidget {
           _DeltaList(
             title: 'Got worse',
             subtitle: 'New since the earlier crawl.',
-            tone: CrawlStatTheme.error,
+            tone: CrawlStatTheme.palette(context).error,
             issues: regressions,
           ),
         ],
@@ -318,20 +318,24 @@ class _Headline extends StatelessWidget {
           _Figure(
             label: 'Fixed',
             value: '${result.totalFixed}',
-            colour: result.totalFixed > 0 ? CrawlStatTheme.success : null,
+            colour: result.totalFixed > 0
+                ? CrawlStatTheme.palette(context).success
+                : null,
           ),
           _Figure(
             label: 'Introduced',
             value: '${result.totalIntroduced}',
-            colour: result.totalIntroduced > 0 ? CrawlStatTheme.error : null,
+            colour: result.totalIntroduced > 0
+                ? CrawlStatTheme.palette(context).error
+                : null,
           ),
           _Figure(
             label: 'Pages with problems',
             value: '${result.affectedBefore} → ${result.affectedAfter}',
             colour: result.affectedAfter < result.affectedBefore
-                ? CrawlStatTheme.success
+                ? CrawlStatTheme.palette(context).success
                 : result.affectedAfter > result.affectedBefore
-                ? CrawlStatTheme.error
+                ? CrawlStatTheme.palette(context).error
                 : null,
           ),
           _Figure(
@@ -486,13 +490,17 @@ class _BrokenPages extends StatelessWidget {
     final theme = Theme.of(context);
     return SoftPanel(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-      glow: CrawlStatTheme.error,
+      glow: CrawlStatTheme.palette(context).error,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Icon(AppIcon.error, size: 17, color: CrawlStatTheme.error),
+              Icon(
+                AppIcon.error,
+                size: 17,
+                color: CrawlStatTheme.palette(context).error,
+              ),
               const SizedBox(width: 8),
               Text(
                 '${pages.length} page${pages.length == 1 ? '' : 's'} started failing',
@@ -519,7 +527,7 @@ class _BrokenPages extends StatelessWidget {
                       style: CrawlStatTheme.mono(
                         context,
                         size: 12,
-                        color: CrawlStatTheme.error,
+                        color: CrawlStatTheme.palette(context).error,
                       ),
                     ),
                   ),

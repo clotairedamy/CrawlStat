@@ -85,7 +85,9 @@ class IndexablePill extends StatelessWidget {
     if (indexable == null) {
       return Text('—', style: theme.textTheme.bodySmall);
     }
-    final color = indexable! ? CrawlStatTheme.success : CrawlStatTheme.notice;
+    final color = indexable!
+        ? CrawlStatTheme.palette(context).success
+        : CrawlStatTheme.palette(context).notice;
     return Tooltip(
       message: reason ?? (indexable! ? 'Can be indexed' : 'Not indexable'),
       child: Text(
@@ -124,7 +126,7 @@ class StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tone = color ?? CrawlStatTheme.accent;
+    final tone = color ?? CrawlStatTheme.palette(context).accent;
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -266,13 +268,18 @@ class TonePill extends StatelessWidget {
             ),
             const SizedBox(width: 6),
           ],
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              height: 1.3,
+          // Flexible so a pill in a narrow column ellipsizes, not overflows.
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
             ),
           ),
         ],
@@ -369,7 +376,11 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            IconBadge(icon, color: CrawlStatTheme.accent, size: 64),
+            IconBadge(
+              icon,
+              color: CrawlStatTheme.palette(context).accent,
+              size: 64,
+            ),
             const SizedBox(height: 20),
             Text(
               title,
@@ -435,9 +446,12 @@ class ToolbarButton extends StatelessWidget {
       icon: icon,
       tooltip: tooltip,
       onPressed: onPressed,
-      size: 38,
+      // 40 to match `minimumSize` on the filled and outlined buttons: a
+      // two-pixel difference between a circle and a pill beside it reads as
+      // a mistake even when nobody can say why.
+      size: 40,
       iconSize: 17,
-      iconColor: active ? CrawlStatTheme.accent : null,
+      iconColor: active ? CrawlStatTheme.palette(context).accent : null,
     );
   }
 }

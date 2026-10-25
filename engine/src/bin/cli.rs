@@ -142,6 +142,30 @@ enum Command {
         #[arg(long, default_value_t = 10)]
         limit: usize,
     },
+    /// Simulate a visitor hunting for something, and see if they find it.
+    Journey {
+        db: PathBuf,
+        /// Which reader: task_oriented, explorer, skeptical, mobile_rushed.
+        #[arg(long, default_value = "task_oriented")]
+        persona: String,
+        /// One goal id, or every preset when omitted.
+        #[arg(long)]
+        goal: Option<String>,
+    },
+    /// Information architecture findings: labels, orphans, depth, crowding.
+    Ia { db: PathBuf },
+    /// Compare how findable things are on your site versus someone else's.
+    Benchmark {
+        /// Your crawl.
+        ours: PathBuf,
+        /// Their crawl.
+        theirs: PathBuf,
+        #[arg(long, default_value = "task_oriented")]
+        persona: String,
+        /// One task in plain language instead of the presets.
+        #[arg(long)]
+        task: Option<String>,
+    },
     /// Show one issue: what it means, how to fix it, and which URLs have it.
     Issue {
         db: PathBuf,
@@ -653,6 +677,126 @@ async fn main() -> anyhow::Result<()> {
                     result.pages_broken.len()
                 );
                 std::process::exit(1);
+            }
+            Ok(())
+        }
+        Command::Journey { db, persona, goal } => {
+            use crawlstat_engine::ux::journey;
+            let persona = crawlstat_engine::ux::Persona::parse(&persona)
+                .ok_or_else(|| anyhow::anyhow!("unknown persona"))?;
+            let store = Store::open(&db)?;
+
+            let goals = match goal {
+                Some(id) => journey::preset_goals()
+                    .into_iter()
+                    .filter(|g| g.id == id)
+                    .collect::<Vec<_>>(),
+                None => journey::preset_goals(),
+            };
+            if goals.is_empty() {
+                anyhow::bail!("no such goal");
+            }
+
+            println!("{}\n", persona.label());
+            for goal in &goals {
+                let result = journey::simulate(store.connection(), goal, persona)?;
+                let mark = match result.outcome.as_str() {
+                    "reached" => "ok  ",
+                    _ if result.target_exists => "MISS",
+                    _ => "none",
+                };
+                println!(
+                    "[{mark}] {:<32} {} click(s), {}",
+                    goal.label, result.clicks, result.outcome
+                );
+                for step in &result.steps {
+                    println!("          -> \"{}\"  {}", step.anchor, step.to_url);
+                    if !step.alternatives.is_empty() {
+                        println!("             (also offered: {})", step.alternatives.join(", "));
+                    }
+                }
+                if !result.outcome.eq("reached") {
+                    match (&result.target_url, result.shortest_known) {
+                        (Some(url), Some(depth)) => println!(
+                            "          the page exists at depth {depth}: {url}"
+                        ),
+                        _ => println!("          no page on this site looks like it"),
+                    }
+                }
+                println!();
+            }
+            Ok(())
+        }
+        Command::Ia { db } => {
+            let store = Store::open(&db)?;
+            let report = crawlstat_engine::ux::architecture::analyse(store.connection())?;
+            println!(
+                "{} pages, deepest {} clicks from home, {} links offered on a typical page\n",
+                report.pages, report.max_depth, report.median_links
+            );
+
+            if !report.ambiguous_labels.is_empty() {
+                println!("Link text that goes to more than one place:");
+                for finding in report.ambiguous_labels.iter().take(8) {
+                    println!("  \"{}\" -> {} different pages", finding.label, finding.destinations);
+                }
+                println!();
+            }
+            if !report.inconsistent_labels.is_empty() {
+                println!("Pages called different things in different places:");
+                for finding in report.inconsistent_labels.iter().take(6) {
+                    println!("  {}", finding.url);
+                    println!("     called: {}", finding.labels.join(", "));
+                }
+                println!();
+            }
+            println!("{} orphan(s), {} page(s) {}+ clicks deep, {} crowded page(s)",
+                report.orphans.len(), report.too_deep.len(),
+                crawlstat_engine::ux::architecture::DEEP_THRESHOLD, report.crowded.len());
+            Ok(())
+        }
+        Command::Benchmark {
+            ours,
+            theirs,
+            persona,
+            task,
+        } => {
+            use crawlstat_engine::ux::journey;
+            let persona = crawlstat_engine::ux::Persona::parse(&persona)
+                .ok_or_else(|| anyhow::anyhow!("unknown persona"))?;
+            let mine = Store::open(&ours)?;
+            let other = Store::open(&theirs)?;
+
+            let results = match task {
+                Some(task) => vec![journey::benchmark_task(
+                    mine.connection(),
+                    other.connection(),
+                    persona,
+                    &task,
+                )?],
+                None => journey::benchmark(mine.connection(), other.connection(), persona)?,
+            };
+
+            println!("{}\n", persona.label());
+            println!("{:<32} {:>7} {:>7}   {}", "Task", "ours", "theirs", "verdict");
+            println!("{}", "-".repeat(74));
+            for result in &results {
+                let clicks = |j: &journey::Journey| {
+                    if j.outcome == "reached" {
+                        j.clicks.to_string()
+                    } else if j.target_exists {
+                        "lost".to_string()
+                    } else {
+                        "none".to_string()
+                    }
+                };
+                println!(
+                    "{:<32} {:>7} {:>7}   {}",
+                    truncate(&result.goal_label, 32),
+                    clicks(&result.ours),
+                    clicks(&result.theirs),
+                    result.verdict()
+                );
             }
             Ok(())
         }

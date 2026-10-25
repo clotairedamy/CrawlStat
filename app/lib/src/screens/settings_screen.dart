@@ -69,6 +69,45 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ),
                 SectionCard(
+                  title: 'Colour',
+                  child: PaletteChooser(settings: settings),
+                ),
+                SectionCard(
+                  title: 'User experience',
+                  child: Column(
+                    children: [
+                      _NumberRow(
+                        label: 'Buried past',
+                        description:
+                            'Clicks from the home page before a page counts as '
+                            'hard to find. Used by the Journeys screen.',
+                        value: settings.deepThreshold,
+                        suffix: ' clicks',
+                        min: 2,
+                        max: 10,
+                        onChanged: (value) => controller.update(
+                          (s) => s.copyWith(deepThreshold: value),
+                        ),
+                      ),
+                      const Divider(height: 28),
+                      _NumberRow(
+                        label: 'Too much choice past',
+                        description:
+                            'Links offered on one page before choosing becomes '
+                            'the task. A directory may legitimately exceed it.',
+                        value: settings.crowdedThreshold,
+                        suffix: ' links',
+                        min: 20,
+                        max: 400,
+                        step: 10,
+                        onChanged: (value) => controller.update(
+                          (s) => s.copyWith(crowdedThreshold: value),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SectionCard(
                   title: 'Politeness',
                   child: Column(
                     children: [
@@ -826,7 +865,11 @@ class _ModelChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (selected) ...[
-            Icon(AppIcon.ok, size: 14, color: CrawlStatTheme.accent),
+            Icon(
+              AppIcon.ok,
+              size: 14,
+              color: CrawlStatTheme.palette(context).accent,
+            ),
             const SizedBox(width: 6),
           ],
           Text(
@@ -841,6 +884,112 @@ class _ModelChip extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(formatBytes(sizeBytes), style: theme.textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+}
+
+/// Which set of meaningful colours to use.
+///
+/// Only severity and the accent change between palettes — the surfaces stay
+/// the same soft charcoal either way. Swapping those too would be a different
+/// app, not a theme.
+class PaletteChooser extends ConsumerWidget {
+  const PaletteChooser({super.key, required this.settings});
+
+  final Settings settings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (index, palette) in CrawlStatPalette.all.indexed) ...[
+          if (index > 0) const SizedBox(height: 12),
+          PaletteOption(
+            palette: theme.brightness == Brightness.light
+                ? palette.forLight()
+                : palette,
+            name: palette.name,
+            selected: settings.paletteName == palette.name,
+            onTap: () => ref
+                .read(settingsProvider.notifier)
+                .update((s) => s.copyWith(paletteName: palette.name)),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class PaletteOption extends StatelessWidget {
+  const PaletteOption({
+    super.key,
+    required this.palette,
+    required this.name,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final CrawlStatPalette palette;
+  final String name;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SoftPanel(
+      pressed: selected,
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(palette.label, style: theme.textTheme.titleSmall),
+                    if (selected) ...[
+                      const SizedBox(width: 8),
+                      Icon(AppIcon.ok, size: 14, color: palette.accent),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(palette.describes, style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          // The swatches in the order they rank, so the ramp is visible
+          // rather than described.
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final colour in [
+                palette.accent,
+                palette.error,
+                palette.warning,
+                palette.notice,
+                palette.success,
+              ])
+                Container(
+                  width: 18,
+                  height: 18,
+                  margin: const EdgeInsets.only(left: 5),
+                  decoration: BoxDecoration(
+                    gradient: glossOf(colour),
+                    shape: BoxShape.circle,
+                    boxShadow: Soft.raised(context, depth: 0.3),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );

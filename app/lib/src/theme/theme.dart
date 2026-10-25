@@ -41,52 +41,76 @@ class CrawlStatTheme {
   /// Fully round, for pills and circular icon buttons.
   static const double pillRadius = 999;
 
-  /// The single accent, used for selection, focus and primary actions.
+  /// The default accent. Kept as a constant so const widgets still compile;
+  /// the live value for a screen comes from [palette].
   static const Color accent = Color(0xFFFF6A14);
 
-  /// Severity colours. These are the only other colours with meaning, and
-  /// they are tuned to read on both the light and the dark canvas.
+  /// Severity colours for the default theme.
   static const Color error = Color(0xFFF2543D);
   static const Color warning = Color(0xFFE8A33D);
   static const Color notice = Color(0xFF8A8A94);
   static const Color success = Color(0xFF4ABD7F);
 
-  /// The system UI font on each platform, named explicitly so every text style
-  /// — buttons included — uses the same family.
-  static String? get fontFamily => switch (defaultTargetPlatform) {
-    TargetPlatform.macOS || TargetPlatform.iOS => '.AppleSystemUIFont',
-    TargetPlatform.windows => 'Segoe UI',
-    _ => null,
+  /// The palette in force, which depends on the chosen theme.
+  ///
+  /// Call this rather than the constants above wherever a `BuildContext` is
+  /// at hand — the constants are the Ember theme's values and do not follow
+  /// the user's choice.
+  static CrawlStatPalette palette(BuildContext context) =>
+      Theme.of(context).extension<CrawlStatPalette>() ?? CrawlStatPalette.ember;
+
+  /// The interface typeface.
+  ///
+  /// Outfit, bundled rather than loaded at runtime: a crawler that works on a
+  /// plane cannot wait on a font CDN, and the app is the same on every
+  /// platform instead of three different system faces. It is the same
+  /// typeface as crawlstat.com, so the product and the site stop looking like
+  /// two companies.
+  ///
+  /// It is a variable font, so every weight from 100 to 900 costs one 108 KB
+  /// file rather than one file per weight.
+  static const String fontFamily = 'Outfit';
+
+  /// The system face, kept as a fallback for scripts Outfit does not cover.
+  static List<String> get fontFallback => switch (defaultTargetPlatform) {
+    TargetPlatform.macOS || TargetPlatform.iOS => const ['.AppleSystemUIFont'],
+    TargetPlatform.windows => const ['Segoe UI'],
+    _ => const [],
   };
 
-  static ThemeData light() => _build(
-    brightness: Brightness.light,
-    surface: const Color(0xFFECECEF),
-    canvas: const Color(0xFFE2E2E6),
-    panel: const Color(0xFFF3F3F6),
-    raised: const Color(0xFFF7F7FA),
-    border: const Color(0xFFDBDBE1),
-    text: const Color(0xFF1A1A1D),
-    subdued: const Color(0xFF75757E),
-    hover: const Color(0xFFE9E9EE),
-  );
+  static ThemeData light([CrawlStatPalette palette = CrawlStatPalette.ember]) =>
+      _build(
+        palette: palette.forLight(),
+        brightness: Brightness.light,
+        surface: const Color(0xFFECECEF),
+        canvas: const Color(0xFFE2E2E6),
+        panel: const Color(0xFFF3F3F6),
+        raised: const Color(0xFFF7F7FA),
+        border: const Color(0xFFDBDBE1),
+        text: const Color(0xFF1A1A1D),
+        subdued: const Color(0xFF75757E),
+        hover: const Color(0xFFE9E9EE),
+      );
 
-  static ThemeData dark() => _build(
-    brightness: Brightness.dark,
-    surface: const Color(0xFF26262A),
-    canvas: const Color(0xFF1B1B1E),
-    panel: const Color(0xFF2E2E33),
-    raised: const Color(0xFF313137),
-    // Nearly invisible: rows are separated by a whisper, not a rule.
-    border: const Color(0xFF2C2C31),
-    text: const Color(0xFFF3F3F5),
-    // Neutral grey. The old subdued was blue-tinted, which is what made
-    // the whole app read cold next to the reference's warm charcoal.
-    subdued: const Color(0xFF8B8B93),
-    hover: const Color(0xFF303036),
-  );
+  static ThemeData dark([CrawlStatPalette palette = CrawlStatPalette.ember]) =>
+      _build(
+        palette: palette,
+        brightness: Brightness.dark,
+        surface: const Color(0xFF26262A),
+        canvas: const Color(0xFF1B1B1E),
+        panel: const Color(0xFF2E2E33),
+        raised: const Color(0xFF313137),
+        // Nearly invisible: rows are separated by a whisper, not a rule.
+        border: const Color(0xFF2C2C31),
+        text: const Color(0xFFF3F3F5),
+        // Neutral grey. The old subdued was blue-tinted, which is what made
+        // the whole app read cold next to the reference's warm charcoal.
+        subdued: const Color(0xFF8B8B93),
+        hover: const Color(0xFF303036),
+      );
 
   static ThemeData _build({
+    required CrawlStatPalette palette,
     required Brightness brightness,
     required Color surface,
     required Color canvas,
@@ -99,11 +123,11 @@ class CrawlStatTheme {
   }) {
     final colors = ColorScheme(
       brightness: brightness,
-      primary: accent,
+      primary: palette.accent,
       onPrimary: Colors.white,
-      secondary: accent,
+      secondary: palette.accent,
       onSecondary: Colors.white,
-      error: error,
+      error: palette.error,
       onError: Colors.white,
       surface: surface,
       onSurface: text,
@@ -120,6 +144,7 @@ class CrawlStatTheme {
     const baseSize = 13.0;
     final body = TextStyle(
       fontFamily: fontFamily,
+      fontFamilyFallback: fontFallback,
       fontSize: baseSize,
       height: 1.35,
       color: text,
@@ -129,6 +154,7 @@ class CrawlStatTheme {
     );
 
     return ThemeData(
+      extensions: [palette],
       useMaterial3: true,
       brightness: brightness,
       colorScheme: colors,
@@ -182,8 +208,8 @@ class CrawlStatTheme {
         // the surface rather than a drawn line.
         border: _inputBorder(Color.lerp(surface, Colors.black, 0.18)!),
         enabledBorder: _inputBorder(Color.lerp(surface, Colors.black, 0.18)!),
-        focusedBorder: _inputBorder(accent, width: 1.5),
-        errorBorder: _inputBorder(error),
+        focusedBorder: _inputBorder(palette.accent, width: 1.5),
+        errorBorder: _inputBorder(palette.error),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -194,10 +220,10 @@ class CrawlStatTheme {
           shape: const StadiumBorder(),
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
           minimumSize: const Size(0, 40),
-          // The halo is cast in the accent, not in black, so the pill looks
+          // The halo is cast in the palette.accent, not in black, so the pill looks
           // lit rather than merely elevated.
           elevation: 10,
-          shadowColor: accent.withValues(alpha: 0.55),
+          shadowColor: palette.accent.withValues(alpha: 0.55),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -219,7 +245,7 @@ class CrawlStatTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: accent,
+          foregroundColor: palette.accent,
           textStyle: body.copyWith(fontWeight: FontWeight.w500),
           shape: controlShape,
           minimumSize: const Size(0, 32),
@@ -231,7 +257,7 @@ class CrawlStatTheme {
           textStyle: body.copyWith(fontWeight: FontWeight.w500),
           backgroundColor: raised,
           foregroundColor: subdued,
-          selectedBackgroundColor: accent,
+          selectedBackgroundColor: palette.accent,
           selectedForegroundColor: Colors.white,
           side: BorderSide.none,
           shape: const StadiumBorder(),
@@ -243,10 +269,12 @@ class CrawlStatTheme {
               states.contains(WidgetState.selected) ? Colors.white : subdued,
         ),
         trackColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? accent : raised,
+          (states) =>
+              states.contains(WidgetState.selected) ? palette.accent : raised,
         ),
         trackOutlineColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? accent : border,
+          (states) =>
+              states.contains(WidgetState.selected) ? palette.accent : border,
         ),
       ),
       popupMenuTheme: PopupMenuThemeData(
@@ -262,7 +290,7 @@ class CrawlStatTheme {
         behavior: SnackBarBehavior.floating,
         backgroundColor: raised,
         contentTextStyle: body,
-        actionTextColor: accent,
+        actionTextColor: palette.accent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(controlRadius + 3),
         ),
@@ -300,7 +328,7 @@ class CrawlStatTheme {
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(
         linearMinHeight: 4,
-        color: accent,
+        color: palette.accent,
         linearTrackColor: raised,
       ),
     );
@@ -316,14 +344,16 @@ class CrawlStatTheme {
   /// The style for URLs, numbers and anything that should align in a column.
   static TextStyle mono(BuildContext context, {Color? color, double? size}) {
     return TextStyle(
-      // A stack rather than a bundled font: these ship with the OS, so the app
-      // stays small and looks native on each platform.
-      fontFamily: 'SF Mono',
+      // Bundled rather than borrowed from the OS: the system monospace
+      // differs on every platform, and a table of URLs and byte counts is
+      // exactly where that shows. JetBrains Mono also disambiguates 0/O and
+      // 1/l/I, which matters when the column is a status code.
+      fontFamily: 'JetBrainsMono',
       fontFamilyFallback: const [
+        'SF Mono',
         'Menlo',
         'Consolas',
         'DejaVu Sans Mono',
-        'Courier New',
         'monospace',
       ],
       fontSize: size ?? 12,
@@ -332,7 +362,7 @@ class CrawlStatTheme {
     );
   }
 
-  /// Colour for an HTTP status code: 2xx green, 3xx accent, 4xx/5xx red.
+  /// Colour for an HTTP status code: 2xx green, 3xx palette.accent, 4xx/5xx red.
   static Color statusColor(int? status) {
     if (status == null) return notice;
     if (status >= 500) return error;
@@ -374,4 +404,132 @@ class CrawlStatShortcuts {
     meta: true,
   );
   static const closePanel = SingleActivator(LogicalKeyboardKey.escape);
+}
+
+/// The colours that carry meaning, as a theme extension.
+///
+/// Severity and the palette.accent are the only places colour says something in
+/// CrawlStat, so they are the only things a theme is allowed to change. The
+/// surfaces stay the same soft charcoal (or the same soft light) in every
+/// theme — swapping those as well would be a different app, not a theme.
+@immutable
+class CrawlStatPalette extends ThemeExtension<CrawlStatPalette> {
+  const CrawlStatPalette({
+    required this.name,
+    required this.accent,
+    required this.error,
+    required this.warning,
+    required this.notice,
+    required this.success,
+  });
+
+  final String name;
+  final Color accent;
+  final Color error;
+  final Color warning;
+  final Color notice;
+  final Color success;
+
+  /// The original: a vivid ember accent with red, amber and green severities.
+  static const CrawlStatPalette ember = CrawlStatPalette(
+    name: 'ember',
+    accent: Color(0xFFFF6A14),
+    error: Color(0xFFF2543D),
+    warning: Color(0xFFE8A33D),
+    notice: Color(0xFF8A8A94),
+    success: Color(0xFF4ABD7F),
+  );
+
+  /// Gold on graphite: the website's copper accent, and severities told apart
+  /// by lightness instead of hue.
+  ///
+  /// Three reasons this is not just a quieter skin:
+  ///
+  /// * **Hue was doing too much.** Red, amber and green at full strength on
+  ///   every screen is a lot of shouting for a tool somebody has open all day,
+  ///   and when everything is coloured nothing reads as urgent.
+  /// * **Lightness survives colour blindness.** Roughly one man in twelve
+  ///   cannot reliably separate the red and the green above. A ramp from near
+  ///   white to mid grey is legible to everyone, and still ordered.
+  /// * **One accent, spent carefully.** Gold marks the primary action and
+  ///   nothing else, so it keeps meaning something.
+  ///
+  /// The four severities are set three steps apart in lightness, which stays
+  /// distinguishable side by side and in a dense table.
+  static const CrawlStatPalette gold = CrawlStatPalette(
+    name: 'gold',
+    // crawlstat.com's copper, unchanged.
+    accent: Color(0xFFE3AD7B),
+    // Error is the brightest: in a dark table the eye goes to the lightest
+    // thing, which is what an error should be.
+    error: Color(0xFFF0EFEC),
+    warning: Color(0xFFBDB9B2),
+    notice: Color(0xFF7E7B76),
+    // Success is deliberately the quietest. "Fine" does not need attention.
+    success: Color(0xFF5E5B57),
+  );
+
+  static const List<CrawlStatPalette> all = [ember, gold];
+
+  /// The light theme needs the ramp inverted: on a pale canvas the *darkest*
+  /// tone is the one that draws the eye.
+  CrawlStatPalette forLight() {
+    if (name != 'gold') return this;
+    return const CrawlStatPalette(
+      name: 'gold',
+      accent: Color(0xFFA9712F),
+      error: Color(0xFF171614),
+      warning: Color(0xFF55524D),
+      notice: Color(0xFF8A8781),
+      success: Color(0xFFAEAAA3),
+    );
+  }
+
+  String get label => switch (name) {
+    'gold' => 'Gold on graphite',
+    _ => 'Ember',
+  };
+
+  String get describes => switch (name) {
+    'gold' =>
+      'The website’s gold, with severity shown by lightness rather than '
+          'colour. Quieter, and legible if you cannot separate red from green.',
+    _ =>
+      'A vivid orange accent with the usual red, amber and green severities.',
+  };
+
+  static CrawlStatPalette byName(String? name) =>
+      all.firstWhere((palette) => name == name, orElse: () => ember);
+
+  @override
+  CrawlStatPalette copyWith({
+    String? name,
+    Color? accent,
+    Color? error,
+    Color? warning,
+    Color? notice,
+    Color? success,
+  }) {
+    return CrawlStatPalette(
+      name: name ?? this.name,
+      accent: accent ?? this.accent,
+      error: error ?? this.error,
+      warning: warning ?? this.warning,
+      notice: notice ?? this.notice,
+      success: success ?? this.success,
+    );
+  }
+
+  @override
+  CrawlStatPalette lerp(ThemeExtension<CrawlStatPalette>? other, double t) {
+    if (other is! CrawlStatPalette) return this;
+    return CrawlStatPalette(
+      name: t < 0.5 ? name : other.name,
+      accent: Color.lerp(accent, other.accent, t)!,
+      error: Color.lerp(error, other.error, t)!,
+      warning: Color.lerp(warning, other.warning, t)!,
+      notice: Color.lerp(notice, other.notice, t)!,
+      success: Color.lerp(success, other.success, t)!,
+    );
+  }
 }

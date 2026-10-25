@@ -259,7 +259,7 @@ class _IssueRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: selected
-              ? CrawlStatTheme.accent.withValues(alpha: 0.14)
+              ? CrawlStatTheme.palette(context).accent.withValues(alpha: 0.14)
               : null,
           borderRadius: radius,
         ),
@@ -326,7 +326,7 @@ class _IssueDetail extends ConsumerWidget {
             const SizedBox(width: 8),
             TonePill(
               '${formatCount(issue.urlCount)} URLs affected',
-              color: CrawlStatTheme.notice,
+              color: CrawlStatTheme.palette(context).notice,
             ),
           ],
         ),
@@ -343,9 +343,11 @@ class _IssueDetail extends ConsumerWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: CrawlStatTheme.accent.withValues(alpha: 0.07),
+            color: CrawlStatTheme.palette(context).accent
+                .withValues(alpha: 0.07),
             border: Border.all(
-              color: CrawlStatTheme.accent.withValues(alpha: 0.25),
+              color: CrawlStatTheme.palette(context).accent
+                  .withValues(alpha: 0.25),
             ),
             borderRadius: BorderRadius.circular(
               CrawlStatTheme.controlRadius + 2,

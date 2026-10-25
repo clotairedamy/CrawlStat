@@ -552,7 +552,10 @@ class _NarrativeState extends ConsumerState<_Narrative> {
         children: [
           Row(
             children: [
-              const IconBadge(AppIcon.pro, color: CrawlStatTheme.accent),
+              IconBadge(
+                AppIcon.pro,
+                color: CrawlStatTheme.palette(context).accent,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

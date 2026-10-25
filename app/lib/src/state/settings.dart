@@ -40,6 +40,10 @@ class Settings {
     this.sidebarCollapsed,
     this.ollamaEndpoint = defaultOllamaEndpoint,
     this.ollamaModel = defaultOllamaModel,
+    this.paletteName = 'ember',
+    this.defaultPersona = 'task_oriented',
+    this.deepThreshold = 4,
+    this.crowdedThreshold = 120,
   });
 
   final String userAgent;
@@ -75,6 +79,20 @@ class Settings {
   final String ollamaEndpoint;
   final String ollamaModel;
 
+  /// Which set of meaningful colours to use: `ember` or `gold`.
+  /// Only severity and the accent change; the surfaces do not.
+  final String paletteName;
+
+  /// Which visitor the Journeys screen starts on.
+  final String defaultPersona;
+
+  /// Clicks from home past which a page counts as buried. Three is the
+  /// number most IA guidance lands on; a documentation set may want more.
+  final int deepThreshold;
+
+  /// Links on one page past which choosing becomes the task.
+  final int crowdedThreshold;
+
   String get resolvedProjectsDirectory =>
       projectsDirectory ?? defaultProjectsDirectory();
   String get resolvedExportDirectory =>
@@ -101,6 +119,10 @@ class Settings {
     bool? sidebarCollapsed,
     String? ollamaEndpoint,
     String? ollamaModel,
+    String? paletteName,
+    String? defaultPersona,
+    int? deepThreshold,
+    int? crowdedThreshold,
   }) {
     return Settings(
       userAgent: userAgent ?? this.userAgent,
@@ -123,6 +145,10 @@ class Settings {
       sidebarCollapsed: sidebarCollapsed ?? this.sidebarCollapsed,
       ollamaEndpoint: ollamaEndpoint ?? this.ollamaEndpoint,
       ollamaModel: ollamaModel ?? this.ollamaModel,
+      paletteName: paletteName ?? this.paletteName,
+      defaultPersona: defaultPersona ?? this.defaultPersona,
+      deepThreshold: deepThreshold ?? this.deepThreshold,
+      crowdedThreshold: crowdedThreshold ?? this.crowdedThreshold,
     );
   }
 
@@ -130,6 +156,10 @@ class Settings {
     'userAgent': userAgent,
     'ollamaEndpoint': ollamaEndpoint,
     'ollamaModel': ollamaModel,
+    'paletteName': paletteName,
+    'defaultPersona': defaultPersona,
+    'deepThreshold': deepThreshold,
+    'crowdedThreshold': crowdedThreshold,
     'themeMode': themeMode.name,
     'concurrency': concurrency,
     'crawlDelayMs': crawlDelayMs,
@@ -165,6 +195,11 @@ class Settings {
       userAgent: pick<String>('userAgent') ?? fallbackUserAgent,
       ollamaEndpoint: pick<String>('ollamaEndpoint') ?? defaults.ollamaEndpoint,
       ollamaModel: pick<String>('ollamaModel') ?? defaults.ollamaModel,
+      paletteName: pick<String>('paletteName') ?? defaults.paletteName,
+      defaultPersona: pick<String>('defaultPersona') ?? defaults.defaultPersona,
+      deepThreshold: pick<int>('deepThreshold') ?? defaults.deepThreshold,
+      crowdedThreshold:
+          pick<int>('crowdedThreshold') ?? defaults.crowdedThreshold,
       themeMode: ThemeMode.values.firstWhere(
         (mode) => mode.name == pick<String>('themeMode'),
         orElse: () => ThemeMode.system,

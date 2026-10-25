@@ -22,7 +22,7 @@
 
 pub mod catalog;
 mod duplicates;
-mod hreflang;
+pub(crate) mod hreflang;
 mod indexability;
 mod link_score;
 

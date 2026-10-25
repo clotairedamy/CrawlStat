@@ -592,6 +592,9 @@ pub struct GraphNode {
     pub status: Option<u16>,
     pub inlinks: u64,
     pub outlinks: u64,
+    /// Internal link score, 0–100 with the strongest page at 100. Zero when
+    /// the crawl's audits have not run.
+    pub link_score: f64,
 }
 
 /// A followed internal link between two pages in the graph.
@@ -669,7 +672,7 @@ pub fn site_graph(conn: &Connection, limit: u32) -> Result<(Vec<GraphNode>, Vec<
     let mut candidates: Vec<(GraphNode, String)> = {
         let mut stmt = conn.prepare(
             "SELECT id, url, dedup_key, depth,
-                    coalesce(final_status_code, status_code)
+                    coalesce(final_status_code, status_code), coalesce(link_score, 0)
              FROM urls
              WHERE is_internal = 1 AND kind = 0 AND status_code IS NOT NULL",
         )?;
@@ -685,6 +688,7 @@ pub fn site_graph(conn: &Connection, limit: u32) -> Result<(Vec<GraphNode>, Vec<
                     status: r.get::<_, Option<i64>>(4)?.map(|code| code as u16),
                     inlinks: 0,
                     outlinks: 0,
+                    link_score: r.get(5)?,
                 },
                 dedup_key,
             ))

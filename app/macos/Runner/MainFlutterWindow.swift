@@ -10,18 +10,31 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
-    // "Show in Finder" for a finished export. One call, so it lives here
-    // rather than pulling in a plugin for it.
+    // "Show in Finder" for a finished export, and opening a web link in the
+    // browser. Two calls, so they live here rather than pulling in plugins.
     let files = FlutterMethodChannel(
       name: "crawlstat/files",
       binaryMessenger: flutterViewController.engine.binaryMessenger)
     files.setMethodCallHandler { call, result in
-      guard call.method == "reveal", let path = call.arguments as? String else {
+      guard let argument = call.arguments as? String else {
         result(FlutterMethodNotImplemented)
         return
       }
-      NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
-      result(nil)
+      switch call.method {
+      case "reveal":
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: argument)])
+        result(nil)
+      case "openUrl":
+        guard let url = URL(string: argument),
+              url.scheme == "https" || url.scheme == "http" else {
+          result(FlutterError(code: "bad_url", message: argument, details: nil))
+          return
+        }
+        NSWorkspace.shared.open(url)
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
     }
 
     // Let the Flutter canvas paint the whole window, title bar included.

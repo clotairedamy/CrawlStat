@@ -11,8 +11,8 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'types.dart';
 part 'project.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `audit_config`, `kind_name`, `region_name`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `audit_config`, `kind_name`, `region_name`, `to_benchmark`, `to_result`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Open a crawl file and describe it, for the projects screen.
 Future<ProjectInfo> openProject({required String dbPath}) =>
@@ -211,6 +211,91 @@ Future<CrawlComparison> compareCrawls({
   afterPath: afterPath,
 );
 
+Future<List<JourneyGoal>> journeyGoals() =>
+    RustLib.instance.api.crateApiProjectJourneyGoals();
+
+/// Walk the crawled site for every preset goal as one persona.
+Future<List<JourneyResult>> runJourneys({
+  required String dbPath,
+  required String persona,
+}) => RustLib.instance.api.crateApiProjectRunJourneys(
+  dbPath: dbPath,
+  persona: persona,
+);
+
+/// Walk it for one goal only.
+Future<JourneyResult> runJourney({
+  required String dbPath,
+  required String persona,
+  required String goalId,
+}) => RustLib.instance.api.crateApiProjectRunJourney(
+  dbPath: dbPath,
+  persona: persona,
+  goalId: goalId,
+);
+
+/// Walk the site for a task written in plain language.
+///
+/// The entry point that matters for a real study: a usability task is "find
+/// the returns policy", never one of the presets.
+Future<JourneyResult> runCustomJourney({
+  required String dbPath,
+  required String persona,
+  required String task,
+}) => RustLib.instance.api.crateApiProjectRunCustomJourney(
+  dbPath: dbPath,
+  persona: persona,
+  task: task,
+);
+
+/// Information-architecture findings for the open crawl.
+Future<IaReport> architectureReport({
+  required String dbPath,
+  required int deepThreshold,
+  required int crowdedThreshold,
+}) => RustLib.instance.api.crateApiProjectArchitectureReport(
+  dbPath: dbPath,
+  deepThreshold: deepThreshold,
+  crowdedThreshold: crowdedThreshold,
+);
+
+/// Write the findings out as Markdown, which is what a tester hands over.
+Future<String> exportUxReport({
+  required String dbPath,
+  required String outPath,
+  required int deepThreshold,
+  required int crowdedThreshold,
+}) => RustLib.instance.api.crateApiProjectExportUxReport(
+  dbPath: dbPath,
+  outPath: outPath,
+  deepThreshold: deepThreshold,
+  crowdedThreshold: crowdedThreshold,
+);
+
+/// Run every preset task against two crawls — yours and a competitor's.
+Future<List<TaskBenchmark>> benchmarkAgainst({
+  required String ourPath,
+  required String theirPath,
+  required String persona,
+}) => RustLib.instance.api.crateApiProjectBenchmarkAgainst(
+  ourPath: ourPath,
+  theirPath: theirPath,
+  persona: persona,
+);
+
+/// Run one task of your own against both.
+Future<TaskBenchmark> benchmarkTaskAgainst({
+  required String ourPath,
+  required String theirPath,
+  required String persona,
+  required String task,
+}) => RustLib.instance.api.crateApiProjectBenchmarkTaskAgainst(
+  ourPath: ourPath,
+  theirPath: theirPath,
+  persona: persona,
+  task: task,
+);
+
 class ActionPlan {
   final List<PlanItem> items;
   final PlatformInt64 affectedPages;
@@ -349,6 +434,74 @@ class DepthCount {
           count == other.count;
 }
 
+/// One information-architecture finding, flattened for the UI.
+class IaFinding {
+  /// `ambiguous_label`, `inconsistent_label`, `orphan`, `too_deep`
+  /// or `crowded`.
+  final String kind;
+
+  /// The headline, already written as a sentence.
+  final String summary;
+
+  /// Supporting URLs or labels the tester can go and look at.
+  final List<String> evidence;
+
+  /// The number the finding turns on, for sorting.
+  final PlatformInt64 magnitude;
+
+  const IaFinding({
+    required this.kind,
+    required this.summary,
+    required this.evidence,
+    required this.magnitude,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^ summary.hashCode ^ evidence.hashCode ^ magnitude.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is IaFinding &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          summary == other.summary &&
+          evidence == other.evidence &&
+          magnitude == other.magnitude;
+}
+
+class IaReport {
+  final PlatformInt64 pages;
+  final PlatformInt64 maxDepth;
+  final PlatformInt64 medianLinks;
+  final List<IaFinding> findings;
+
+  const IaReport({
+    required this.pages,
+    required this.maxDepth,
+    required this.medianLinks,
+    required this.findings,
+  });
+
+  @override
+  int get hashCode =>
+      pages.hashCode ^
+      maxDepth.hashCode ^
+      medianLinks.hashCode ^
+      findings.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is IaReport &&
+          runtimeType == other.runtimeType &&
+          pages == other.pages &&
+          maxDepth == other.maxDepth &&
+          medianLinks == other.medianLinks &&
+          findings == other.findings;
+}
+
 /// How one issue changed between two crawls.
 class IssueDelta {
   final String issueId;
@@ -397,6 +550,122 @@ class IssueDelta {
           introduced == other.introduced &&
           impactBefore == other.impactBefore &&
           impactAfter == other.impactAfter;
+}
+
+class JourneyGoal {
+  final String id;
+  final String label;
+
+  const JourneyGoal({required this.id, required this.label});
+
+  @override
+  int get hashCode => id.hashCode ^ label.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is JourneyGoal &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          label == other.label;
+}
+
+class JourneyResult {
+  final String goalId;
+  final String goalLabel;
+  final String persona;
+
+  /// `reached`, `gave_up`, `dead_end`, `looped` or `no_signal`.
+  final String outcome;
+  final PlatformInt64 clicks;
+  final List<JourneyStep> steps;
+
+  /// Whether a page matching the goal exists in the crawl at all.
+  final bool targetExists;
+  final String? targetUrl;
+  final PlatformInt64? shortestKnown;
+
+  /// Links encountered that point at pages this crawl never fetched.
+  final PlatformInt64 unfetchedLinks;
+
+  const JourneyResult({
+    required this.goalId,
+    required this.goalLabel,
+    required this.persona,
+    required this.outcome,
+    required this.clicks,
+    required this.steps,
+    required this.targetExists,
+    this.targetUrl,
+    this.shortestKnown,
+    required this.unfetchedLinks,
+  });
+
+  @override
+  int get hashCode =>
+      goalId.hashCode ^
+      goalLabel.hashCode ^
+      persona.hashCode ^
+      outcome.hashCode ^
+      clicks.hashCode ^
+      steps.hashCode ^
+      targetExists.hashCode ^
+      targetUrl.hashCode ^
+      shortestKnown.hashCode ^
+      unfetchedLinks.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is JourneyResult &&
+          runtimeType == other.runtimeType &&
+          goalId == other.goalId &&
+          goalLabel == other.goalLabel &&
+          persona == other.persona &&
+          outcome == other.outcome &&
+          clicks == other.clicks &&
+          steps == other.steps &&
+          targetExists == other.targetExists &&
+          targetUrl == other.targetUrl &&
+          shortestKnown == other.shortestKnown &&
+          unfetchedLinks == other.unfetchedLinks;
+}
+
+class JourneyStep {
+  final String fromUrl;
+  final String anchor;
+  final String toUrl;
+  final double confidence;
+
+  /// What else was on offer at this step, best first.
+  final List<String> alternatives;
+
+  const JourneyStep({
+    required this.fromUrl,
+    required this.anchor,
+    required this.toUrl,
+    required this.confidence,
+    required this.alternatives,
+  });
+
+  @override
+  int get hashCode =>
+      fromUrl.hashCode ^
+      anchor.hashCode ^
+      toUrl.hashCode ^
+      confidence.hashCode ^
+      alternatives.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is JourneyStep &&
+          runtimeType == other.runtimeType &&
+          fromUrl == other.fromUrl &&
+          anchor == other.anchor &&
+          toUrl == other.toUrl &&
+          confidence == other.confidence &&
+          alternatives == other.alternatives;
 }
 
 /// A model the local Ollama has installed.
@@ -560,6 +829,9 @@ class SiteNode {
   final PlatformInt64 inlinks;
   final PlatformInt64 outlinks;
 
+  /// Internal link score, 0–100; 0 when audits have not run.
+  final double linkScore;
+
   const SiteNode({
     required this.id,
     required this.url,
@@ -568,6 +840,7 @@ class SiteNode {
     this.status,
     required this.inlinks,
     required this.outlinks,
+    required this.linkScore,
   });
 
   @override
@@ -578,7 +851,8 @@ class SiteNode {
       depth.hashCode ^
       status.hashCode ^
       inlinks.hashCode ^
-      outlinks.hashCode;
+      outlinks.hashCode ^
+      linkScore.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -591,7 +865,8 @@ class SiteNode {
           depth == other.depth &&
           status == other.status &&
           inlinks == other.inlinks &&
-          outlinks == other.outlinks;
+          outlinks == other.outlinks &&
+          linkScore == other.linkScore;
 }
 
 /// One top-level section of the site.
@@ -684,6 +959,64 @@ class StatusCount {
           runtimeType == other.runtimeType &&
           status == other.status &&
           count == other.count;
+}
+
+/// The same task run against your crawl and someone else's.
+class TaskBenchmark {
+  final String goalLabel;
+
+  /// `reached`, `gave_up`, `dead_end`, `looped` or `no_signal`.
+  final String ourOutcome;
+  final String theirOutcome;
+  final PlatformInt64 ourClicks;
+  final PlatformInt64 theirClicks;
+  final bool ourExists;
+  final bool theirExists;
+
+  /// One line a stakeholder can read: "they have it, we do not".
+  final String verdict;
+
+  /// Their clicks minus ours, only when both sites arrive.
+  final PlatformInt64? clickGap;
+
+  const TaskBenchmark({
+    required this.goalLabel,
+    required this.ourOutcome,
+    required this.theirOutcome,
+    required this.ourClicks,
+    required this.theirClicks,
+    required this.ourExists,
+    required this.theirExists,
+    required this.verdict,
+    this.clickGap,
+  });
+
+  @override
+  int get hashCode =>
+      goalLabel.hashCode ^
+      ourOutcome.hashCode ^
+      theirOutcome.hashCode ^
+      ourClicks.hashCode ^
+      theirClicks.hashCode ^
+      ourExists.hashCode ^
+      theirExists.hashCode ^
+      verdict.hashCode ^
+      clickGap.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TaskBenchmark &&
+          runtimeType == other.runtimeType &&
+          goalLabel == other.goalLabel &&
+          ourOutcome == other.ourOutcome &&
+          theirOutcome == other.theirOutcome &&
+          ourClicks == other.ourClicks &&
+          theirClicks == other.theirClicks &&
+          ourExists == other.ourExists &&
+          theirExists == other.theirExists &&
+          verdict == other.verdict &&
+          clickGap == other.clickGap;
 }
 
 /// One element's share of a reader's attention.

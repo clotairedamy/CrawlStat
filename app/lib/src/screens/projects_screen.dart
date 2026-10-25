@@ -113,21 +113,25 @@ class _Overview extends StatelessWidget {
       StatTile(
         label: 'URLs crawled',
         icon: AppIcon.web,
-        color: CrawlStatTheme.success,
+        color: CrawlStatTheme.palette(context).success,
         value: formatCount(crawled),
         hint: 'Across every crawl',
       ),
       StatTile(
         label: 'Broken URLs',
         icon: AppIcon.brokenLink,
-        color: broken > 0 ? CrawlStatTheme.error : CrawlStatTheme.notice,
+        color: broken > 0
+            ? CrawlStatTheme.palette(context).error
+            : CrawlStatTheme.palette(context).notice,
         value: formatCount(broken),
         hint: '4xx and 5xx responses',
       ),
       StatTile(
         label: 'Issues',
         icon: AppIcon.issues,
-        color: errors > 0 ? CrawlStatTheme.warning : CrawlStatTheme.notice,
+        color: errors > 0
+            ? CrawlStatTheme.palette(context).warning
+            : CrawlStatTheme.palette(context).notice,
         value: formatCount(errors + warnings),
         hint:
             '${formatCount(errors)} errors, ${formatCount(warnings)} warnings',
@@ -217,7 +221,7 @@ class _ProjectCard extends ConsumerWidget {
       // The crawl you have open is pressed into the page rather than outlined:
       // soft UI has no borders to thicken.
       pressed: isOpen,
-      glow: isOpen ? CrawlStatTheme.accent : null,
+      glow: isOpen ? CrawlStatTheme.palette(context).accent : null,
       // The tap belongs to the panel, not to an InkWell inside it: an InkWell
       // paints its hover as a square, which showed as a grey box poking out
       // of the card's rounded corners.
@@ -265,7 +269,10 @@ class _ProjectCard extends ConsumerWidget {
                 _StateBadge(state: project.state),
                 if (isOpen) ...[
                   const SizedBox(width: 6),
-                  const TonePill('Open', color: CrawlStatTheme.accent),
+                  TonePill(
+                    'Open',
+                    color: CrawlStatTheme.palette(context).accent,
+                  ),
                 ],
                 const Spacer(),
                 Text(
@@ -289,12 +296,16 @@ class _ProjectCard extends ConsumerWidget {
                 _Metric(
                   label: 'Errors',
                   value: formatCount(project.errors),
-                  color: project.errors > 0 ? CrawlStatTheme.error : null,
+                  color: project.errors > 0
+                      ? CrawlStatTheme.palette(context).error
+                      : null,
                 ),
                 _Metric(
                   label: 'Warnings',
                   value: formatCount(project.warnings),
-                  color: project.warnings > 0 ? CrawlStatTheme.warning : null,
+                  color: project.warnings > 0
+                      ? CrawlStatTheme.palette(context).warning
+                      : null,
                 ),
                 _Metric(label: 'Size', value: formatBytes(project.sizeBytes)),
               ],
@@ -424,11 +435,11 @@ class _StatusBreakdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final segments = [
-      ('2xx', stats.status2Xx, CrawlStatTheme.success),
-      ('3xx', stats.status3Xx, CrawlStatTheme.warning),
-      ('4xx', stats.status4Xx, CrawlStatTheme.error),
+      ('2xx', stats.status2Xx, CrawlStatTheme.palette(context).success),
+      ('3xx', stats.status3Xx, CrawlStatTheme.palette(context).warning),
+      ('4xx', stats.status4Xx, CrawlStatTheme.palette(context).error),
       ('5xx', stats.status5Xx, const Color(0xFFB91C4B)),
-      ('Failed', stats.failed, CrawlStatTheme.notice),
+      ('Failed', stats.failed, CrawlStatTheme.palette(context).notice),
     ];
     final total = segments.fold<int>(0, (sum, segment) => sum + segment.$2);
 
@@ -543,12 +554,12 @@ class _StateBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (state) {
-      'finished' => ('Finished', CrawlStatTheme.success),
-      'running' => ('Running', CrawlStatTheme.accent),
-      'paused' => ('Paused', CrawlStatTheme.warning),
-      'cancelled' => ('Stopped', CrawlStatTheme.warning),
-      'failed' => ('Failed', CrawlStatTheme.error),
-      _ => ('Unknown', CrawlStatTheme.notice),
+      'finished' => ('Finished', CrawlStatTheme.palette(context).success),
+      'running' => ('Running', CrawlStatTheme.palette(context).accent),
+      'paused' => ('Paused', CrawlStatTheme.palette(context).warning),
+      'cancelled' => ('Stopped', CrawlStatTheme.palette(context).warning),
+      'failed' => ('Failed', CrawlStatTheme.palette(context).error),
+      _ => ('Unknown', CrawlStatTheme.palette(context).notice),
     };
     return TonePill(label, color: color, dot: true);
   }
@@ -626,7 +637,7 @@ class _ProjectMenu extends ConsumerWidget {
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: FilledButton.styleFrom(
-              backgroundColor: CrawlStatTheme.error,
+              backgroundColor: CrawlStatTheme.palette(context).error,
             ),
             child: const Text('Delete'),
           ),

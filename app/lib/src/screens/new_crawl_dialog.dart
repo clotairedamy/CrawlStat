@@ -378,11 +378,12 @@ class _ModeSelector extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 11),
                   decoration: BoxDecoration(
                     color: mode == id
-                        ? CrawlStatTheme.accent.withValues(alpha: 0.1)
+                        ? CrawlStatTheme.palette(context).accent
+                              .withValues(alpha: 0.1)
                         : null,
                     border: Border.all(
                       color: mode == id
-                          ? CrawlStatTheme.accent
+                          ? CrawlStatTheme.palette(context).accent
                           : theme.dividerColor,
                     ),
                     borderRadius: BorderRadius.circular(7),
@@ -393,14 +394,16 @@ class _ModeSelector extends StatelessWidget {
                         icon,
                         size: 17,
                         color: mode == id
-                            ? CrawlStatTheme.accent
+                            ? CrawlStatTheme.palette(context).accent
                             : theme.colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(height: 5),
                       Text(
                         label,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: mode == id ? CrawlStatTheme.accent : null,
+                          color: mode == id
+                              ? CrawlStatTheme.palette(context).accent
+                              : null,
                           fontWeight: mode == id ? FontWeight.w600 : null,
                         ),
                       ),

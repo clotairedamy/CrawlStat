@@ -481,7 +481,7 @@ class Sparkline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final line = color ?? CrawlStatTheme.accent;
+    final line = color ?? CrawlStatTheme.palette(context).accent;
     return SizedBox(
       height: height,
       width: width,
@@ -577,7 +577,8 @@ class SeverityBar extends StatelessWidget {
       return Container(
         height: height,
         decoration: BoxDecoration(
-          color: CrawlStatTheme.success.withValues(alpha: 0.25),
+          color: CrawlStatTheme.palette(context).success
+              .withValues(alpha: 0.25),
           borderRadius: BorderRadius.circular(height / 2),
         ),
       );
@@ -590,9 +591,9 @@ class SeverityBar extends StatelessWidget {
         child: Row(
           children: [
             for (final (count, colour) in [
-              (errors, CrawlStatTheme.error),
-              (warnings, CrawlStatTheme.warning),
-              (notices, CrawlStatTheme.notice),
+              (errors, CrawlStatTheme.palette(context).error),
+              (warnings, CrawlStatTheme.palette(context).warning),
+              (notices, CrawlStatTheme.palette(context).notice),
             ])
               if (count > 0)
                 Expanded(

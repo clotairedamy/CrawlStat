@@ -31,7 +31,10 @@ import '../theme/theme.dart';
 /// picture has to be readable, not merely correct.
 ///
 /// The depth ring is what makes it an *SEO* diagram rather than a generic
-/// graph: distance from the centre is clicks from the home page.
+/// graph: distance from the centre is clicks from the home page. The angle is
+/// the site's sections: each top-level folder gets a wedge in proportion to
+/// its size, so `/blog` and `/shop` sit in their own labelled slices instead
+/// of being stirred together into one ball.
 ///
 /// The simulation is cooled by a falling temperature and then stops. A graph
 /// that jiggles forever is a laptop fan at full speed for no benefit, and a
@@ -46,6 +49,7 @@ class GraphNodeData {
     required this.depth,
     required this.inlinks,
     this.status,
+    this.linkScore = 0,
   });
 
   final int id;
@@ -54,6 +58,10 @@ class GraphNodeData {
   final int depth;
   final int inlinks;
   final int? status;
+
+  /// Internal link score, 0–100. Zero when the crawl's audits have not run,
+  /// in which case nodes are sized by inlinks instead.
+  final double linkScore;
 }
 
 /// A link between two pages in the diagram.
@@ -81,6 +89,114 @@ class GraphParticle {
 /// drawing it ten times the area makes everything else invisible.
 double nodeRadius(int inlinks, {double base = 4.5, double scale = 2.4}) {
   return base + math.sqrt(inlinks.toDouble()) * scale;
+}
+
+/// How big a node is drawn, from its weight relative to the heaviest node in
+/// the diagram (0–1).
+///
+/// Relative, not absolute: on a site where the menu links every page from
+/// every other, absolute inlink counts make every node large and the diagram
+/// a solid blob. Measured against the strongest page, the home page and the
+/// real hubs stand out and the long tail recedes to dots.
+double relativeRadius(double weight) {
+  return 2.6 + math.sqrt(weight.clamp(0.0, 1.0)) * 11;
+}
+
+/// The URL's path segments, without query or fragment.
+List<String> pathSegments(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return const [];
+  return [
+    for (final segment in uri.pathSegments)
+      if (segment.isNotEmpty) segment,
+  ];
+}
+
+/// The top-level section a page belongs to: `/blog` for `/blog/post`, and
+/// `/` for the home page and single files at the root such as `/about.html`.
+String sectionOf(String url) {
+  final segments = pathSegments(url);
+  if (segments.isEmpty) return '/';
+  if (segments.length == 1 && segments.first.contains('.')) return '/';
+  return '/${segments.first}';
+}
+
+/// Whether a page lives in the folder `path` (`/blog/archive`), at any depth.
+bool inSection(String url, String path) {
+  if (path == '/' || path.isEmpty) return true;
+  final own = '/${pathSegments(url).join('/')}';
+  return own == path || own.startsWith('$path/');
+}
+
+/// One section's slice of the diagram.
+class GraphWedge {
+  const GraphWedge({
+    required this.label,
+    required this.start,
+    required this.sweep,
+    required this.count,
+  });
+
+  /// `/blog`, or `null` for the small sections folded together.
+  final String? label;
+
+  /// Radians, clockwise from three o'clock.
+  final double start;
+  final double sweep;
+  final int count;
+
+  double get middle => start + sweep / 2;
+}
+
+/// Divide the circle between the site's top-level sections, in proportion to
+/// how many nodes each has, and give every node an angle inside its own
+/// section's slice.
+///
+/// Sections too small to read as a slice are folded together at the end.
+/// Within a slice, nodes are ordered by URL, so subfolders sit side by side.
+(List<GraphWedge>, List<double>) sectionWedges(List<GraphNodeData> nodes) {
+  final angles = List<double>.filled(nodes.length, 0);
+  if (nodes.isEmpty) return (const [], angles);
+
+  final groups = <String, List<int>>{};
+  for (final (index, node) in nodes.indexed) {
+    groups.putIfAbsent(sectionOf(node.url), () => []).add(index);
+  }
+  final smallest = math.max(3, (nodes.length * 0.02).ceil());
+  final named = <(String?, List<int>)>[];
+  final other = <int>[];
+  for (final MapEntry(key: label, value: members) in groups.entries) {
+    if (members.length >= smallest) {
+      named.add((label, members));
+    } else {
+      other.addAll(members);
+    }
+  }
+  named.sort((a, b) {
+    final bySize = b.$2.length.compareTo(a.$2.length);
+    return bySize != 0 ? bySize : a.$1!.compareTo(b.$1!);
+  });
+  if (other.isNotEmpty) named.add((null, other));
+
+  final wedges = <GraphWedge>[];
+  var start = -math.pi / 2;
+  for (final (label, members) in named) {
+    final sweep = members.length / nodes.length * math.pi * 2;
+    members.sort((a, b) => nodes[a].url.compareTo(nodes[b].url));
+    for (final (k, index) in members.indexed) {
+      angles[index] = start + (k + 0.5) / members.length * sweep;
+    }
+    wedges.add(
+      GraphWedge(
+        label: label,
+        start: start,
+        sweep: sweep,
+        count: members.length,
+      ),
+    );
+    start += sweep;
+  }
+  return (wedges, angles);
 }
 
 /// The ring a node of this depth sits on, as a fraction of the radius.
@@ -117,6 +233,8 @@ void relaxGraph(
   List<(int, int)> edges,
   List<double> ringFor, {
   required double temperature,
+  List<Offset>? anchors,
+  double anchorStrength = 0.014,
   double repulsion = 2400,
   double springLength = 46,
   double springStrength = 0.016,
@@ -190,6 +308,16 @@ void relaxGraph(
     particle.vy += particle.y / distance * pull;
   }
 
+  // The section wedge: a gentle pull towards the node's place in its
+  // section's slice. Weak enough that links still decide the fine layout.
+  if (anchors != null && anchors.length == count) {
+    for (var i = 0; i < count; i++) {
+      final particle = particles[i];
+      particle.vx += (anchors[i].dx - particle.x) * anchorStrength;
+      particle.vy += (anchors[i].dy - particle.y) * anchorStrength;
+    }
+  }
+
   for (final particle in particles) {
     particle.vx *= damping;
     particle.vy *= damping;
@@ -216,12 +344,17 @@ class SiteGraphView extends StatefulWidget {
     required this.edges,
     this.onSelected,
     this.selectedId,
+    this.highlight,
   });
 
   final List<GraphNodeData> nodes;
   final List<GraphEdgeData> edges;
   final ValueChanged<GraphNodeData>? onSelected;
   final int? selectedId;
+
+  /// A folder path (`/blog`) whose pages are drawn in the accent colour while
+  /// the rest of the site recedes.
+  final String? highlight;
 
   @override
   State<SiteGraphView> createState() => _SiteGraphViewState();
@@ -234,6 +367,12 @@ class _SiteGraphViewState extends State<SiteGraphView>
   late List<(int, int)> _edgeIndices;
   late Map<int, int> _indexOf;
   late int _maxDepth;
+  late List<double> _radii;
+  late List<Offset> _anchors;
+  late List<GraphWedge> _wedges;
+
+  /// Node indices biggest first, for deciding which ones get a label.
+  late List<int> _bySize;
 
   Ticker? _ticker;
   double _temperature = 24;
@@ -268,34 +407,75 @@ class _SiteGraphViewState extends State<SiteGraphView>
   }
 
   void _build() {
+    _highlightSet = null;
     _indexOf = {
       for (final (index, node) in widget.nodes.indexed) node.id: index,
     };
     _maxDepth = widget.nodes.fold<int>(0, (a, n) => math.max(a, n.depth));
 
-    // Seeded deterministically: the same crawl lays out the same way every
-    // time it is opened, so the picture a user learned yesterday is the
-    // picture they see today.
-    final random = math.Random(1709);
-    _particles = [
+    final scored = widget.nodes.any((node) => node.linkScore > 0);
+    final heaviest = widget.nodes.fold<double>(
+      0,
+      (a, n) => math.max(a, scored ? n.linkScore : n.inlinks.toDouble()),
+    );
+    _radii = [
       for (final node in widget.nodes)
-        () {
-          final ring = depthRing(node.depth, _maxDepth) * 240;
-          final angle = random.nextDouble() * math.pi * 2;
-          return GraphParticle(
-            x: math.cos(angle) * ring + random.nextDouble() * 6 - 3,
-            y: math.sin(angle) * ring + random.nextDouble() * 6 - 3,
-          );
-        }(),
+        relativeRadius(
+          heaviest <= 0
+              ? 0
+              : (scored ? node.linkScore : node.inlinks.toDouble()) / heaviest,
+        ),
     ];
+    _bySize = List.generate(widget.nodes.length, (i) => i)
+      ..sort((a, b) => _radii[b].compareTo(_radii[a]));
+
     _rings = [
       for (final node in widget.nodes) depthRing(node.depth, _maxDepth) * 240,
+    ];
+    final (wedges, angles) = sectionWedges(widget.nodes);
+    _wedges = wedges;
+    _anchors = [
+      for (var i = 0; i < widget.nodes.length; i++)
+        Offset(
+          math.cos(angles[i]) * _rings[i],
+          math.sin(angles[i]) * _rings[i],
+        ),
+    ];
+
+    // Seeded deterministically: the same crawl lays out the same way every
+    // time it is opened, so the picture a user learned yesterday is the
+    // picture they see today. Each node starts in its section's wedge.
+    final random = math.Random(1709);
+    _particles = [
+      for (var i = 0; i < widget.nodes.length; i++)
+        GraphParticle(
+          x: _anchors[i].dx + random.nextDouble() * 6 - 3,
+          y: _anchors[i].dy + random.nextDouble() * 6 - 3,
+        ),
     ];
     _edgeIndices = [
       for (final edge in widget.edges)
         if (_indexOf[edge.source] != null && _indexOf[edge.target] != null)
           (_indexOf[edge.source]!, _indexOf[edge.target]!),
     ];
+  }
+
+  String? _highlightFor;
+  Set<int>? _highlightSet;
+
+  /// The highlighted nodes, worked out once per highlight rather than once
+  /// per frame.
+  Set<int>? _highlighted() {
+    final path = widget.highlight;
+    if (path == null) return null;
+    if (path != _highlightFor || _highlightSet == null) {
+      _highlightFor = path;
+      _highlightSet = {
+        for (final (index, node) in widget.nodes.indexed)
+          if (inSection(node.url, path)) index,
+      };
+    }
+    return _highlightSet;
   }
 
   void _start() {
@@ -312,7 +492,13 @@ class _SiteGraphViewState extends State<SiteGraphView>
       // second instead of seven.
       final iterations = _step < 120 ? 4 : 1;
       for (var i = 0; i < iterations; i++) {
-        relaxGraph(_particles, _edgeIndices, _rings, temperature: _temperature);
+        relaxGraph(
+          _particles,
+          _edgeIndices,
+          _rings,
+          anchors: _anchors,
+          temperature: _temperature,
+        );
         _temperature = math.max(0.35, _temperature * 0.985);
         _step++;
       }
@@ -355,10 +541,7 @@ class _SiteGraphViewState extends State<SiteGraphView>
     for (var i = _particles.length - 1; i >= 0; i--) {
       final particle = _particles[i];
       final at = Offset(particle.x * scale, particle.y * scale) + origin;
-      final radius = math.max(
-        8.0,
-        nodeRadius(widget.nodes[i].inlinks) * math.max(scale, 0.6),
-      );
+      final radius = math.max(8.0, _radii[i] * math.max(scale, 0.6));
       if ((at - local).distanceSquared <= radius * radius) return i;
     }
     return null;
@@ -430,6 +613,12 @@ class _SiteGraphViewState extends State<SiteGraphView>
                     child: CustomPaint(
                       painter: _GraphPainter(
                         nodes: widget.nodes,
+                        radii: _radii,
+                        bySize: _bySize,
+                        wedges: _wedges,
+                        highlight: widget.highlight,
+                        highlighted: _highlighted(),
+                        inkColour: theme.colorScheme.onSurface,
                         particles: _particles,
                         edges: _edgeIndices,
                         maxDepth: _maxDepth,
@@ -439,7 +628,7 @@ class _SiteGraphViewState extends State<SiteGraphView>
                             ? null
                             : _indexOf[widget.selectedId!],
                         baseColour: theme.colorScheme.onSurfaceVariant,
-                        accent: CrawlStatTheme.accent,
+                        accent: CrawlStatTheme.palette(context).accent,
                         edgeColour: theme.colorScheme.onSurfaceVariant
                             .withValues(alpha: 0.13),
                       ),
@@ -464,6 +653,12 @@ class _SiteGraphViewState extends State<SiteGraphView>
 class _GraphPainter extends CustomPainter {
   _GraphPainter({
     required this.nodes,
+    required this.radii,
+    required this.bySize,
+    required this.wedges,
+    required this.highlight,
+    required this.highlighted,
+    required this.inkColour,
     required this.particles,
     required this.edges,
     required this.maxDepth,
@@ -476,6 +671,14 @@ class _GraphPainter extends CustomPainter {
   });
 
   final List<GraphNodeData> nodes;
+  final List<double> radii;
+  final List<int> bySize;
+  final List<GraphWedge> wedges;
+  final String? highlight;
+
+  /// Indices of the nodes in [highlight], or `null` when nothing is.
+  final Set<int>? highlighted;
+  final Color inkColour;
   final List<GraphParticle> particles;
   final List<(int, int)> edges;
   final int maxDepth;
@@ -525,10 +728,14 @@ class _GraphPainter extends CustomPainter {
       }
     }
 
+    final outer = 240 * scale;
+    _paintWedges(canvas, size, origin, outer);
+
     final focus = hovered ?? selected;
     // When a node is in focus, its own links are lit and the rest fade back.
     // Without this a few hundred edges are a grey fog and the diagram answers
-    // no question at all.
+    // no question at all. A highlighted section does the same for a whole
+    // folder at once.
     final connected = <int>{};
     if (focus != null) {
       for (final (source, target) in edges) {
@@ -537,29 +744,51 @@ class _GraphPainter extends CustomPainter {
       }
       connected.add(focus);
     }
+    bool faded(int i) => focus != null
+        ? !connected.contains(i)
+        : highlighted != null && !highlighted!.contains(i);
 
+    final quiet = focus != null || highlighted != null;
     final dim = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
-      ..color = focus == null
-          ? edgeColour
-          : edgeColour.withValues(alpha: edgeColour.a * 0.35);
+      ..color = quiet
+          ? edgeColour.withValues(alpha: edgeColour.a * 0.35)
+          : edgeColour;
     final lit = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6
       ..color = accent.withValues(alpha: 0.75);
+    final within = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = accent.withValues(alpha: 0.22);
 
     for (final (source, target) in edges) {
       final touches = focus != null && (source == focus || target == focus);
-      canvas.drawLine(at(source), at(target), touches ? lit : dim);
+      final inside =
+          focus == null &&
+          highlighted != null &&
+          highlighted!.contains(source) &&
+          highlighted!.contains(target);
+      canvas.drawLine(
+        at(source),
+        at(target),
+        touches ? lit : (inside ? within : dim),
+      );
     }
 
     for (var i = 0; i < nodes.length; i++) {
       final node = nodes[i];
       final centre = at(i);
-      final radius = nodeRadius(node.inlinks) * math.max(scale, 0.6);
-      final faded = focus != null && !connected.contains(i);
-      final colour = nodeColour(node.status, baseColour);
+      final radius = radii[i] * math.max(scale, 0.6);
+      final isFaded = faded(i);
+      final working = (node.status ?? 0) >= 200 && (node.status ?? 0) < 300;
+      // Broken pages keep their status colour everywhere; working pages in
+      // the highlighted section take the accent, the rest stay neutral.
+      final colour = highlighted != null && highlighted!.contains(i) && working
+          ? accent
+          : nodeColour(node.status, baseColour);
       final isFocus = i == focus;
 
       if (isFocus) {
@@ -577,7 +806,7 @@ class _GraphPainter extends CustomPainter {
       canvas.drawCircle(
         centre.translate(0, 1),
         radius,
-        Paint()..color = Colors.black.withValues(alpha: faded ? 0.25 : 0.55),
+        Paint()..color = Colors.black.withValues(alpha: isFaded ? 0.25 : 0.55),
       );
       canvas.drawCircle(
         centre,
@@ -588,9 +817,9 @@ class _GraphPainter extends CustomPainter {
             end: Alignment.bottomCenter,
             colors: Soft.rampFrom(colour),
           ).createShader(Rect.fromCircle(center: centre, radius: radius))
-          ..color = colour.withValues(alpha: faded ? 0.35 : 1),
+          ..color = colour.withValues(alpha: isFaded ? 0.35 : 1),
       );
-      if (faded) {
+      if (isFaded) {
         canvas.drawCircle(
           centre,
           radius,
@@ -607,27 +836,120 @@ class _GraphPainter extends CustomPainter {
             ..color = accent,
         );
       }
+    }
 
-      // Labels only on the pages big enough to matter, and only when zoomed
-      // in far enough to read them. A diagram captioned everywhere is a wall
-      // of text with some circles behind it.
-      final labelWorthIt = radius >= 9 || isFocus;
-      if (labelWorthIt && scale > 0.5 && !faded) {
-        final painter = TextPainter(
-          text: TextSpan(
-            text: node.label,
-            style: TextStyle(
-              color: isFocus ? accent : baseColour,
-              fontSize: 10,
-              fontWeight: isFocus ? FontWeight.w700 : FontWeight.w500,
-            ),
+    // Labels last, on top of every node, and only where they fit: the focus
+    // first, then the biggest pages, skipping any that would overlap one
+    // already placed. A diagram captioned everywhere is a wall of text with
+    // some circles behind it.
+    if (scale <= 0.4) return;
+    final candidates = <int>[
+      ?focus,
+      if (highlighted != null)
+        ...bySize.where((i) => highlighted!.contains(i)).take(14),
+      ...bySize.take(highlighted == null ? 22 : 4),
+    ];
+    final placed = <Rect>[];
+    final seen = <int>{};
+    for (final i in candidates) {
+      if (!seen.add(i)) continue;
+      if (i != focus && faded(i)) continue;
+      final centre = at(i);
+      final radius = radii[i] * math.max(scale, 0.6);
+      final isFocus = i == focus;
+      final painter = TextPainter(
+        text: TextSpan(
+          text: nodes[i].label,
+          style: TextStyle(
+            color: isFocus ? inkColour : baseColour,
+            fontSize: 10.5,
+            fontWeight: isFocus ? FontWeight.w700 : FontWeight.w500,
+            shadows: const [Shadow(color: Color(0xCC000000), blurRadius: 4)],
           ),
-          textDirection: TextDirection.ltr,
-          maxLines: 1,
-          ellipsis: '…',
-        )..layout(maxWidth: 104);
-        painter.paint(canvas, centre + Offset(-painter.width / 2, radius + 4));
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '…',
+      )..layout(maxWidth: 120);
+      final topLeft = centre + Offset(-painter.width / 2, radius + 3);
+      final box = (topLeft & painter.size).inflate(2);
+      if (!isFocus && placed.any(box.overlaps)) continue;
+      placed.add(box);
+      painter.paint(canvas, topLeft);
+    }
+  }
+
+  /// Faint spokes between the sections and each section's name outside the
+  /// outermost ring.
+  void _paintWedges(Canvas canvas, Size size, Offset origin, double outer) {
+    if (wedges.length < 2 || outer < 40) return;
+    final spoke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = baseColour.withValues(alpha: 0.10);
+    final inner = outer * 0.18;
+    for (final wedge in wedges) {
+      final direction = Offset(math.cos(wedge.start), math.sin(wedge.start));
+      canvas.drawLine(
+        origin + direction * inner,
+        origin + direction * (outer + 10),
+        spoke,
+      );
+    }
+
+    for (final wedge in wedges) {
+      // Too thin a slice for its name to sit beside it without colliding.
+      if (wedge.sweep * outer < 36) continue;
+      final lit =
+          highlight != null &&
+          wedge.label != null &&
+          (highlight == wedge.label ||
+              highlight!.startsWith('${wedge.label}/'));
+      final painter = TextPainter(
+        text: TextSpan(
+          children: [
+            TextSpan(
+              text: wedge.label ?? 'other',
+              style: TextStyle(
+                color: lit ? inkColour : baseColour,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            TextSpan(
+              text: '  ${wedge.count}',
+              style: TextStyle(
+                color: baseColour.withValues(alpha: 0.7),
+                fontSize: 10.5,
+              ),
+            ),
+          ],
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout(maxWidth: 160);
+      final direction = Offset(math.cos(wedge.middle), math.sin(wedge.middle));
+      final anchor = origin + direction * (outer + 18);
+      // Text grows away from the circle: leftwards on the left-hand side,
+      // rightwards on the right, centred at the top and bottom.
+      final dx = direction.dx < -0.3
+          ? -painter.width
+          : direction.dx > 0.3
+          ? 0.0
+          : -painter.width / 2;
+      final dy = direction.dy < -0.3
+          ? -painter.height
+          : direction.dy > 0.3
+          ? 0.0
+          : -painter.height / 2;
+      if (lit) {
+        final box = (anchor + Offset(dx, dy)) & painter.size;
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(box.inflate(5), const Radius.circular(8)),
+          Paint()..color = accent.withValues(alpha: 0.22),
+        );
       }
+      painter.paint(canvas, anchor + Offset(dx, dy));
     }
   }
 
@@ -683,6 +1005,11 @@ class _Tooltip extends StatelessWidget {
                   children: [
                     _Fact(label: 'Depth', value: '${node.depth}'),
                     _Fact(label: 'Inlinks', value: '${node.inlinks}'),
+                    if (node.linkScore > 0)
+                      _Fact(
+                        label: 'Link score',
+                        value: node.linkScore.toStringAsFixed(0),
+                      ),
                     _Fact(
                       label: 'Status',
                       value: node.status?.toString() ?? '—',

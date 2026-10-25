@@ -276,8 +276,8 @@ class _Rail extends ConsumerWidget {
                       ? TonePill(
                           crawl.phase == CrawlPhase.paused ? 'Paused' : 'Live',
                           color: crawl.phase == CrawlPhase.paused
-                              ? CrawlStatTheme.warning
-                              : CrawlStatTheme.success,
+                              ? CrawlStatTheme.palette(context).warning
+                              : CrawlStatTheme.palette(context).success,
                           dot: true,
                         )
                       : null,
@@ -308,8 +308,14 @@ class _Rail extends ConsumerWidget {
                 ),
                 destination(
                   Glyph.readerFlow,
-                  'Reader flow',
+                  'Journeys',
                   Routes.ux,
+                  needsProject: true,
+                ),
+                destination(
+                  Glyph.accessibility,
+                  'Accessibility',
+                  Routes.accessibility,
                   needsProject: true,
                 ),
                 destination(Glyph.compare, 'Compare', Routes.compare),
@@ -1069,7 +1075,9 @@ class _LiveRingState extends State<_LiveRing>
   Widget build(BuildContext context) {
     final crawl = widget.crawl;
     final paused = crawl.phase == CrawlPhase.paused;
-    final colour = paused ? CrawlStatTheme.warning : CrawlStatTheme.success;
+    final colour = paused
+        ? CrawlStatTheme.palette(context).warning
+        : CrawlStatTheme.palette(context).success;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -1255,6 +1263,11 @@ class ScreenHeader extends StatelessWidget {
                       ),
                       child: Wrap(
                         alignment: WrapAlignment.end,
+                        // Centred, not the default top-alignment: the round
+                        // icon buttons and the pill buttons are different
+                        // heights, and top-aligning them left the circles
+                        // sitting visibly high on every screen header.
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         spacing: 8,
                         runSpacing: 8,
                         children: actions,

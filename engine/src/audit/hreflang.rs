@@ -33,6 +33,13 @@ const REGIONS: &str = "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD 
     SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU \
     WF WS YE YT ZA ZM ZW";
 
+/// Is this an ISO 639-1 language code?
+pub(crate) fn is_known_language(code: &str) -> bool {
+    LANGUAGES
+        .split(' ')
+        .any(|known| known.eq_ignore_ascii_case(code.trim()))
+}
+
 /// Is this a usable hreflang value?
 pub fn is_valid(raw: &str) -> bool {
     let value = raw.trim();

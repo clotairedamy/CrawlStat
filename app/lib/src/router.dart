@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
+import 'screens/accessibility_screen.dart';
 import 'screens/compare_screen.dart';
 import 'screens/crawl_screen.dart';
 import 'screens/issues_screen.dart';
@@ -25,6 +26,7 @@ class Routes {
   static const plan = '/plan';
   static const visualise = '/visualise';
   static const ux = '/reader-flow';
+  static const accessibility = '/accessibility';
   static const compare = '/compare';
   static const settings = '/settings';
 }
@@ -90,6 +92,11 @@ GoRouter buildRouter() {
             path: Routes.ux,
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: UxScreen()),
+          ),
+          GoRoute(
+            path: Routes.accessibility,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: AccessibilityScreen()),
           ),
           GoRoute(
             path: Routes.compare,

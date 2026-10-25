@@ -180,7 +180,7 @@ class _PanelTabs extends StatelessWidget {
                     border: Border(
                       bottom: BorderSide(
                         color: selected == index
-                            ? CrawlStatTheme.accent
+                            ? CrawlStatTheme.palette(context).accent
                             : Colors.transparent,
                         width: 2,
                       ),
@@ -191,7 +191,9 @@ class _PanelTabs extends StatelessWidget {
                         ? '${tabs[index]} ${counts[index]}'
                         : tabs[index],
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: selected == index ? CrawlStatTheme.accent : null,
+                      color: selected == index
+                          ? CrawlStatTheme.palette(context).accent
+                          : null,
                       fontWeight: selected == index ? FontWeight.w600 : null,
                     ),
                   ),
@@ -279,7 +281,7 @@ class _OverviewTab extends StatelessWidget {
           _Pair(
             label: 'Error',
             value: row.errorKind,
-            color: CrawlStatTheme.error,
+            color: CrawlStatTheme.palette(context).error,
           ),
         ],
       ],
@@ -399,7 +401,7 @@ class _LinksTab extends StatelessWidget {
                   Text(
                     'nofollow',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: CrawlStatTheme.warning,
+                      color: CrawlStatTheme.palette(context).warning,
                     ),
                   ),
               ],
@@ -451,7 +453,7 @@ class _ImagesTab extends StatelessWidget {
                   Text(
                     'no alt attribute',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: CrawlStatTheme.warning,
+                      color: CrawlStatTheme.palette(context).warning,
                     ),
                   )
                 else if ((image.alt ?? '').isEmpty)

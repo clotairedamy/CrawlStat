@@ -549,7 +549,7 @@ class _HeaderCell<T> extends StatelessWidget {
       textAlign: column.align,
       style: theme.textTheme.labelMedium?.copyWith(
         color: sorted
-            ? CrawlStatTheme.accent
+            ? CrawlStatTheme.palette(context).accent
             : theme.colorScheme.onSurfaceVariant,
       ),
     );
@@ -569,7 +569,7 @@ class _HeaderCell<T> extends StatelessWidget {
             Icon(
               descending ? AppIcon.sortDescending : AppIcon.sortAscending,
               size: 12,
-              color: CrawlStatTheme.accent,
+              color: CrawlStatTheme.palette(context).accent,
             ),
           ],
         ],
@@ -644,7 +644,7 @@ class _ResizeHandleState extends State<_ResizeHandle> {
     final theme = Theme.of(context);
     final Color line;
     if (widget.active) {
-      line = CrawlStatTheme.accent;
+      line = CrawlStatTheme.palette(context).accent;
     } else if (_hovered) {
       line = theme.colorScheme.onSurfaceVariant;
     } else {
@@ -715,7 +715,8 @@ class _GridRow<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     Color? background;
     if (selected) {
-      background = CrawlStatTheme.accent.withValues(alpha: 0.14);
+      background = CrawlStatTheme.palette(context).accent
+          .withValues(alpha: 0.14);
     } else if (striped) {
       background = theme.colorScheme.surfaceContainer.withValues(alpha: 0.35);
     }
@@ -738,7 +739,9 @@ class _GridRow<T> extends StatelessWidget {
           children: [
             Container(
               width: _indicatorWidth,
-              color: cursor ? CrawlStatTheme.accent : Colors.transparent,
+              color: cursor
+                  ? CrawlStatTheme.palette(context).accent
+                  : Colors.transparent,
             ),
             for (final column in columns)
               SizedBox(

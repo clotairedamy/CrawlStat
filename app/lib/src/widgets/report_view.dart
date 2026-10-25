@@ -248,7 +248,7 @@ class _Bullet extends StatelessWidget {
           height: 6,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: color ?? CrawlStatTheme.accent,
+            color: color ?? CrawlStatTheme.palette(context).accent,
           ),
         ),
       ),

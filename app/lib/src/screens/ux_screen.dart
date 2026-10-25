@@ -1,32 +1,29 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../rust/api/project.dart' as rust;
+import '../rust/api/types.dart';
 import '../state/projects.dart';
+import '../state/settings.dart';
 import '../theme/icons.dart';
 import '../theme/soft.dart';
 import '../theme/theme.dart';
 import '../widgets/common.dart';
 import 'shell.dart';
 
-/// Pages worth analysing: the best-connected ones in the crawl.
-final uxPagesProvider = FutureProvider.family<List<rust.SiteNode>, String>((
-  ref,
-  path,
-) {
-  return rust.uxCandidatePages(dbPath: path, limit: 60);
-});
-
-final uxPersonasProvider = FutureProvider<List<rust.UxPersona>>((ref) {
+final _personasProvider = FutureProvider<List<rust.UxPersona>>((ref) {
   return rust.uxPersonas();
 });
 
-/// Where a page leads a reader, and where it loses them.
+/// Can a visitor actually find the thing they came for?
 ///
-/// Deliberately a button rather than something that runs on opening the
-/// screen: when the crawl did not keep raw HTML the analysis re-fetches the
-/// page, and a screen that quietly makes requests the moment you look at it is
-/// not what a privacy-first crawler should do.
+/// The earlier version of this screen scored one page's elements and left the
+/// reader to work out what that meant. This one answers a question somebody
+/// actually asks out loud — *can a first-time visitor get from the front door
+/// to the pricing page, and how many clicks does it cost?* — by walking the
+/// crawled site the way a visitor would and showing the path it took.
 class UxScreen extends ConsumerStatefulWidget {
   const UxScreen({super.key});
 
@@ -35,26 +32,98 @@ class UxScreen extends ConsumerStatefulWidget {
 }
 
 class _UxScreenState extends ConsumerState<UxScreen> {
-  String _persona = 'task_oriented';
-  rust.SiteNode? _page;
-  rust.UxFlow? _flow;
+  String? _personaOverride;
+  List<rust.JourneyResult>? _results;
+  rust.JourneyResult? _custom;
+  rust.IaReport? _ia;
+  String? _rivalPath;
+  List<rust.TaskBenchmark>? _benchmark;
   String? _error;
   bool _running = false;
+  final TextEditingController _task = TextEditingController();
 
-  Future<void> _run(String dbPath) async {
-    final page = _page;
-    if (page == null) return;
+  /// The chosen visitor, falling back to the one set in Settings.
+  String get _persona =>
+      _personaOverride ?? ref.read(settingsProvider).defaultPersona;
+
+  @override
+  void dispose() {
+    _task.dispose();
+    super.dispose();
+  }
+
+  /// Run one task written in plain language — the thing a real study is
+  /// made of, as opposed to the seven presets.
+  Future<void> _runTask(String dbPath) async {
+    final task = _task.text.trim();
+    if (task.isEmpty) return;
     setState(() {
       _running = true;
       _error = null;
     });
     try {
-      final flow = await rust.uxAnalyse(
+      final result = await rust.runCustomJourney(
         dbPath: dbPath,
-        urlId: page.id,
+        persona: _persona,
+        task: task,
+      );
+      if (mounted) setState(() => _custom = result);
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    } finally {
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
+  /// The comparison a stakeholder actually responds to.
+  ///
+  /// "Our pricing is four clicks deep" is an opinion about a number. "Ours is
+  /// four and theirs is one" is a decision — and it needs no lab, no
+  /// recruiting and no sessions, only two crawls.
+  Future<void> _compare(String dbPath) async {
+    final rival = _rivalPath;
+    if (rival == null) return;
+    setState(() {
+      _running = true;
+      _error = null;
+    });
+    try {
+      final results = await rust.benchmarkAgainst(
+        ourPath: dbPath,
+        theirPath: rival,
         persona: _persona,
       );
-      if (mounted) setState(() => _flow = flow);
+      if (mounted) setState(() => _benchmark = results);
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    } finally {
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
+  Future<void> _loadArchitecture(String dbPath) async {
+    try {
+      final settings = ref.read(settingsProvider);
+      final report = await rust.architectureReport(
+        dbPath: dbPath,
+        deepThreshold: settings.deepThreshold,
+        crowdedThreshold: settings.crowdedThreshold,
+      );
+      if (mounted) setState(() => _ia = report);
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    }
+  }
+
+  Future<void> _run(String dbPath) async {
+    setState(() {
+      _running = true;
+      _error = null;
+    });
+    try {
+      final results = await rust.runJourneys(dbPath: dbPath, persona: _persona);
+      if (mounted) setState(() => _results = results);
+      await _loadArchitecture(dbPath);
     } on Object catch (error) {
       if (mounted) setState(() => _error = '$error');
     } finally {
@@ -66,70 +135,102 @@ class _UxScreenState extends ConsumerState<UxScreen> {
   Widget build(BuildContext context) {
     final path = ref.watch(openProjectProvider);
     if (path == null) return const NoProjectState();
+    final personas = ref.watch(_personasProvider).value ?? const [];
 
-    final pages = ref.watch(uxPagesProvider(path));
-    final personas = ref.watch(uxPersonasProvider);
+    final found = _results?.where((r) => r.outcome == 'reached').length ?? 0;
+    final missing =
+        _results
+            ?.where((r) => r.outcome != 'reached' && r.targetExists)
+            .length ??
+        0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const ScreenHeader(
-          title: 'Reader flow',
-          subtitle: 'Where a page leads someone — and where it loses them',
+        ScreenHeader(
+          title: 'Journeys',
+          subtitle: _results == null
+              ? 'Can a visitor find what they came for?'
+              : '$found of ${_results!.length} goals reachable'
+                    '${missing > 0 ? '  ·  $missing page${missing == 1 ? '' : 's'} '
+                              'exist but could not be found' : ''}',
         ),
         Expanded(
-          child: Padding(
+          child: ListView(
             padding: const EdgeInsets.fromLTRB(
               CrawlStatTheme.gutter,
               0,
               CrawlStatTheme.gutter,
               CrawlStatTheme.gutter,
             ),
-            child: pages.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => EmptyState(
-                icon: AppIcon.report,
-                title: 'Could not read the crawl',
-                message: '$error',
+            children: [
+              _Controls(
+                personas: personas,
+                persona: _persona,
+                running: _running,
+                onPersona: (id) => setState(() {
+                  _personaOverride = id;
+                  _results = null;
+                }),
+                onRun: () => _run(path),
               ),
-              data: (candidates) {
-                if (candidates.isEmpty) {
-                  return const EmptyState(
-                    icon: AppIcon.report,
-                    title: 'No pages to read',
-                    message: 'This crawl holds no fetched HTML pages yet.',
-                  );
-                }
-                _page ??= candidates.first;
-                return ListView(
-                  children: [
-                    _Controls(
-                      pages: candidates,
-                      selected: _page!,
-                      persona: _persona,
-                      personas: personas.value ?? const [],
-                      running: _running,
-                      onPage: (page) => setState(() {
-                        _page = page;
-                        _flow = null;
-                      }),
-                      onPersona: (persona) => setState(() {
-                        _persona = persona;
-                        _flow = null;
-                      }),
-                      onRun: () => _run(path),
+              const SizedBox(height: 16),
+              _TaskBox(
+                controller: _task,
+                running: _running,
+                result: _custom,
+                onRun: () => _runTask(path),
+              ),
+              const SizedBox(height: 16),
+              _BenchmarkCard(
+                projects: ref.watch(recentProjectsProvider),
+                ourPath: path,
+                rivalPath: _rivalPath,
+                results: _benchmark,
+                running: _running,
+                onRival: (value) => setState(() {
+                  _rivalPath = value;
+                  _benchmark = null;
+                }),
+                onRun: () => _compare(path),
+              ),
+              const SizedBox(height: 16),
+              if (_error != null)
+                InlineMessage(message: _error!, severity: 'error')
+              else if (_results == null)
+                const _Explainer()
+              else ...[
+                if (_results!.any((r) => r.unfetchedLinks > 20))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: InlineMessage(
+                      severity: 'warning',
+                      message:
+                          'This crawl did not fetch every page it found, so '
+                          'some routes are missing from the map. Finish the '
+                          'crawl for a reliable answer.',
                     ),
-                    const SizedBox(height: 16),
-                    if (_error != null)
-                      InlineMessage(message: _error!, severity: 'error')
-                    else if (_flow != null)
-                      _Result(flow: _flow!)
-                    else
-                      const _Explainer(),
-                  ],
-                );
-              },
-            ),
+                  ),
+                for (final result in _results!) ...[
+                  _JourneyCard(result: result),
+                  const SizedBox(height: 12),
+                ],
+                if (_ia != null) ...[
+                  const SizedBox(height: 8),
+                  _Architecture(
+                    report: _ia!,
+                    path: path,
+                    deepThreshold: ref.read(settingsProvider).deepThreshold,
+                    crowdedThreshold: ref
+                        .read(settingsProvider)
+                        .crowdedThreshold,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                const SizedBox(height: 4),
+                const _Caveat(),
+              ],
+            ],
           ),
         ),
       ],
@@ -139,22 +240,16 @@ class _UxScreenState extends ConsumerState<UxScreen> {
 
 class _Controls extends StatelessWidget {
   const _Controls({
-    required this.pages,
-    required this.selected,
-    required this.persona,
     required this.personas,
+    required this.persona,
     required this.running,
-    required this.onPage,
     required this.onPersona,
     required this.onRun,
   });
 
-  final List<rust.SiteNode> pages;
-  final rust.SiteNode selected;
-  final String persona;
   final List<rust.UxPersona> personas;
+  final String persona;
   final bool running;
-  final ValueChanged<rust.SiteNode> onPage;
   final ValueChanged<String> onPersona;
   final VoidCallback onRun;
 
@@ -168,40 +263,8 @@ class _Controls extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Page', style: theme.textTheme.labelMedium),
-          const SizedBox(height: 6),
-          SoftWell(
-            radius: CrawlStatTheme.controlRadius,
-            depth: 0.6,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                value: selected.id,
-                isExpanded: true,
-                dropdownColor: theme.colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(CrawlStatTheme.radius),
-                items: [
-                  for (final page in pages)
-                    DropdownMenuItem(
-                      value: page.id,
-                      child: Text(
-                        page.url,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: CrawlStatTheme.mono(context, size: 12.5),
-                      ),
-                    ),
-                ],
-                onChanged: (id) {
-                  final page = pages.where((p) => p.id == id).firstOrNull;
-                  if (page != null) onPage(page);
-                },
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text('Reader', style: theme.textTheme.labelMedium),
-          const SizedBox(height: 8),
+          Text('Who is visiting', style: theme.textTheme.labelMedium),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -220,7 +283,7 @@ class _Controls extends StatelessWidget {
                     option.label,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: option.id == persona
-                          ? CrawlStatTheme.accent
+                          ? CrawlStatTheme.palette(context).accent
                           : theme.colorScheme.onSurfaceVariant,
                       fontWeight: option.id == persona
                           ? FontWeight.w600
@@ -240,7 +303,7 @@ class _Controls extends StatelessWidget {
             child: SoftButton(
               icon: AppIcon.visualise,
               onPressed: running ? null : onRun,
-              child: Text(running ? 'Reading…' : 'Read this page'),
+              child: Text(running ? 'Walking the site…' : 'Run the journeys'),
             ),
           ),
         ],
@@ -249,7 +312,226 @@ class _Controls extends StatelessWidget {
   }
 }
 
-/// Shown before anything has been analysed: what this is, and what it is not.
+/// One goal, its outcome, and the path taken.
+class _JourneyCard extends StatefulWidget {
+  const _JourneyCard({required this.result});
+
+  final rust.JourneyResult result;
+
+  @override
+  State<_JourneyCard> createState() => _JourneyCardState();
+}
+
+class _JourneyCardState extends State<_JourneyCard> {
+  bool _open = false;
+
+  /// The three outcomes a designer needs to tell apart, because each has a
+  /// completely different fix.
+  (String, String, Color, IconData) _verdict() {
+    final result = widget.result;
+    if (result.outcome == 'reached') {
+      return (
+        'Found in ${result.clicks} click${result.clicks == 1 ? '' : 's'}',
+        'The path is signposted the whole way.',
+        CrawlStatTheme.palette(context).success,
+        AppIcon.ok,
+      );
+    }
+    if (result.targetExists) {
+      return (
+        'Page exists but was not found',
+        'The page is in the crawl'
+            '${result.shortestKnown != null ? ' at depth ${result.shortestKnown}' : ''}. '
+            'Nothing on the way signposts it, so a visitor hunting for this '
+            'would not get there.',
+        CrawlStatTheme.palette(context).error,
+        AppIcon.warning,
+      );
+    }
+    return (
+      'No such page',
+      'Nothing on this site looks like it. That is only a problem if it '
+          'should exist.',
+      CrawlStatTheme.palette(context).notice,
+      AppIcon.remove,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final result = widget.result;
+    final (headline, detail, tone, icon) = _verdict();
+    final expandable = result.steps.isNotEmpty || result.targetUrl != null;
+
+    return SoftPanel(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      onTap: expandable ? () => setState(() => _open = !_open) : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                margin: const EdgeInsets.only(right: 14),
+                padding: const EdgeInsets.all(1),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: Soft.rim(context),
+                  boxShadow: Soft.raised(context, depth: 0.4),
+                ),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: theme.colorScheme.surface,
+                    gradient: Soft.sheen(context),
+                  ),
+                  child: Icon(icon, size: 16, color: tone),
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(result.goalLabel, style: theme.textTheme.titleSmall),
+                    const SizedBox(height: 3),
+                    Text(
+                      headline,
+                      style: theme.textTheme.bodyMedium?.copyWith(color: tone),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(detail, style: theme.textTheme.bodySmall),
+                  ],
+                ),
+              ),
+              if (expandable)
+                Icon(
+                  _open ? AppIcon.chevronUp : AppIcon.chevronDown,
+                  size: 18,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+            ],
+          ),
+          if (_open) ...[
+            const SizedBox(height: 14),
+            SoftWell(
+              radius: CrawlStatTheme.controlRadius,
+              depth: 0.6,
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (result.steps.isEmpty)
+                    Text(
+                      'The visitor did not click anything — nothing on the '
+                      'home page pointed this way.',
+                      style: theme.textTheme.bodySmall,
+                    )
+                  else ...[
+                    Text('The path taken', style: theme.textTheme.labelMedium),
+                    const SizedBox(height: 8),
+                    for (final (index, step) in result.steps.indexed)
+                      _StepRow(step: step, index: index + 1),
+                  ],
+                  if (result.targetUrl != null &&
+                      result.outcome != 'reached') ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Where it actually is',
+                      style: theme.textTheme.labelMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    SelectableText(
+                      result.targetUrl!,
+                      style: CrawlStatTheme.mono(context, size: 12),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StepRow extends StatelessWidget {
+  const _StepRow({required this.step, required this.index});
+
+  final rust.JourneyStep step;
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 22,
+            child: Text(
+              '$index',
+              style: CrawlStatTheme.mono(
+                context,
+                size: 12,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      const TextSpan(text: 'clicked '),
+                      TextSpan(
+                        text: '“${step.anchor}”',
+                        style: TextStyle(
+                          color: CrawlStatTheme.palette(context).accent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  step.toUrl,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: CrawlStatTheme.mono(
+                    context,
+                    size: 11.5,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (step.alternatives.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    'also on offer: ${step.alternatives.join(' · ')}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Explainer extends StatelessWidget {
   const _Explainer();
 
@@ -264,180 +546,91 @@ class _Explainer extends StatelessWidget {
           Text('What this does', style: theme.textTheme.titleSmall),
           const SizedBox(height: 8),
           Text(
-            'It predicts the order a reader attends to things in, how attention '
-            'is shared out, and what goes wrong on the way: actions competing '
-            'for one decision, a primary action buried past where anyone is '
-            'still reading, a page with no way onward.',
+            'It starts at your home page and walks the crawled site the way a '
+            'visitor would: reads what is on offer, clicks whatever looks most '
+            'like what it came for, and repeats until it finds the page, runs '
+            'out of patience, or goes in a circle.\n\n'
+            'Each result separates the three cases that need different fixes: '
+            'the page was found, the page exists but nothing signposts it, or '
+            'there is no such page at all.',
             style: theme.textTheme.bodyMedium,
           ),
-          const SizedBox(height: 14),
-          Text('What it is not', style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
-          Text(
-            'It has not seen the page. CrawlStat has no browser, so there is no '
-            'layout, no pixel positions, no contrast and no screenshot — this '
-            'reads the markup. That is honest for keyboard and screen-reader '
-            'users, whose order really is the document order, and a reasonable '
-            'guess for everyone else. A page whose source order fights its '
-            'visual order will be described wrongly.\n\n'
-            'Treat it as a hypothesis worth testing, not a measurement, and '
-            'never as a substitute for watching a real person use the thing.',
-            style: theme.textTheme.bodySmall,
-          ),
         ],
       ),
     );
   }
 }
 
-class _Result extends StatelessWidget {
-  const _Result({required this.flow});
-
-  final rust.UxFlow flow;
+class _Caveat extends StatelessWidget {
+  const _Caveat();
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final top = flow.attention.take(12).toList();
-    final peak = top.isEmpty ? 1.0 : top.first.share;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _Verdict(flow: flow),
-        const SizedBox(height: 16),
-        SoftPanel(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    'Where the attention goes',
-                    style: theme.textTheme.titleSmall,
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${flow.nodeCount} elements · markup '
-                    '${flow.source == 'stored' ? 'from the crawl' : 'fetched now'}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              for (final item in top) ...[
-                _AttentionRow(item: item, peak: peak),
-                const SizedBox(height: 10),
-              ],
-            ],
-          ),
-        ),
-        if (flow.conflicts.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          _Conflicts(conflicts: flow.conflicts),
-        ],
-        if (flow.vagueLinks.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          _VagueLinks(labels: flow.vagueLinks),
-        ],
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Text(
+        'The simulated visitor reads link text, not pixels, and never uses '
+        'search or the back button. A journey that succeeds is good evidence '
+        'the path exists. A journey that fails is a hypothesis worth testing, '
+        'not proof that nobody can get there.',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
     );
   }
 }
 
-/// The findings, in a sentence each.
-class _Verdict extends StatelessWidget {
-  const _Verdict({required this.flow});
+/// Run one task of your own, in the words the study uses.
+class _TaskBox extends StatelessWidget {
+  const _TaskBox({
+    required this.controller,
+    required this.running,
+    required this.result,
+    required this.onRun,
+  });
 
-  final rust.UxFlow flow;
+  final TextEditingController controller;
+  final bool running;
+  final rust.JourneyResult? result;
+  final VoidCallback onRun;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final reachPercent = flow.nodeCount == 0
-        ? 0
-        : (flow.reach * 100 / flow.nodeCount).round();
-
-    final findings = <(String, String, Color)>[
-      (
-        'Reach',
-        'Gets through $reachPercent% of the page before deciding.',
-        CrawlStatTheme.notice,
-      ),
-      if (flow.stepsToAction == null)
-        (
-          'No clear action',
-          'Nothing on this page reads as the thing it wants you to do.',
-          CrawlStatTheme.warning,
-        )
-      else if (flow.actionOutOfReach)
-        (
-          'Action out of reach',
-          'The primary action is element ${flow.stepsToAction}, past where '
-              'this reader stops.',
-          CrawlStatTheme.error,
-        )
-      else
-        (
-          'Action reachable',
-          'The primary action is element ${flow.stepsToAction}, well inside '
-              'their patience.',
-          CrawlStatTheme.success,
-        ),
-      if (flow.deadEnd)
-        (
-          'Dead end',
-          'No onward link in the content — navigation does not count.',
-          CrawlStatTheme.error,
-        ),
-      (
-        'Coherence ${(flow.coherence * 100).round()}%',
-        flow.coherence > 0.35
-            ? 'Attention lands somewhere in particular.'
-            : 'Attention is spread thin — the page does not lead anywhere.',
-        flow.coherence > 0.35 ? CrawlStatTheme.success : CrawlStatTheme.warning,
-      ),
-      if (flow.decisions.isNotEmpty)
-        (
-          '${flow.decisions.length} decision point'
-              '${flow.decisions.length == 1 ? '' : 's'}',
-          'Places where several options appear at once.',
-          CrawlStatTheme.notice,
-        ),
-    ];
-
     return SoftPanel(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final (index, finding) in findings.indexed) ...[
-            if (index > 0) const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  margin: const EdgeInsets.only(top: 6, right: 12),
-                  decoration: BoxDecoration(
-                    gradient: glossOf(finding.$3),
-                    shape: BoxShape.circle,
+          Text('Try a task of your own', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 4),
+          Text(
+            'The seven above are the usual suspects. A real study has its own: '
+            '“find the returns policy”, “book a demo”.',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  decoration: const InputDecoration(
+                    hintText: 'find the returns policy',
                   ),
+                  onSubmitted: (_) => onRun(),
                 ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(finding.$1, style: theme.textTheme.titleSmall),
-                      const SizedBox(height: 2),
-                      Text(finding.$2, style: theme.textTheme.bodySmall),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 10),
+              SoftButton(
+                icon: AppIcon.search,
+                onPressed: running ? null : onRun,
+                child: const Text('Try it'),
+              ),
+            ],
+          ),
+          if (result != null) ...[
+            const SizedBox(height: 14),
+            _JourneyCard(result: result!),
           ],
         ],
       ),
@@ -445,98 +638,19 @@ class _Verdict extends StatelessWidget {
   }
 }
 
-class _AttentionRow extends StatelessWidget {
-  const _AttentionRow({required this.item, required this.peak});
+/// What the shape of the site does to a visitor.
+class _Architecture extends StatelessWidget {
+  const _Architecture({
+    required this.report,
+    required this.path,
+    required this.deepThreshold,
+    required this.crowdedThreshold,
+  });
 
-  final rust.UxAttention item;
-  final double peak;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final fraction = peak <= 0 ? 0.0 : (item.share / peak).clamp(0.0, 1.0);
-    final colour = switch (item.kind) {
-      'action' => CrawlStatTheme.accent,
-      final k when k.startsWith('h') => CrawlStatTheme.success,
-      'link' => CrawlStatTheme.warning,
-      _ => CrawlStatTheme.notice,
-    };
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 52,
-          child: Text(
-            '${(item.share * 100).toStringAsFixed(1)}%',
-            textAlign: TextAlign.right,
-            style: CrawlStatTheme.mono(
-              context,
-              size: 12.5,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      item.label.isEmpty ? '(unlabelled)' : item.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontStyle: item.label.isEmpty
-                            ? FontStyle.italic
-                            : FontStyle.normal,
-                        color: item.label.isEmpty
-                            ? theme.colorScheme.onSurfaceVariant
-                            : null,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    '${item.kind} · ${item.region}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 5),
-              SoftWell(
-                radius: 4,
-                depth: 0.5,
-                padding: const EdgeInsets.all(1),
-                child: SizedBox(
-                  height: 6,
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: fraction.clamp(0.015, 1.0),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(4),
-                        gradient: glossOf(colour),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _Conflicts extends StatelessWidget {
-  const _Conflicts({required this.conflicts});
-
-  final List<rust.UxConflict> conflicts;
+  final rust.IaReport report;
+  final String path;
+  final int deepThreshold;
+  final int crowdedThreshold;
 
   @override
   Widget build(BuildContext context) {
@@ -548,46 +662,138 @@ class _Conflicts extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(AppIcon.warning, size: 16, color: CrawlStatTheme.warning),
-              const SizedBox(width: 8),
-              Text('Competing actions', style: theme.textTheme.titleSmall),
+              Expanded(
+                child: Text(
+                  'How the site is put together',
+                  style: theme.textTheme.titleSmall,
+                ),
+              ),
+              SoftButton(
+                icon: AppIcon.download,
+                onPressed: () => _export(context),
+                child: const Text('Export'),
+              ),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            'Asked to choose between these at the same moment.',
+            '${report.pages} pages · deepest ${report.maxDepth} clicks from home '
+            '· ${report.medianLinks} links on a typical page',
             style: theme.textTheme.bodySmall,
           ),
-          for (final conflict in conflicts) ...[
-            const SizedBox(height: 12),
-            SoftWell(
-              radius: CrawlStatTheme.controlRadius,
-              depth: 0.6,
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${(conflict.share * 100).toStringAsFixed(0)}% of attention '
-                    'split ${conflict.labels.length} ways',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: CrawlStatTheme.warning,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  for (final label in conflict.labels)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: Text(
-                        label.isEmpty ? '(unlabelled)' : label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: CrawlStatTheme.mono(context, size: 12),
+          const SizedBox(height: 14),
+          if (report.findings.isEmpty)
+            Text(
+              'Nothing stood out. Labels are consistent, nothing is orphaned '
+              'and no page is drowning in links.',
+              style: theme.textTheme.bodyMedium,
+            )
+          else
+            for (final finding in report.findings) ...[
+              _Finding(finding: finding),
+              const SizedBox(height: 10),
+            ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _export(BuildContext context) async {
+    final target =
+        '${defaultExportDirectory()}${Platform.pathSeparator}ux-findings.md';
+    try {
+      await rust.exportUxReport(
+        dbPath: path,
+        outPath: target,
+        deepThreshold: deepThreshold,
+        crowdedThreshold: crowdedThreshold,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Written to $target')));
+      }
+    } on Object catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Export failed: $error')));
+      }
+    }
+  }
+}
+
+/// One finding, with the evidence folded away until asked for.
+class _Finding extends StatefulWidget {
+  const _Finding({required this.finding});
+
+  final rust.IaFinding finding;
+
+  @override
+  State<_Finding> createState() => _FindingState();
+}
+
+class _FindingState extends State<_Finding> {
+  bool _open = false;
+
+  /// Why this matters, in one line. A count on its own is not a finding.
+  String get _why => switch (widget.finding.kind) {
+    'ambiguous_label' =>
+      'Nobody can predict where it goes, and a screen reader\u2019s link list '
+          'becomes a row of identical entries.',
+    'inconsistent_label' =>
+      'A visitor cannot tell they have already been there.',
+    'orphan' =>
+      'Reachable only from a sitemap, a search result or a bookmark \u2014 '
+          'never by browsing.',
+    'too_deep' => 'Past about three clicks, browsing stops finding things.',
+    _ => 'When everything is offered at once, choosing becomes the task.',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SoftWell(
+      radius: CrawlStatTheme.controlRadius,
+      depth: 0.6,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _open = !_open),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.finding.summary,
+                        style: theme.textTheme.bodyMedium,
                       ),
-                    ),
-                ],
-              ),
+                      const SizedBox(height: 2),
+                      Text(_why, style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+                Icon(
+                  _open ? AppIcon.chevronUp : AppIcon.chevronDown,
+                  size: 16,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ],
             ),
+          ),
+          if (_open) ...[
+            const SizedBox(height: 10),
+            for (final line in widget.finding.evidence)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: SelectableText(
+                  line,
+                  style: CrawlStatTheme.mono(context, size: 11.5),
+                ),
+              ),
           ],
         ],
       ),
@@ -595,45 +801,190 @@ class _Conflicts extends StatelessWidget {
   }
 }
 
-class _VagueLinks extends StatelessWidget {
-  const _VagueLinks({required this.labels});
+/// How findable things are here, against how findable they are somewhere else.
+class _BenchmarkCard extends StatelessWidget {
+  const _BenchmarkCard({
+    required this.projects,
+    required this.ourPath,
+    required this.rivalPath,
+    required this.results,
+    required this.running,
+    required this.onRival,
+    required this.onRun,
+  });
 
-  final List<String> labels;
+  final List<ProjectInfo> projects;
+  final String ourPath;
+  final String? rivalPath;
+  final List<rust.TaskBenchmark>? results;
+  final bool running;
+  final ValueChanged<String> onRival;
+  final VoidCallback onRun;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final others = projects.where((p) => p.path != ourPath).toList();
+
     return SoftPanel(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Links that say nothing', style: theme.textTheme.titleSmall),
+          Text('Against someone else', style: theme.textTheme.titleSmall),
           const SizedBox(height: 4),
           Text(
-            'Out of context — in a screen reader\'s link list, or scanned down '
-            'a page — these give the reader nothing to go on.',
+            'Crawl a competitor, then run the same tasks on both. “Our pricing '
+            'is four clicks” is an opinion. “Ours is four and theirs is one” '
+            'is a decision.',
             style: theme.textTheme.bodySmall,
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final label in labels.take(12))
-                SoftWell(
-                  radius: 999,
-                  depth: 0.5,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 7,
-                  ),
-                  child: Text(
-                    '“$label”',
-                    style: CrawlStatTheme.mono(context, size: 12),
+          const SizedBox(height: 14),
+          if (others.isEmpty)
+            Text(
+              'Crawl another site first — anyone\u2019s. Then pick it here.',
+              style: theme.textTheme.bodyMedium,
+            )
+          else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: SoftWell(
+                    radius: CrawlStatTheme.controlRadius,
+                    depth: 0.6,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: rivalPath,
+                        isExpanded: true,
+                        hint: const Text('Pick a crawl to compare against'),
+                        dropdownColor: theme.colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(
+                          CrawlStatTheme.radius,
+                        ),
+                        items: [
+                          for (final project in others)
+                            DropdownMenuItem(
+                              value: project.path,
+                              child: Text(
+                                project.rootHost ??
+                                    project.path
+                                        .split(Platform.pathSeparator)
+                                        .last,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: CrawlStatTheme.mono(context, size: 12.5),
+                              ),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) onRival(value);
+                        },
+                      ),
+                    ),
                   ),
                 ),
+                const SizedBox(width: 10),
+                SoftButton(
+                  icon: AppIcon.report,
+                  onPressed: running || rivalPath == null ? null : onRun,
+                  child: Text(running ? 'Running…' : 'Compare'),
+                ),
+              ],
+            ),
+            if (results != null) ...[
+              const SizedBox(height: 16),
+              for (final row in results!) ...[
+                _BenchmarkRow(row: row),
+                const SizedBox(height: 8),
+              ],
             ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _BenchmarkRow extends StatelessWidget {
+  const _BenchmarkRow({required this.row});
+
+  final rust.TaskBenchmark row;
+
+  /// What each side cost, in the words a report uses.
+  String _cost(String outcome, int clicks, bool exists) {
+    if (outcome == 'reached') return '$clicks';
+    return exists ? 'lost' : '—';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = CrawlStatTheme.palette(context);
+    // Only one verdict is bad news, and it is the one worth colouring.
+    final losing =
+        row.verdict == 'they have it, we do not' ||
+        row.verdict == 'slower than theirs';
+    final tone = losing ? palette.error : palette.notice;
+
+    return SoftWell(
+      radius: CrawlStatTheme.controlRadius,
+      depth: 0.6,
+      padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(row.goalLabel, style: theme.textTheme.bodyMedium),
+          ),
+          const SizedBox(width: 12),
+          _Cell(
+            label: 'ours',
+            value: _cost(row.ourOutcome, row.ourClicks, row.ourExists),
+          ),
+          _Cell(
+            label: 'theirs',
+            value: _cost(row.theirOutcome, row.theirClicks, row.theirExists),
+          ),
+          const SizedBox(width: 14),
+          SizedBox(
+            width: 168,
+            child: Text(
+              row.verdict,
+              textAlign: TextAlign.right,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: tone,
+                fontWeight: losing ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Cell extends StatelessWidget {
+  const _Cell({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: 54,
+      child: Column(
+        children: [
+          Text(label.toUpperCase(), style: theme.textTheme.labelMedium),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: CrawlStatTheme.mono(
+              context,
+              size: 15,
+              color: theme.colorScheme.onSurface,
+            ).copyWith(fontWeight: FontWeight.w600),
           ),
         ],
       ),

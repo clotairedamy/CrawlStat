@@ -4,6 +4,8 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api.dart';
+import 'api/accessibility.dart';
+import 'api/architecture.dart';
 import 'api/crawl.dart';
 import 'api/license.dart';
 import 'api/project.dart';
@@ -40,7 +42,58 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  A11yCounts dco_decode_a_11_y_counts(dynamic raw);
+
+  @protected
+  A11yCoverage dco_decode_a_11_y_coverage(dynamic raw);
+
+  @protected
+  A11yCriterion dco_decode_a_11_y_criterion(dynamic raw);
+
+  @protected
+  A11yGroup dco_decode_a_11_y_group(dynamic raw);
+
+  @protected
+  A11yHit dco_decode_a_11_y_hit(dynamic raw);
+
+  @protected
+  A11yPage dco_decode_a_11_y_page(dynamic raw);
+
+  @protected
+  A11yPageCheck dco_decode_a_11_y_page_check(dynamic raw);
+
+  @protected
+  A11yReport dco_decode_a_11_y_report(dynamic raw);
+
+  @protected
+  A11yRule dco_decode_a_11_y_rule(dynamic raw);
+
+  @protected
+  A11yRuleInfo dco_decode_a_11_y_rule_info(dynamic raw);
+
+  @protected
+  A11yStandard dco_decode_a_11_y_standard(dynamic raw);
+
+  @protected
   ActionPlan dco_decode_action_plan(dynamic raw);
+
+  @protected
+  ArchExample dco_decode_arch_example(dynamic raw);
+
+  @protected
+  ArchFinding dco_decode_arch_finding(dynamic raw);
+
+  @protected
+  ArchFlow dco_decode_arch_flow(dynamic raw);
+
+  @protected
+  ArchMap dco_decode_arch_map(dynamic raw);
+
+  @protected
+  ArchOverview dco_decode_arch_overview(dynamic raw);
+
+  @protected
+  ArchSection dco_decode_arch_section(dynamic raw);
 
   @protected
   AuditReport dco_decode_audit_report(dynamic raw);
@@ -106,7 +159,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   HeaderPair dco_decode_header_pair(dynamic raw);
 
   @protected
+  int dco_decode_i_32(dynamic raw);
+
+  @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  IaFinding dco_decode_ia_finding(dynamic raw);
+
+  @protected
+  IaReport dco_decode_ia_report(dynamic raw);
 
   @protected
   ImageRow dco_decode_image_row(dynamic raw);
@@ -118,6 +180,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IssueDelta dco_decode_issue_delta(dynamic raw);
 
   @protected
+  JourneyGoal dco_decode_journey_goal(dynamic raw);
+
+  @protected
+  JourneyResult dco_decode_journey_result(dynamic raw);
+
+  @protected
+  JourneyStep dco_decode_journey_step(dynamic raw);
+
+  @protected
   LicenseInfo dco_decode_license_info(dynamic raw);
 
   @protected
@@ -125,6 +196,39 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<A11yCriterion> dco_decode_list_a_11_y_criterion(dynamic raw);
+
+  @protected
+  List<A11yGroup> dco_decode_list_a_11_y_group(dynamic raw);
+
+  @protected
+  List<A11yHit> dco_decode_list_a_11_y_hit(dynamic raw);
+
+  @protected
+  List<A11yPage> dco_decode_list_a_11_y_page(dynamic raw);
+
+  @protected
+  List<A11yRule> dco_decode_list_a_11_y_rule(dynamic raw);
+
+  @protected
+  List<A11yRuleInfo> dco_decode_list_a_11_y_rule_info(dynamic raw);
+
+  @protected
+  List<A11yStandard> dco_decode_list_a_11_y_standard(dynamic raw);
+
+  @protected
+  List<ArchExample> dco_decode_list_arch_example(dynamic raw);
+
+  @protected
+  List<ArchFinding> dco_decode_list_arch_finding(dynamic raw);
+
+  @protected
+  List<ArchFlow> dco_decode_list_arch_flow(dynamic raw);
+
+  @protected
+  List<ArchSection> dco_decode_list_arch_section(dynamic raw);
 
   @protected
   List<BrokenPage> dco_decode_list_broken_page(dynamic raw);
@@ -139,6 +243,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<HeaderPair> dco_decode_list_header_pair(dynamic raw);
 
   @protected
+  List<IaFinding> dco_decode_list_ia_finding(dynamic raw);
+
+  @protected
   List<ImageRow> dco_decode_list_image_row(dynamic raw);
 
   @protected
@@ -146,6 +253,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<IssueDelta> dco_decode_list_issue_delta(dynamic raw);
+
+  @protected
+  List<JourneyGoal> dco_decode_list_journey_goal(dynamic raw);
+
+  @protected
+  List<JourneyResult> dco_decode_list_journey_result(dynamic raw);
+
+  @protected
+  List<JourneyStep> dco_decode_list_journey_step(dynamic raw);
 
   @protected
   List<LinkRow> dco_decode_list_link_row(dynamic raw);
@@ -158,6 +274,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<PlanItem> dco_decode_list_plan_item(dynamic raw);
+
+  @protected
+  Int32List dco_decode_list_prim_i_32_strict(dynamic raw);
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
@@ -176,6 +295,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<StatusCount> dco_decode_list_status_count(dynamic raw);
+
+  @protected
+  List<TaskBenchmark> dco_decode_list_task_benchmark(dynamic raw);
 
   @protected
   List<UrlIssue> dco_decode_list_url_issue(dynamic raw);
@@ -235,6 +357,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ReportEvent dco_decode_report_event(dynamic raw);
 
   @protected
+  SiteArchitecture dco_decode_site_architecture(dynamic raw);
+
+  @protected
   SiteEdge dco_decode_site_edge(dynamic raw);
 
   @protected
@@ -248,6 +373,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatusCount dco_decode_status_count(dynamic raw);
+
+  @protected
+  TaskBenchmark dco_decode_task_benchmark(dynamic raw);
 
   @protected
   int dco_decode_u_32(dynamic raw);
@@ -305,7 +433,58 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  A11yCounts sse_decode_a_11_y_counts(SseDeserializer deserializer);
+
+  @protected
+  A11yCoverage sse_decode_a_11_y_coverage(SseDeserializer deserializer);
+
+  @protected
+  A11yCriterion sse_decode_a_11_y_criterion(SseDeserializer deserializer);
+
+  @protected
+  A11yGroup sse_decode_a_11_y_group(SseDeserializer deserializer);
+
+  @protected
+  A11yHit sse_decode_a_11_y_hit(SseDeserializer deserializer);
+
+  @protected
+  A11yPage sse_decode_a_11_y_page(SseDeserializer deserializer);
+
+  @protected
+  A11yPageCheck sse_decode_a_11_y_page_check(SseDeserializer deserializer);
+
+  @protected
+  A11yReport sse_decode_a_11_y_report(SseDeserializer deserializer);
+
+  @protected
+  A11yRule sse_decode_a_11_y_rule(SseDeserializer deserializer);
+
+  @protected
+  A11yRuleInfo sse_decode_a_11_y_rule_info(SseDeserializer deserializer);
+
+  @protected
+  A11yStandard sse_decode_a_11_y_standard(SseDeserializer deserializer);
+
+  @protected
   ActionPlan sse_decode_action_plan(SseDeserializer deserializer);
+
+  @protected
+  ArchExample sse_decode_arch_example(SseDeserializer deserializer);
+
+  @protected
+  ArchFinding sse_decode_arch_finding(SseDeserializer deserializer);
+
+  @protected
+  ArchFlow sse_decode_arch_flow(SseDeserializer deserializer);
+
+  @protected
+  ArchMap sse_decode_arch_map(SseDeserializer deserializer);
+
+  @protected
+  ArchOverview sse_decode_arch_overview(SseDeserializer deserializer);
+
+  @protected
+  ArchSection sse_decode_arch_section(SseDeserializer deserializer);
 
   @protected
   AuditReport sse_decode_audit_report(SseDeserializer deserializer);
@@ -379,7 +558,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   HeaderPair sse_decode_header_pair(SseDeserializer deserializer);
 
   @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
+
+  @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  IaFinding sse_decode_ia_finding(SseDeserializer deserializer);
+
+  @protected
+  IaReport sse_decode_ia_report(SseDeserializer deserializer);
 
   @protected
   ImageRow sse_decode_image_row(SseDeserializer deserializer);
@@ -391,6 +579,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IssueDelta sse_decode_issue_delta(SseDeserializer deserializer);
 
   @protected
+  JourneyGoal sse_decode_journey_goal(SseDeserializer deserializer);
+
+  @protected
+  JourneyResult sse_decode_journey_result(SseDeserializer deserializer);
+
+  @protected
+  JourneyStep sse_decode_journey_step(SseDeserializer deserializer);
+
+  @protected
   LicenseInfo sse_decode_license_info(SseDeserializer deserializer);
 
   @protected
@@ -398,6 +595,45 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<A11yCriterion> sse_decode_list_a_11_y_criterion(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<A11yGroup> sse_decode_list_a_11_y_group(SseDeserializer deserializer);
+
+  @protected
+  List<A11yHit> sse_decode_list_a_11_y_hit(SseDeserializer deserializer);
+
+  @protected
+  List<A11yPage> sse_decode_list_a_11_y_page(SseDeserializer deserializer);
+
+  @protected
+  List<A11yRule> sse_decode_list_a_11_y_rule(SseDeserializer deserializer);
+
+  @protected
+  List<A11yRuleInfo> sse_decode_list_a_11_y_rule_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<A11yStandard> sse_decode_list_a_11_y_standard(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ArchExample> sse_decode_list_arch_example(SseDeserializer deserializer);
+
+  @protected
+  List<ArchFinding> sse_decode_list_arch_finding(SseDeserializer deserializer);
+
+  @protected
+  List<ArchFlow> sse_decode_list_arch_flow(SseDeserializer deserializer);
+
+  @protected
+  List<ArchSection> sse_decode_list_arch_section(SseDeserializer deserializer);
 
   @protected
   List<BrokenPage> sse_decode_list_broken_page(SseDeserializer deserializer);
@@ -412,6 +648,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<HeaderPair> sse_decode_list_header_pair(SseDeserializer deserializer);
 
   @protected
+  List<IaFinding> sse_decode_list_ia_finding(SseDeserializer deserializer);
+
+  @protected
   List<ImageRow> sse_decode_list_image_row(SseDeserializer deserializer);
 
   @protected
@@ -419,6 +658,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<IssueDelta> sse_decode_list_issue_delta(SseDeserializer deserializer);
+
+  @protected
+  List<JourneyGoal> sse_decode_list_journey_goal(SseDeserializer deserializer);
+
+  @protected
+  List<JourneyResult> sse_decode_list_journey_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<JourneyStep> sse_decode_list_journey_step(SseDeserializer deserializer);
 
   @protected
   List<LinkRow> sse_decode_list_link_row(SseDeserializer deserializer);
@@ -431,6 +681,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<PlanItem> sse_decode_list_plan_item(SseDeserializer deserializer);
+
+  @protected
+  Int32List sse_decode_list_prim_i_32_strict(SseDeserializer deserializer);
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
@@ -449,6 +702,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<StatusCount> sse_decode_list_status_count(SseDeserializer deserializer);
+
+  @protected
+  List<TaskBenchmark> sse_decode_list_task_benchmark(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<UrlIssue> sse_decode_list_url_issue(SseDeserializer deserializer);
@@ -508,6 +766,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ReportEvent sse_decode_report_event(SseDeserializer deserializer);
 
   @protected
+  SiteArchitecture sse_decode_site_architecture(SseDeserializer deserializer);
+
+  @protected
   SiteEdge sse_decode_site_edge(SseDeserializer deserializer);
 
   @protected
@@ -521,6 +782,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StatusCount sse_decode_status_count(SseDeserializer deserializer);
+
+  @protected
+  TaskBenchmark sse_decode_task_benchmark(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
@@ -562,9 +826,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UxPersona sse_decode_ux_persona(SseDeserializer deserializer);
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer);
-
-  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -586,7 +847,64 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
+  void sse_encode_a_11_y_counts(A11yCounts self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_a_11_y_coverage(A11yCoverage self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_a_11_y_criterion(
+    A11yCriterion self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_a_11_y_group(A11yGroup self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_a_11_y_hit(A11yHit self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_a_11_y_page(A11yPage self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_a_11_y_page_check(
+    A11yPageCheck self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_a_11_y_report(A11yReport self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_a_11_y_rule(A11yRule self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_a_11_y_rule_info(A11yRuleInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_a_11_y_standard(A11yStandard self, SseSerializer serializer);
+
+  @protected
   void sse_encode_action_plan(ActionPlan self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_arch_example(ArchExample self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_arch_finding(ArchFinding self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_arch_flow(ArchFlow self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_arch_map(ArchMap self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_arch_overview(ArchOverview self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_arch_section(ArchSection self, SseSerializer serializer);
 
   @protected
   void sse_encode_audit_report(AuditReport self, SseSerializer serializer);
@@ -676,7 +994,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_header_pair(HeaderPair self, SseSerializer serializer);
 
   @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ia_finding(IaFinding self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ia_report(IaReport self, SseSerializer serializer);
 
   @protected
   void sse_encode_image_row(ImageRow self, SseSerializer serializer);
@@ -688,6 +1015,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_issue_delta(IssueDelta self, SseSerializer serializer);
 
   @protected
+  void sse_encode_journey_goal(JourneyGoal self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_journey_result(JourneyResult self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_journey_step(JourneyStep self, SseSerializer serializer);
+
+  @protected
   void sse_encode_license_info(LicenseInfo self, SseSerializer serializer);
 
   @protected
@@ -695,6 +1031,66 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_a_11_y_criterion(
+    List<A11yCriterion> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_a_11_y_group(
+    List<A11yGroup> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_a_11_y_hit(List<A11yHit> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_a_11_y_page(
+    List<A11yPage> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_a_11_y_rule(
+    List<A11yRule> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_a_11_y_rule_info(
+    List<A11yRuleInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_a_11_y_standard(
+    List<A11yStandard> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_arch_example(
+    List<ArchExample> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_arch_finding(
+    List<ArchFinding> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_arch_flow(List<ArchFlow> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_arch_section(
+    List<ArchSection> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_broken_page(
@@ -721,6 +1117,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_ia_finding(
+    List<IaFinding> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_image_row(List<ImageRow> self, SseSerializer serializer);
 
   @protected
@@ -729,6 +1131,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_issue_delta(
     List<IssueDelta> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_journey_goal(
+    List<JourneyGoal> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_journey_result(
+    List<JourneyResult> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_journey_step(
+    List<JourneyStep> self,
     SseSerializer serializer,
   );
 
@@ -749,6 +1169,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_plan_item(List<PlanItem> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_prim_i_32_strict(
+    Int32List self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_prim_u_8_strict(
@@ -777,6 +1203,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_status_count(
     List<StatusCount> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_task_benchmark(
+    List<TaskBenchmark> self,
     SseSerializer serializer,
   );
 
@@ -856,6 +1288,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_report_event(ReportEvent self, SseSerializer serializer);
 
   @protected
+  void sse_encode_site_architecture(
+    SiteArchitecture self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_site_edge(SiteEdge self, SseSerializer serializer);
 
   @protected
@@ -869,6 +1307,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_status_count(StatusCount self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_task_benchmark(TaskBenchmark self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);
@@ -908,9 +1349,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ux_persona(UxPersona self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer);
 }
 
 // Section: wire_class

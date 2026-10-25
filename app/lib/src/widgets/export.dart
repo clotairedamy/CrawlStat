@@ -102,6 +102,24 @@ Future<void> revealFile(String path) async {
   }
 }
 
+/// Open a web page in the default browser. Falls back to copying the link,
+/// and says which happened.
+Future<bool> openLink(String url) async {
+  try {
+    if (Platform.isMacOS) {
+      await _files.invokeMethod<void>('openUrl', url);
+    } else if (Platform.isWindows) {
+      await Process.run('rundll32', ['url.dll,FileProtocolHandler', url]);
+    } else {
+      await Process.run('xdg-open', [url]);
+    }
+    return true;
+  } on Object {
+    await Clipboard.setData(ClipboardData(text: url));
+    return false;
+  }
+}
+
 /// A sandbox refusal reads as "Operation not permitted, errno = 1", which
 /// tells the user nothing about what to do next.
 String _describe(Object error, Directory directory) {

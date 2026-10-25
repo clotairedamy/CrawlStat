@@ -72,6 +72,17 @@ flutter:
     # resolution-named subfolders beside it.
     - assets/brand/
 
+  fonts:
+    # Both are variable fonts, so one file covers every weight. Bundled
+    # rather than fetched at runtime: the app has to work offline, and a
+    # font that arrives late makes the whole interface reflow.
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit.ttf
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono.ttf
+
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 

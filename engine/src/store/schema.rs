@@ -27,7 +27,7 @@ use crate::error::{EngineError, Result};
 ///
 /// Older databases are migrated forward by [`MIGRATIONS`]; a database from a
 /// *newer* build is refused, because this one cannot know what changed.
-pub const SCHEMA_VERSION: i64 = 3;
+pub const SCHEMA_VERSION: i64 = 4;
 
 /// Connection pragmas. WAL lets the UI read while the crawl writes.
 const PRAGMAS: &str = "
@@ -130,6 +130,9 @@ CREATE TABLE IF NOT EXISTS urls (
     a11y_iframes_no_title   INTEGER,
     a11y_heading_skips      INTEGER,
     a11y_issues             INTEGER,
+    -- The accessibility rules version that checked this page; NULL for pages
+    -- crawled before the rule-level findings below existed.
+    a11y_checked            INTEGER,
 
     -- Bookkeeping
     error_kind              TEXT,
@@ -245,6 +248,32 @@ CREATE TABLE IF NOT EXISTS crawl_log (
     message TEXT    NOT NULL,
     url     TEXT
 );
+
+-- Accessibility rule failures, one row per rule per page, with up to three
+-- snippets of the offending markup. `sample_key` is the first snippet with
+-- its numbers masked, which groups one template's failure across pages.
+-- Rows named `has_*` are not failures but what the page contains (video, a
+-- form), which decides which success criteria apply at all.
+CREATE TABLE IF NOT EXISTS a11y_findings (
+    url_id     INTEGER NOT NULL REFERENCES urls(id) ON DELETE CASCADE,
+    rule       TEXT    NOT NULL,
+    count      INTEGER NOT NULL,
+    sample     TEXT,
+    sample_key TEXT,
+    -- Further distinct snippets, newline-separated.
+    more       TEXT,
+    PRIMARY KEY (url_id, rule)
+) WITHOUT ROWID;
+
+-- A person's verdict on a WCAG success criterion. Automated checks cannot
+-- prove conformance, so these are what turn a scan into an audit. Never
+-- rewritten by a crawl or an audit run.
+CREATE TABLE IF NOT EXISTS a11y_reviews (
+    criterion   TEXT PRIMARY KEY,
+    status      TEXT    NOT NULL,
+    note        TEXT,
+    reviewed_at INTEGER NOT NULL
+) WITHOUT ROWID;
 "#;
 
 /// Tables holding audit results. Separate from [`SCHEMA`] so the audit pass can
@@ -299,6 +328,25 @@ const MIGRATIONS: &[(i64, &str)] = &[
          ALTER TABLE urls ADD COLUMN a11y_heading_skips INTEGER;
          ALTER TABLE urls ADD COLUMN a11y_issues INTEGER;",
     ),
+    (
+        4,
+        "ALTER TABLE urls ADD COLUMN a11y_checked INTEGER;
+         CREATE TABLE IF NOT EXISTS a11y_findings (
+             url_id     INTEGER NOT NULL REFERENCES urls(id) ON DELETE CASCADE,
+             rule       TEXT    NOT NULL,
+             count      INTEGER NOT NULL,
+             sample     TEXT,
+             sample_key TEXT,
+             more       TEXT,
+             PRIMARY KEY (url_id, rule)
+         ) WITHOUT ROWID;
+         CREATE TABLE IF NOT EXISTS a11y_reviews (
+             criterion   TEXT PRIMARY KEY,
+             status      TEXT    NOT NULL,
+             note        TEXT,
+             reviewed_at INTEGER NOT NULL
+         ) WITHOUT ROWID;",
+    ),
 ];
 
 /// Indexes for reading and auditing, created once the crawl is done.
@@ -316,6 +364,7 @@ pub const ANALYSIS_INDEXES: &str = "
     CREATE INDEX IF NOT EXISTS urls_indexable   ON urls (indexable);
     CREATE INDEX IF NOT EXISTS urls_link_score  ON urls (link_score);
     CREATE INDEX IF NOT EXISTS urls_a11y        ON urls (a11y_issues);
+    CREATE INDEX IF NOT EXISTS a11y_findings_rule ON a11y_findings (rule, sample_key);
 ";
 
 /// Apply the pragmas every connection needs.
@@ -430,6 +479,8 @@ mod tests {
             .map(Result::unwrap)
             .collect();
         for expected in [
+            "a11y_findings",
+            "a11y_reviews",
             "crawl_log",
             "headers",
             "headings",
@@ -510,6 +561,34 @@ mod tests {
             .query_row("SELECT count(*) FROM headers", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 0, "ON DELETE CASCADE should have removed the header");
+    }
+
+    #[test]
+    fn a_version_3_database_gains_the_accessibility_tables() {
+        let conn = Connection::open_in_memory().unwrap();
+        // The shape of a v3 file: the urls table without `a11y_checked`, and
+        // none of the accessibility tables.
+        conn.execute_batch(
+            "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID;
+             INSERT INTO meta VALUES ('schema_version', '3');
+             CREATE TABLE urls (id INTEGER PRIMARY KEY, url TEXT NOT NULL, dedup_key TEXT NOT NULL,
+                                a11y_issues INTEGER);",
+        )
+        .unwrap();
+        // Only the v4 step applies to a v3 file.
+        for (target, sql) in MIGRATIONS.iter().filter(|(target, _)| *target > 3) {
+            assert_eq!(*target, 4);
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.execute("INSERT INTO urls (id, url, dedup_key, a11y_checked) VALUES (1, 'u', 'k', 1)", [])
+            .unwrap();
+        conn.execute("INSERT INTO a11y_findings (url_id, rule, count) VALUES (1, 'img_no_alt', 2)", [])
+            .unwrap();
+        conn.execute(
+            "INSERT INTO a11y_reviews (criterion, status, reviewed_at) VALUES ('1.4.3', 'pass', 0)",
+            [],
+        )
+        .unwrap();
     }
 
     #[test]

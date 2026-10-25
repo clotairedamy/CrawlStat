@@ -418,8 +418,8 @@ class _TabBar extends StatelessWidget {
               Container(
                 width: 6,
                 height: 6,
-                decoration: const BoxDecoration(
-                  color: CrawlStatTheme.accent,
+                decoration: BoxDecoration(
+                  color: CrawlStatTheme.palette(context).accent,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -584,7 +584,7 @@ class _ActiveFilterChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.only(left: 8),
       decoration: BoxDecoration(
-        color: CrawlStatTheme.accent.withValues(alpha: 0.12),
+        color: CrawlStatTheme.palette(context).accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(5),
       ),
       child: Row(
@@ -592,7 +592,7 @@ class _ActiveFilterChip extends StatelessWidget {
           Text(
             label,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: CrawlStatTheme.accent,
+              color: CrawlStatTheme.palette(context).accent,
             ),
           ),
           IconButton(
@@ -601,7 +601,7 @@ class _ActiveFilterChip extends StatelessWidget {
             visualDensity: VisualDensity.compact,
             constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
             padding: EdgeInsets.zero,
-            color: CrawlStatTheme.accent,
+            color: CrawlStatTheme.palette(context).accent,
           ),
         ],
       ),
@@ -717,8 +717,9 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
         false => 'no',
         null => '',
       },
-      color: (row) =>
-          row.canonicalIsSelf == false ? CrawlStatTheme.warning : null,
+      color: (row) => row.canonicalIsSelf == false
+          ? CrawlStatTheme.palette(context).warning
+          : null,
     ),
     GridColumn<UrlRow>(
       id: 'lang',
@@ -791,7 +792,9 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
       tooltip: 'Redirects traversed',
       value: (row) =>
           row.redirectCount == 0 ? '' : row.redirectCount.toString(),
-      color: (row) => row.redirectCount > 2 ? CrawlStatTheme.warning : null,
+      color: (row) => row.redirectCount > 2
+          ? CrawlStatTheme.palette(context).warning
+          : null,
     ),
     GridColumn<UrlRow>(
       id: 'content_type',
@@ -817,15 +820,16 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
       mono: true,
       tooltip: 'Server response time',
       value: (row) => formatMillis(row.responseTimeMs),
-      color: (row) =>
-          (row.responseTimeMs ?? 0) > 1000 ? CrawlStatTheme.warning : null,
+      color: (row) => (row.responseTimeMs ?? 0) > 1000
+          ? CrawlStatTheme.palette(context).warning
+          : null,
     ),
     GridColumn<UrlRow>(
       id: 'error',
       label: 'Error',
       width: 180,
       value: (row) => row.errorKind ?? '',
-      color: (_) => CrawlStatTheme.error,
+      color: (_) => CrawlStatTheme.palette(context).error,
     ),
   ];
 }

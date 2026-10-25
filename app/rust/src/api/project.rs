@@ -294,6 +294,8 @@ pub struct SiteNode {
     pub status: Option<i64>,
     pub inlinks: i64,
     pub outlinks: i64,
+    /// Internal link score, 0–100; 0 when audits have not run.
+    pub link_score: f64,
 }
 
 /// A followed internal link between two pages in the diagram.
@@ -362,6 +364,7 @@ pub fn site_structure(db_path: String, node_limit: u32) -> Result<SiteStructure,
                     status: node.status.map(i64::from),
                     inlinks: node.inlinks as i64,
                     outlinks: node.outlinks as i64,
+                    link_score: node.link_score,
                 })
                 .collect(),
             edges: edges
@@ -785,6 +788,7 @@ pub fn ux_candidate_pages(db_path: String, limit: u32) -> Result<Vec<SiteNode>, 
                 status: node.status.map(i64::from),
                 inlinks: node.inlinks as i64,
                 outlinks: node.outlinks as i64,
+                link_score: node.link_score,
             })
             .collect())
     })
@@ -888,4 +892,366 @@ pub fn compare_crawls(before_path: String, after_path: String) -> Result<CrawlCo
             })
             .collect(),
     })
+}
+
+// ─── journeys: can a visitor find it? ────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct JourneyGoal {
+    pub id: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct JourneyStep {
+    pub from_url: String,
+    pub anchor: String,
+    pub to_url: String,
+    pub confidence: f64,
+    /// What else was on offer at this step, best first.
+    pub alternatives: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct JourneyResult {
+    pub goal_id: String,
+    pub goal_label: String,
+    pub persona: String,
+    /// `reached`, `gave_up`, `dead_end`, `looped` or `no_signal`.
+    pub outcome: String,
+    pub clicks: i64,
+    pub steps: Vec<JourneyStep>,
+    /// Whether a page matching the goal exists in the crawl at all.
+    pub target_exists: bool,
+    pub target_url: Option<String>,
+    pub shortest_known: Option<i64>,
+    /// Links encountered that point at pages this crawl never fetched.
+    pub unfetched_links: i64,
+}
+
+pub fn journey_goals() -> Vec<JourneyGoal> {
+    ux::journey::preset_goals()
+        .into_iter()
+        .map(|goal| JourneyGoal {
+            id: goal.id,
+            label: goal.label,
+        })
+        .collect()
+}
+
+fn to_result(journey: ux::journey::Journey) -> JourneyResult {
+    JourneyResult {
+        goal_id: journey.goal_id,
+        goal_label: journey.goal_label,
+        persona: journey.persona,
+        outcome: journey.outcome,
+        clicks: journey.clicks as i64,
+        target_exists: journey.target_exists,
+        target_url: journey.target_url,
+        shortest_known: journey.shortest_known.map(|d| d as i64),
+        unfetched_links: journey.unfetched_links as i64,
+        steps: journey
+            .steps
+            .into_iter()
+            .map(|step| JourneyStep {
+                from_url: step.from_url,
+                anchor: step.anchor,
+                to_url: step.to_url,
+                confidence: step.confidence as f64,
+                alternatives: step.alternatives,
+            })
+            .collect(),
+    }
+}
+
+/// Walk the crawled site for every preset goal as one persona.
+pub fn run_journeys(db_path: String, persona: String) -> Result<Vec<JourneyResult>, String> {
+    let persona =
+        ux::Persona::parse(&persona).ok_or_else(|| format!("unknown persona '{persona}'"))?;
+    runtime::with_store(&db_path, |store| {
+        Ok(ux::journey::simulate_all(store.connection(), persona)?
+            .into_iter()
+            .map(to_result)
+            .collect())
+    })
+    .map_err(|error| error.to_string())
+}
+
+/// Walk it for one goal only.
+pub fn run_journey(
+    db_path: String,
+    persona: String,
+    goal_id: String,
+) -> Result<JourneyResult, String> {
+    let persona =
+        ux::Persona::parse(&persona).ok_or_else(|| format!("unknown persona '{persona}'"))?;
+    let goal = ux::journey::preset_goals()
+        .into_iter()
+        .find(|goal| goal.id == goal_id)
+        .ok_or_else(|| format!("unknown goal '{goal_id}'"))?;
+    runtime::with_store(&db_path, |store| {
+        Ok(to_result(ux::journey::simulate(
+            store.connection(),
+            &goal,
+            persona,
+        )?))
+    })
+    .map_err(|error| error.to_string())
+}
+
+// ─── a tester's working set ──────────────────────────────────────────────
+
+/// Walk the site for a task written in plain language.
+///
+/// The entry point that matters for a real study: a usability task is "find
+/// the returns policy", never one of the presets.
+pub fn run_custom_journey(
+    db_path: String,
+    persona: String,
+    task: String,
+) -> Result<JourneyResult, String> {
+    let persona =
+        ux::Persona::parse(&persona).ok_or_else(|| format!("unknown persona '{persona}'"))?;
+    let goal = ux::journey::custom_goal(&task);
+    if goal.keywords.is_empty() {
+        return Err("Describe the task in a few words — \"find the returns policy\".".into());
+    }
+    runtime::with_store(&db_path, |store| {
+        Ok(to_result(ux::journey::simulate(
+            store.connection(),
+            &goal,
+            persona,
+        )?))
+    })
+    .map_err(|error| error.to_string())
+}
+
+/// One information-architecture finding, flattened for the UI.
+#[derive(Debug, Clone)]
+pub struct IaFinding {
+    /// `ambiguous_label`, `inconsistent_label`, `orphan`, `too_deep`
+    /// or `crowded`.
+    pub kind: String,
+    /// The headline, already written as a sentence.
+    pub summary: String,
+    /// Supporting URLs or labels the tester can go and look at.
+    pub evidence: Vec<String>,
+    /// The number the finding turns on, for sorting.
+    pub magnitude: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct IaReport {
+    pub pages: i64,
+    pub max_depth: i64,
+    pub median_links: i64,
+    pub findings: Vec<IaFinding>,
+}
+
+/// Information-architecture findings for the open crawl.
+pub fn architecture_report(
+    db_path: String,
+    deep_threshold: u32,
+    crowded_threshold: u32,
+) -> Result<IaReport, String> {
+    use crawlstat_engine::ux::architecture as ia;
+
+    runtime::with_store(&db_path, |store| {
+        let report = ia::analyse_with(
+            store.connection(),
+            ia::ArchitectureConfig {
+                deep_threshold,
+                crowded_threshold,
+                ..Default::default()
+            },
+        )?;
+
+        let mut findings = Vec::new();
+
+        for item in &report.ambiguous_labels {
+            findings.push(IaFinding {
+                kind: "ambiguous_label".into(),
+                summary: format!(
+                    "\"{}\" leads to {} different pages",
+                    item.label, item.destinations
+                ),
+                evidence: item.examples.clone(),
+                magnitude: item.destinations as i64,
+            });
+        }
+        for item in &report.inconsistent_labels {
+            findings.push(IaFinding {
+                kind: "inconsistent_label".into(),
+                summary: format!(
+                    "One page is called {} different things",
+                    item.labels.len()
+                ),
+                evidence: std::iter::once(item.url.clone())
+                    .chain(item.labels.iter().map(|l| format!("called \"{l}\"")))
+                    .collect(),
+                magnitude: item.labels.len() as i64,
+            });
+        }
+        if !report.orphans.is_empty() {
+            findings.push(IaFinding {
+                kind: "orphan".into(),
+                summary: format!(
+                    "{} page(s) have no internal links pointing at them",
+                    report.orphans.len()
+                ),
+                evidence: report.orphans.iter().map(|o| o.url.clone()).take(20).collect(),
+                magnitude: report.orphans.len() as i64,
+            });
+        }
+        if !report.too_deep.is_empty() {
+            findings.push(IaFinding {
+                kind: "too_deep".into(),
+                summary: format!(
+                    "{} page(s) sit {}+ clicks from the home page",
+                    report.too_deep.len(),
+                    deep_threshold
+                ),
+                evidence: report
+                    .too_deep
+                    .iter()
+                    .map(|d| format!("{} clicks — {}", d.depth, d.url))
+                    .take(20)
+                    .collect(),
+                magnitude: report.too_deep.len() as i64,
+            });
+        }
+        if !report.crowded.is_empty() {
+            findings.push(IaFinding {
+                kind: "crowded".into(),
+                summary: format!(
+                    "{} page(s) offer {}+ links at once",
+                    report.crowded.len(),
+                    crowded_threshold
+                ),
+                evidence: report
+                    .crowded
+                    .iter()
+                    .map(|c| format!("{} links — {}", c.links, c.url))
+                    .take(20)
+                    .collect(),
+                magnitude: report.crowded.len() as i64,
+            });
+        }
+
+        findings.sort_by(|a, b| b.magnitude.cmp(&a.magnitude));
+
+        Ok(IaReport {
+            pages: report.pages as i64,
+            max_depth: report.max_depth as i64,
+            median_links: report.median_links as i64,
+            findings,
+        })
+    })
+    .map_err(|error| error.to_string())
+}
+
+/// Write the findings out as Markdown, which is what a tester hands over.
+pub fn export_ux_report(
+    db_path: String,
+    out_path: String,
+    deep_threshold: u32,
+    crowded_threshold: u32,
+) -> Result<String, String> {
+    use std::fmt::Write as _;
+
+    let report = architecture_report(db_path, deep_threshold, crowded_threshold)?;
+    let mut out = String::from("# Information architecture findings\n\n");
+    let _ = writeln!(
+        out,
+        "{} pages · deepest {} clicks from home · {} links on a typical page\n",
+        report.pages, report.max_depth, report.median_links
+    );
+
+    if report.findings.is_empty() {
+        out.push_str("No findings.\n");
+    }
+    for finding in &report.findings {
+        let _ = writeln!(out, "## {}\n", finding.summary);
+        for line in &finding.evidence {
+            let _ = writeln!(out, "- {line}");
+        }
+        out.push('\n');
+    }
+    out.push_str(
+        "\n---\n\nFindings are evidence for a hypothesis, not verdicts. \
+         A page offering a hundred links may be a deliberate directory.\n",
+    );
+
+    std::fs::write(&out_path, out).map_err(|error| error.to_string())?;
+    Ok(out_path)
+}
+
+/// The same task run against your crawl and someone else's.
+#[derive(Debug, Clone)]
+pub struct TaskBenchmark {
+    pub goal_label: String,
+    /// `reached`, `gave_up`, `dead_end`, `looped` or `no_signal`.
+    pub our_outcome: String,
+    pub their_outcome: String,
+    pub our_clicks: i64,
+    pub their_clicks: i64,
+    pub our_exists: bool,
+    pub their_exists: bool,
+    /// One line a stakeholder can read: "they have it, we do not".
+    pub verdict: String,
+    /// Their clicks minus ours, only when both sites arrive.
+    pub click_gap: Option<i64>,
+}
+
+fn to_benchmark(b: ux::journey::Benchmark) -> TaskBenchmark {
+    TaskBenchmark {
+        verdict: b.verdict().to_string(),
+        click_gap: b.click_gap(),
+        goal_label: b.goal_label,
+        our_outcome: b.ours.outcome,
+        their_outcome: b.theirs.outcome,
+        our_clicks: b.ours.clicks as i64,
+        their_clicks: b.theirs.clicks as i64,
+        our_exists: b.ours.target_exists,
+        their_exists: b.theirs.target_exists,
+    }
+}
+
+/// Run every preset task against two crawls — yours and a competitor's.
+pub fn benchmark_against(
+    our_path: String,
+    their_path: String,
+    persona: String,
+) -> Result<Vec<TaskBenchmark>, String> {
+    let persona =
+        ux::Persona::parse(&persona).ok_or_else(|| format!("unknown persona '{persona}'"))?;
+    let ours = Store::open(std::path::Path::new(&our_path)).map_err(|e| e.to_string())?;
+    let theirs = Store::open(std::path::Path::new(&their_path)).map_err(|e| e.to_string())?;
+    Ok(
+        ux::journey::benchmark(ours.connection(), theirs.connection(), persona)
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .map(to_benchmark)
+            .collect(),
+    )
+}
+
+/// Run one task of your own against both.
+pub fn benchmark_task_against(
+    our_path: String,
+    their_path: String,
+    persona: String,
+    task: String,
+) -> Result<TaskBenchmark, String> {
+    let persona =
+        ux::Persona::parse(&persona).ok_or_else(|| format!("unknown persona '{persona}'"))?;
+    if ux::journey::custom_goal(&task).keywords.is_empty() {
+        return Err("Describe the task in a few words.".into());
+    }
+    let ours = Store::open(std::path::Path::new(&our_path)).map_err(|e| e.to_string())?;
+    let theirs = Store::open(std::path::Path::new(&their_path)).map_err(|e| e.to_string())?;
+    Ok(to_benchmark(
+        ux::journey::benchmark_task(ours.connection(), theirs.connection(), persona, &task)
+            .map_err(|error| error.to_string())?,
+    ))
 }

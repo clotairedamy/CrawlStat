@@ -42,6 +42,8 @@
 //! Confidence is reported per node and is lower for nodes whose evidence is
 //! thin — an unlabelled control, a vague link.
 
+pub mod architecture;
+pub mod journey;
 pub mod persona;
 pub mod signals;
 

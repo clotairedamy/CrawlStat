@@ -58,7 +58,9 @@ class _LicenseCardState extends ConsumerState<LicenseCard> {
       title: 'Licence',
       trailing: TonePill(
         isPro ? 'Pro' : 'Free',
-        color: isPro ? CrawlStatTheme.success : CrawlStatTheme.notice,
+        color: isPro
+            ? CrawlStatTheme.palette(context).success
+            : CrawlStatTheme.palette(context).notice,
         dot: isPro,
       ),
       child: Column(
@@ -79,7 +81,7 @@ class _LicenseCardState extends ConsumerState<LicenseCard> {
               'Everything keeps working; connect within '
               '${info.daysRemaining} day${info.daysRemaining == 1 ? '' : 's'} '
               'and it will sort itself out.',
-              color: CrawlStatTheme.warning,
+              color: CrawlStatTheme.palette(context).warning,
             ),
           ],
           if (info.status == 'expired') ...[
@@ -87,16 +89,16 @@ class _LicenseCardState extends ConsumerState<LicenseCard> {
             _Note(
               'Your cached licence has lapsed after a fortnight without a check. '
               'Pro features are paused until it is re-checked — nothing has been lost.',
-              color: CrawlStatTheme.warning,
+              color: CrawlStatTheme.palette(context).warning,
             ),
           ],
           if (_error != null) ...[
             const SizedBox(height: 10),
-            _Note(_error!, color: CrawlStatTheme.error),
+            _Note(_error!, color: CrawlStatTheme.palette(context).error),
           ],
           if (_notice != null) ...[
             const SizedBox(height: 10),
-            _Note(_notice!, color: CrawlStatTheme.success),
+            _Note(_notice!, color: CrawlStatTheme.palette(context).success),
           ],
           const SizedBox(height: 14),
           if (isPro) _proActions(context) else _activation(context),

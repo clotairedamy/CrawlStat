@@ -4,6 +4,8 @@
 //! rather than many small calls, because every call crosses the FFI boundary
 //! and the UI should never make several to paint one frame.
 
+pub mod accessibility;
+pub mod architecture;
 pub mod crawl;
 pub mod license;
 pub mod project;

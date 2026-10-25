@@ -19,6 +19,9 @@ class _CrawlStatAppState extends ConsumerState<CrawlStatApp> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = CrawlStatPalette.byName(
+      ref.watch(settingsProvider.select((settings) => settings.paletteName)),
+    );
     final themeMode = ref.watch(
       settingsProvider.select((settings) => settings.themeMode),
     );
@@ -26,8 +29,8 @@ class _CrawlStatAppState extends ConsumerState<CrawlStatApp> {
     return MaterialApp.router(
       title: 'CrawlStat',
       debugShowCheckedModeBanner: false,
-      theme: CrawlStatTheme.light(),
-      darkTheme: CrawlStatTheme.dark(),
+      theme: CrawlStatTheme.light(palette),
+      darkTheme: CrawlStatTheme.dark(palette),
       themeMode: themeMode,
       routerConfig: _router,
       // Desktop users resize windows; a scroll behaviour that shows scrollbars

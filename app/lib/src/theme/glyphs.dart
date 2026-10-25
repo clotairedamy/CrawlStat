@@ -20,6 +20,7 @@ enum Glyph {
   plan,
   visualise,
   readerFlow,
+  accessibility,
   compare,
   settings,
   add,
@@ -185,6 +186,24 @@ class _GlyphPainter extends CustomPainter {
             ..lineTo(13, 14.2)
             ..moveTo(4.6, 18)
             ..lineTo(19.4, 18),
+          line,
+        );
+
+      case Glyph.accessibility:
+        // The universal access figure in a ring, its head lit.
+        const ring = Offset(12, 12);
+        canvas.drawCircle(ring, 9.4, line);
+        canvas.drawCircle(const Offset(12, 7.2), 1.8, tone);
+        canvas.drawCircle(const Offset(12, 7.2), 1.8, line);
+        canvas.drawPath(
+          Path()
+            ..moveTo(7.2, 10.4)
+            ..lineTo(16.8, 10.4)
+            ..moveTo(12, 10.4)
+            ..lineTo(12, 14.2)
+            ..lineTo(9.6, 18.4)
+            ..moveTo(12, 14.2)
+            ..lineTo(14.4, 18.4),
           line,
         );
 

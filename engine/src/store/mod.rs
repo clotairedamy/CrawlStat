@@ -563,6 +563,7 @@ fn write_result_in(tx: &Connection, result: &CrawledUrl) -> Result<()> {
              a11y_iframes_no_title = :a11y_iframes_no_title,
              a11y_heading_skips = :a11y_heading_skips,
              a11y_issues = :a11y_issues,
+             a11y_checked = :a11y_checked,
              error_kind = :error_kind,
              error_message = :error_message,
              fetched_at = :fetched_at,
@@ -629,6 +630,7 @@ fn write_result_in(tx: &Connection, result: &CrawledUrl) -> Result<()> {
         ":a11y_iframes_no_title": parsed.map(|p| p.accessibility.iframes_without_title as i64),
         ":a11y_heading_skips": parsed.map(|p| p.accessibility.skipped_heading_levels as i64),
         ":a11y_issues": parsed.map(|p| p.accessibility.issue_count() as i64),
+        ":a11y_checked": parsed.map(|_| crate::parse::accessibility::RULES_VERSION),
         ":error_kind": result.error_kind,
         ":error_message": result.error_message,
         ":fetched_at": result.fetched_at,
@@ -666,6 +668,34 @@ fn write_result_in(tx: &Connection, result: &CrawledUrl) -> Result<()> {
     }
 
     if let Some(page) = parsed {
+        {
+            let mut stmt = tx.prepare_cached(
+                "INSERT INTO a11y_findings (url_id, rule, count, sample, sample_key, more)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            )?;
+            for finding in &page.accessibility.findings {
+                let sample = finding.samples.first();
+                let more = finding.samples.get(1..).filter(|rest| !rest.is_empty());
+                stmt.execute(params![
+                    result.url_id,
+                    finding.rule,
+                    finding.count as i64,
+                    sample,
+                    sample.map(|s| crate::parse::accessibility::template_key(s)),
+                    more.map(|rest| rest.join("\n")),
+                ])?;
+            }
+            for feature in &page.accessibility.features {
+                stmt.execute(params![
+                    result.url_id,
+                    feature,
+                    1i64,
+                    None::<String>,
+                    None::<String>,
+                    None::<String>
+                ])?;
+            }
+        }
         {
             let mut stmt = tx.prepare_cached(
                 "INSERT INTO links
@@ -789,6 +819,7 @@ const CHILD_DELETES: &[&str] = &[
     "DELETE FROM social_tags WHERE url_id = ?1",
     "DELETE FROM structured_data WHERE url_id = ?1",
     "DELETE FROM redirects WHERE url_id = ?1",
+    "DELETE FROM a11y_findings WHERE url_id = ?1",
 ];
 
 fn kind_from_i64(value: i64) -> ResourceKind {
