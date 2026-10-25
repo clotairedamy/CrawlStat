@@ -310,7 +310,9 @@ class _Rail extends ConsumerWidget {
                   Glyph.readerFlow,
                   'UX Testing',
                   Routes.ux,
-                  needsProject: true,
+                  // Free installs can always open it to see what Pro adds.
+                  needsProject: isPro,
+                  tooltip: isPro ? null : 'UX Testing — a Pro feature',
                 ),
                 destination(
                   Glyph.accessibility,
@@ -326,8 +328,8 @@ class _Rail extends ConsumerWidget {
                     glyph: Glyph.pro,
                     label: 'Upgrade to Pro',
                     tooltip:
-                        'CrawlStat Pro — unlimited URLs, crawl comparison '
-                        'and custom extraction',
+                        'CrawlStat Pro — unlimited URLs, UX Testing, crawl '
+                        'comparison and custom extraction',
                     width: width,
                     expansion: expansion,
                     alwaysLit: true,

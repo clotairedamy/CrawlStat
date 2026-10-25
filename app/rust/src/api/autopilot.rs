@@ -18,6 +18,17 @@ fn err(e: impl ToString) -> String {
     e.to_string()
 }
 
+/// Pro only. Enforced here rather than by the screen hiding a button, like
+/// crawl comparison. Gated on the plan, not a feature string, so tokens issued
+/// before UX Testing existed already grant it.
+fn require_pro() -> Result<(), String> {
+    if crawlstat_engine::license::current().entitlement().is_pro() {
+        Ok(())
+    } else {
+        Err("UX Testing is a Pro feature. See Settings for your licence.".to_string())
+    }
+}
+
 fn options<T: Copy>(all: &[T], id: impl Fn(T) -> &'static str, label: impl Fn(T) -> &'static str) -> Value {
     Value::Array(all.iter().map(|v| json!({ "id": id(*v), "label": label(*v) })).collect())
 }
@@ -98,6 +109,7 @@ fn setup_from(setup_json: &str) -> Result<Setup, String> {
 
 /// Run a new audit and save it. Returns the view JSON.
 pub fn autopilot_run(db_path: String, setup_json: String) -> Result<String, String> {
+    require_pro()?;
     let setup = setup_from(&setup_json)?;
     runtime::with_store(&db_path, |s| {
         let conn = s.connection();
@@ -147,6 +159,7 @@ pub fn autopilot_set_state(db_path: String, audit_id: i64, state_json: String) -
 /// Run the same setup again, compare, and write the results back onto the
 /// baseline's findings. Returns the baseline's view, now with the comparison.
 pub fn autopilot_retest(db_path: String, id: i64) -> Result<String, String> {
+    require_pro()?;
     runtime::with_store(&db_path, |s| {
         let conn = s.connection();
         let Some(chosen) = store::load(conn, id)? else {
@@ -174,6 +187,7 @@ pub fn autopilot_delete(db_path: String, id: i64) -> Result<(), String> {
 }
 
 fn export(db_path: &str, id: i64, write: impl Fn(&Audit, &[store::FindingState], &Connection) -> Result<String, EngineError>) -> Result<String, String> {
+    require_pro()?;
     runtime::with_store(db_path, |s| {
         let conn = s.connection();
         Ok(match store::load(conn, id)? {

@@ -3,8 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../router.dart';
 import '../rust/api/autopilot.dart' as ap;
+import '../state/license.dart';
 import '../state/projects.dart';
 import '../state/settings.dart';
 import '../theme/theme.dart';
@@ -137,6 +140,7 @@ class _UxScreenState extends ConsumerState<UxScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!ref.watch(isProProvider)) return const _ProGate();
     final path = ref.watch(openProjectProvider);
     if (path == null) return const NoProjectState();
     if (_loadedFor != path) {
@@ -282,6 +286,43 @@ class _UxScreenState extends ConsumerState<UxScreen> {
   }
 
   String _label(String vocabulary, Object? id) => _labelIn(_catalog, vocabulary, id);
+}
+
+/// What a free install sees: what the tab does, and where to unlock it. The
+/// bridge refuses to run audits without Pro too, so this is the explanation,
+/// not the lock.
+class _ProGate extends StatelessWidget {
+  const _ProGate();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const ScreenHeader(
+          title: 'UX Testing',
+          subtitle: 'Test a page against its goal, prove each finding, fix, retest',
+        ),
+        Expanded(
+          child: EmptyState(
+            icon: Icons.workspace_premium_outlined,
+            title: 'UX Testing is part of CrawlStat Pro',
+            message:
+                'Audit any page against what it is for: around 60 checks chosen '
+                'for its type, findings ranked by impact with evidence and a '
+                'recommended fix, an owner-and-due-date workflow, retests that '
+                'show what you fixed, journeys, and a client report and '
+                'developer CSV.',
+            action: FilledButton.icon(
+              onPressed: () => context.go(Routes.settings),
+              icon: const Icon(Icons.key_outlined, size: 18),
+              label: const Text('Upgrade or enter a licence key'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
