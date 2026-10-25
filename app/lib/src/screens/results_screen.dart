@@ -542,12 +542,12 @@ class _StatusClassFilter extends ConsumerWidget {
                 ),
                 decoration: BoxDecoration(
                   color: selected == value
-                      ? CrawlStatTheme.statusColor(value * 100)
+                      ? CrawlStatTheme.statusColor(context, value * 100)
                             .withValues(alpha: 0.16)
                       : null,
                   border: Border.all(
                     color: selected == value
-                        ? CrawlStatTheme.statusColor(value * 100)
+                        ? CrawlStatTheme.statusColor(context, value * 100)
                         : theme.dividerColor,
                   ),
                   borderRadius: BorderRadius.circular(
@@ -560,7 +560,7 @@ class _StatusClassFilter extends ConsumerWidget {
                     context,
                     size: 11.5,
                     color: selected == value
-                        ? CrawlStatTheme.statusColor(value * 100)
+                        ? CrawlStatTheme.statusColor(context, value * 100)
                         : theme.colorScheme.onSurfaceVariant,
                   ),
                 ),

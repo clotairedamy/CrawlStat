@@ -232,6 +232,44 @@ class Soft {
     Color(0xFFFFA33D),
   ];
 
+  /// The accent as a gradient, taken from the theme in force.
+  ///
+  /// The constants below are the Ember palette's values and were being used
+  /// directly for the primary button, the gauge and the progress bars — so a
+  /// theme could change every severity on the screen and the biggest orange
+  /// object on it would stay orange. Anything with a `BuildContext` should
+  /// use these.
+  static List<Color> accentFill(BuildContext context) {
+    final accent = CrawlStatTheme.palette(context).accent;
+    return [
+      Color.lerp(accent, Colors.black, 0.18)!,
+      Color.lerp(accent, Colors.white, 0.16)!,
+    ];
+  }
+
+  /// A travelling ramp from the accent, for arcs and progress bars.
+  static List<Color> accentTravel(BuildContext context) {
+    final accent = CrawlStatTheme.palette(context).accent;
+    return [
+      Color.lerp(accent, Colors.black, 0.32)!,
+      accent,
+      Color.lerp(accent, Colors.white, 0.14)!,
+      Color.lerp(accent, Colors.white, 0.34)!,
+    ];
+  }
+
+  /// The halo beneath a filled accent control.
+  static List<BoxShadow> accentHalo(BuildContext context, {double depth = 1}) {
+    return [
+      BoxShadow(
+        color: CrawlStatTheme.palette(context).accent
+            .withValues(alpha: 0.38 * depth),
+        blurRadius: 24 * depth,
+        offset: Offset(0, 8 * depth),
+      ),
+    ];
+  }
+
   static LinearGradient accentGradient({
     AlignmentGeometry begin = Alignment.topLeft,
     AlignmentGeometry end = Alignment.bottomRight,

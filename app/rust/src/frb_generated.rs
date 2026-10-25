@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1613040561;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 2015153715;
 
 // Section: executor
 
@@ -367,6 +367,314 @@ fn wire__crate__api__project__architecture_report_impl(
                         api_db_path,
                         api_deep_threshold,
                         api_crowded_threshold,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__autopilot__autopilot_catalog_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "autopilot_catalog",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::autopilot::autopilot_catalog())?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__autopilot__autopilot_client_report_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "autopilot_client_report",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_db_path = <String>::sse_decode(&mut deserializer);
+            let api_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok =
+                        crate::api::autopilot::autopilot_client_report(api_db_path, api_id)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__autopilot__autopilot_delete_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "autopilot_delete",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_db_path = <String>::sse_decode(&mut deserializer);
+            let api_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::autopilot::autopilot_delete(api_db_path, api_id)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__autopilot__autopilot_developer_csv_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "autopilot_developer_csv",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_db_path = <String>::sse_decode(&mut deserializer);
+            let api_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok =
+                        crate::api::autopilot::autopilot_developer_csv(api_db_path, api_id)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__autopilot__autopilot_list_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "autopilot_list",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_db_path = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::autopilot::autopilot_list(api_db_path)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__autopilot__autopilot_open_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "autopilot_open",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_db_path = <String>::sse_decode(&mut deserializer);
+            let api_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::autopilot::autopilot_open(api_db_path, api_id)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__autopilot__autopilot_retest_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "autopilot_retest",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_db_path = <String>::sse_decode(&mut deserializer);
+            let api_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::autopilot::autopilot_retest(api_db_path, api_id)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__autopilot__autopilot_run_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "autopilot_run",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_db_path = <String>::sse_decode(&mut deserializer);
+            let api_setup_json = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok =
+                        crate::api::autopilot::autopilot_run(api_db_path, api_setup_json)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__autopilot__autopilot_set_state_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "autopilot_set_state",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_db_path = <String>::sse_decode(&mut deserializer);
+            let api_audit_id = <i64>::sse_decode(&mut deserializer);
+            let api_state_json = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::autopilot::autopilot_set_state(
+                        api_db_path,
+                        api_audit_id,
+                        api_state_json,
                     )?;
                     std::result::Result::Ok(output_ok)
                 })())
@@ -4255,70 +4563,90 @@ fn pde_ffi_dispatcher_primary_impl(
         7 => wire__crate__api__project__action_plan_impl(port, ptr, rust_vec_len, data_len),
         8 => wire__crate__api__license__activate_license_impl(port, ptr, rust_vec_len, data_len),
         9 => wire__crate__api__project__architecture_report_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__project__benchmark_against_impl(port, ptr, rust_vec_len, data_len),
-        11 => wire__crate__api__project__benchmark_task_against_impl(
+        11 => wire__crate__api__autopilot__autopilot_client_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        13 => wire__crate__api__project__clear_secret_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__project__compare_crawls_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__license__deactivate_license_impl(port, ptr, rust_vec_len, data_len),
-        20 => {
+        12 => wire__crate__api__autopilot__autopilot_delete_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__autopilot__autopilot_developer_csv_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        14 => wire__crate__api__autopilot__autopilot_list_impl(port, ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__autopilot__autopilot_open_impl(port, ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__autopilot__autopilot_retest_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__autopilot__autopilot_run_impl(port, ptr, rust_vec_len, data_len),
+        18 => {
+            wire__crate__api__autopilot__autopilot_set_state_impl(port, ptr, rust_vec_len, data_len)
+        }
+        19 => wire__crate__api__project__benchmark_against_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__project__benchmark_task_against_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        22 => wire__crate__api__project__clear_secret_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__project__compare_crawls_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__license__deactivate_license_impl(port, ptr, rust_vec_len, data_len),
+        29 => {
             wire__crate__api__project__export_issue_urls_csv_impl(port, ptr, rust_vec_len, data_len)
         }
-        21 => wire__crate__api__project__export_issues_csv_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__project__export_links_csv_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__project__export_urls_csv_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__project__export_ux_report_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__project__journey_goals_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__project__list_issues_impl(port, ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__project__list_urls_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__license__load_license_impl(port, ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__project__ollama_brief_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__project__ollama_default_endpoint_impl(
+        30 => wire__crate__api__project__export_issues_csv_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__project__export_links_csv_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__project__export_urls_csv_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__project__export_ux_report_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__project__journey_goals_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__project__list_issues_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__project__list_urls_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__license__load_license_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__project__ollama_brief_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__project__ollama_default_endpoint_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => {
+        45 => {
             wire__crate__api__project__ollama_default_model_impl(port, ptr, rust_vec_len, data_len)
         }
-        37 => wire__crate__api__project__ollama_models_impl(port, ptr, rust_vec_len, data_len),
-        38 => {
+        46 => wire__crate__api__project__ollama_models_impl(port, ptr, rust_vec_len, data_len),
+        47 => {
             wire__crate__api__project__ollama_write_report_impl(port, ptr, rust_vec_len, data_len)
         }
-        39 => wire__crate__api__project__open_project_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__project__project_info_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__project__project_stats_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__license__refresh_license_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__license__refresh_license_if_due_impl(
+        48 => wire__crate__api__project__open_project_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__project__project_info_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__project__project_stats_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__license__refresh_license_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__license__refresh_license_if_due_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        47 => wire__crate__api__project__run_audit_impl(port, ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__project__run_custom_journey_impl(port, ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__project__run_journey_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__project__run_journeys_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__project__secret_is_set_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__architecture__site_architecture_impl(
+        56 => wire__crate__api__project__run_audit_impl(port, ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__project__run_custom_journey_impl(port, ptr, rust_vec_len, data_len),
+        58 => wire__crate__api__project__run_journey_impl(port, ptr, rust_vec_len, data_len),
+        59 => wire__crate__api__project__run_journeys_impl(port, ptr, rust_vec_len, data_len),
+        60 => wire__crate__api__project__secret_is_set_impl(port, ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__architecture__site_architecture_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        53 => wire__crate__api__project__site_structure_impl(port, ptr, rust_vec_len, data_len),
-        55 => wire__crate__api__project__status_summary_impl(port, ptr, rust_vec_len, data_len),
-        56 => wire__crate__api__project__store_secret_impl(port, ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__project__url_detail_impl(port, ptr, rust_vec_len, data_len),
-        58 => wire__crate__api__types__url_query_default_impl(port, ptr, rust_vec_len, data_len),
-        59 => wire__crate__api__project__ux_analyse_impl(port, ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__project__ux_candidate_pages_impl(port, ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__project__ux_personas_impl(port, ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__project__site_structure_impl(port, ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__project__status_summary_impl(port, ptr, rust_vec_len, data_len),
+        65 => wire__crate__api__project__store_secret_impl(port, ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__project__url_detail_impl(port, ptr, rust_vec_len, data_len),
+        67 => wire__crate__api__types__url_query_default_impl(port, ptr, rust_vec_len, data_len),
+        68 => wire__crate__api__project__ux_analyse_impl(port, ptr, rust_vec_len, data_len),
+        69 => wire__crate__api__project__ux_candidate_pages_impl(port, ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__project__ux_personas_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -4331,20 +4659,21 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        12 => wire__crate__api__crawl__cancel_crawl_impl(ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__project__close_project_impl(ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__default_crawl_request_impl(ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__default_user_agent_impl(ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__engine_version_impl(ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__free_tier_max_urls_impl(ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__crawl__is_crawl_paused_impl(ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__crawl__is_crawl_running_impl(ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__project__issue_definition_impl(ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__license__license_status_impl(ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__crawl__pause_crawl_impl(ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__crawl__resume_crawl_impl(ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__crawl__resume_paused_crawl_impl(ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__crawl__start_crawl_impl(ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__autopilot__autopilot_catalog_impl(ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__crawl__cancel_crawl_impl(ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__project__close_project_impl(ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__default_crawl_request_impl(ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__default_user_agent_impl(ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__engine_version_impl(ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__free_tier_max_urls_impl(ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__crawl__is_crawl_paused_impl(ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__crawl__is_crawl_running_impl(ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__project__issue_definition_impl(ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__license__license_status_impl(ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__crawl__pause_crawl_impl(ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__crawl__resume_crawl_impl(ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__crawl__resume_paused_crawl_impl(ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__crawl__start_crawl_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

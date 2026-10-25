@@ -37,7 +37,7 @@ class StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = CrawlStatTheme.statusColor(status);
+    final color = CrawlStatTheme.statusColor(context, status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
@@ -65,7 +65,7 @@ class SeverityDot extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: CrawlStatTheme.severityColor(severity),
+        color: CrawlStatTheme.severityColor(context, severity),
         shape: BoxShape.circle,
       ),
     );
@@ -476,7 +476,7 @@ class InlineMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = CrawlStatTheme.severityColor(severity);
+    final color = CrawlStatTheme.severityColor(context, severity);
     return Container(
       margin: margin,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

@@ -438,7 +438,8 @@ class _StatusBreakdown extends StatelessWidget {
       ('2xx', stats.status2Xx, CrawlStatTheme.palette(context).success),
       ('3xx', stats.status3Xx, CrawlStatTheme.palette(context).warning),
       ('4xx', stats.status4Xx, CrawlStatTheme.palette(context).error),
-      ('5xx', stats.status5Xx, const Color(0xFFB91C4B)),
+      // Was a raw hex, so it ignored the theme entirely.
+      ('5xx', stats.status5Xx, CrawlStatTheme.palette(context).error),
       ('Failed', stats.failed, CrawlStatTheme.palette(context).notice),
     ];
     final total = segments.fold<int>(0, (sum, segment) => sum + segment.$2);

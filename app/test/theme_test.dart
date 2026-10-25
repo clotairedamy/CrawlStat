@@ -3,28 +3,59 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  /// Run [body] with a context under the dark theme.
+  Future<void> withContext(
+    WidgetTester tester,
+    void Function(BuildContext context) body,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: CrawlStatTheme.dark(),
+        home: Builder(
+          builder: (context) {
+            body(context);
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+  }
+
   group('status colours', () {
-    test('carry the meaning of the status class', () {
-      expect(CrawlStatTheme.statusColor(200), CrawlStatTheme.success);
-      expect(CrawlStatTheme.statusColor(204), CrawlStatTheme.success);
-      expect(CrawlStatTheme.statusColor(301), CrawlStatTheme.warning);
-      expect(CrawlStatTheme.statusColor(404), CrawlStatTheme.error);
-      expect(CrawlStatTheme.statusColor(500), CrawlStatTheme.error);
+    testWidgets('carry the meaning of the status class', (tester) async {
+      await withContext(tester, (context) {
+        final palette = CrawlStatTheme.palette(context);
+        expect(CrawlStatTheme.statusColor(context, 200), palette.success);
+        expect(CrawlStatTheme.statusColor(context, 204), palette.success);
+        expect(CrawlStatTheme.statusColor(context, 301), palette.warning);
+        expect(CrawlStatTheme.statusColor(context, 404), palette.error);
+        expect(CrawlStatTheme.statusColor(context, 500), palette.error);
+      });
     });
 
-    test('a URL that was never fetched is neutral, not an error', () {
+    testWidgets('a URL that was never fetched is neutral, not an error', (
+      tester,
+    ) async {
       // Queued and robots-blocked URLs have no status; colouring them red
       // would make the table look broken when it is not.
-      expect(CrawlStatTheme.statusColor(null), CrawlStatTheme.notice);
+      await withContext(tester, (context) {
+        expect(
+          CrawlStatTheme.statusColor(context, null),
+          CrawlStatTheme.palette(context).notice,
+        );
+      });
     });
   });
 
-  test('severity colours match the audit severities', () {
-    expect(CrawlStatTheme.severityColor('error'), CrawlStatTheme.error);
-    expect(CrawlStatTheme.severityColor('warning'), CrawlStatTheme.warning);
-    expect(CrawlStatTheme.severityColor('notice'), CrawlStatTheme.notice);
-    // An unknown severity from a newer build must still render.
-    expect(CrawlStatTheme.severityColor('whatever'), CrawlStatTheme.notice);
+  testWidgets('severity colours match the audit severities', (tester) async {
+    await withContext(tester, (context) {
+      final palette = CrawlStatTheme.palette(context);
+      expect(CrawlStatTheme.severityColor(context, 'error'), palette.error);
+      expect(CrawlStatTheme.severityColor(context, 'warning'), palette.warning);
+      expect(CrawlStatTheme.severityColor(context, 'notice'), palette.notice);
+      // An unknown severity from a newer build must still render.
+      expect(CrawlStatTheme.severityColor(context, 'whatever'), palette.notice);
+    });
   });
 
   group('themes', () {

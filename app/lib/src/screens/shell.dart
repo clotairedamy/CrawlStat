@@ -308,7 +308,7 @@ class _Rail extends ConsumerWidget {
                 ),
                 destination(
                   Glyph.readerFlow,
-                  'Journeys',
+                  'UX Testing',
                   Routes.ux,
                   needsProject: true,
                 ),
@@ -568,12 +568,15 @@ class _NewCrawlTileState extends State<_NewCrawlTile> {
               duration: const Duration(milliseconds: 160),
               decoration: BoxDecoration(
                 borderRadius: corner,
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: Soft.emberFill,
+                  colors: Soft.accentFill(context),
                 ),
-                boxShadow: Soft.emberGlow(depth: _hovered ? 0.95 : 0.7),
+                boxShadow: Soft.accentHalo(
+                  context,
+                  depth: _hovered ? 0.95 : 0.7,
+                ),
               ),
               // A lit top edge, so the ember tile is moulded like the others
               // rather than a flat orange sticker.
@@ -1096,6 +1099,7 @@ class _LiveRingState extends State<_LiveRing>
                   fraction: crawl.fraction ?? (paused ? 0 : 0.28),
                   rotation: _indeterminate ? _spin.value : 0,
                   track: Theme.of(context).dividerColor,
+                  travel: Soft.accentTravel(context),
                 ),
               ),
             ),
@@ -1133,11 +1137,13 @@ class _RingPainter extends CustomPainter {
     required this.fraction,
     required this.rotation,
     required this.track,
+    required this.travel,
   });
 
   final double fraction;
   final double rotation;
   final Color track;
+  final List<Color> travel;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1163,7 +1169,7 @@ class _RingPainter extends CustomPainter {
       ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round
       ..shader = SweepGradient(
-        colors: Soft.accentRamp,
+        colors: travel,
         transform: GradientRotation(-math.pi / 2 + rotation * 2 * math.pi),
       ).createShader(rect);
     final span = length * fraction.clamp(0, 1);
@@ -1180,7 +1186,8 @@ class _RingPainter extends CustomPainter {
   bool shouldRepaint(_RingPainter old) =>
       old.fraction != fraction ||
       old.rotation != rotation ||
-      old.track != track;
+      old.track != track ||
+      !listEquals(old.travel, travel);
 }
 
 /// The heading at the top of a screen: a large title with the screen's

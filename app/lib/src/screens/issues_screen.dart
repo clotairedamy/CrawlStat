@@ -219,7 +219,7 @@ class _IssueList extends StatelessWidget {
                   const Spacer(),
                   TonePill(
                     '${entry.value.length}',
-                    color: CrawlStatTheme.severityColor(entry.key),
+                    color: CrawlStatTheme.severityColor(context, entry.key),
                   ),
                 ],
               ),
@@ -278,7 +278,7 @@ class _IssueRow extends StatelessWidget {
             Text(
               formatCount(issue.urlCount),
               style: theme.textTheme.bodySmall?.copyWith(
-                color: CrawlStatTheme.severityColor(issue.severity),
+                color: CrawlStatTheme.severityColor(context, issue.severity),
                 fontWeight: FontWeight.w600,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
@@ -320,7 +320,7 @@ class _IssueDetail extends ConsumerWidget {
           children: [
             TonePill(
               issue.severity[0].toUpperCase() + issue.severity.substring(1),
-              color: CrawlStatTheme.severityColor(issue.severity),
+              color: CrawlStatTheme.severityColor(context, issue.severity),
               dot: true,
             ),
             const SizedBox(width: 8),

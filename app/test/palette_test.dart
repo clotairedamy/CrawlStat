@@ -58,5 +58,44 @@ void main() {
 
   test('the light variant keeps its name so selection still matches', () {
     expect(CrawlStatPalette.gold.forLight().name, 'gold');
+    expect(CrawlStatPalette.graphite.forLight().name, 'graphite');
+  });
+
+  group('graphite', () {
+    test('reserves its colour for the call to action', () {
+      // The whole point of the third palette: gold marks the one button
+      // worth pressing, and marking anything else with it would put the
+      // colour back in a dozen places.
+      final palette = CrawlStatPalette.graphite;
+      expect(palette.highlight, isNot(palette.accent));
+    });
+
+    test('the other two spend one colour on everything accented', () {
+      for (final palette in [CrawlStatPalette.ember, CrawlStatPalette.gold]) {
+        expect(palette.highlight, palette.accent, reason: palette.name);
+      }
+    });
+
+    test('severity is ordered by lightness, worst first', () {
+      // Hue carries nothing here, so the ramp has to be monotonic or the
+      // severities stop being tellable apart.
+      final p = CrawlStatPalette.graphite;
+      double light(Color c) => (c.r + c.g + c.b) / 3;
+      expect(light(p.error), greaterThan(light(p.warning)));
+      expect(light(p.warning), greaterThan(light(p.notice)));
+      expect(light(p.notice), greaterThan(light(p.success)));
+    });
+
+    test('the light theme inverts the ramp, because the page is pale', () {
+      final p = CrawlStatPalette.graphite.forLight();
+      double light(Color c) => (c.r + c.g + c.b) / 3;
+      expect(light(p.error), lessThan(light(p.warning)));
+      expect(light(p.warning), lessThan(light(p.notice)));
+    });
+
+    test('every palette is offered in Settings', () {
+      expect(CrawlStatPalette.all.map((p) => p.name),
+          containsAll(['ember', 'gold', 'graphite']));
+    });
   });
 }

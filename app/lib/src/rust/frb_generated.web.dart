@@ -9,6 +9,7 @@
 import 'api.dart';
 import 'api/accessibility.dart';
 import 'api/architecture.dart';
+import 'api/autopilot.dart';
 import 'api/crawl.dart';
 import 'api/license.dart';
 import 'api/project.dart';

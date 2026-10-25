@@ -412,7 +412,7 @@ class _FindingTileState extends State<_FindingTile> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final finding = widget.finding;
-    final colour = CrawlStatTheme.severityColor(finding.severity);
+    final colour = CrawlStatTheme.severityColor(context, finding.severity);
     final unit = switch (finding.id) {
       'missing_hubs' => finding.count == 1 ? 'folder' : 'folders',
       'underlinked_sections' ||
@@ -1694,7 +1694,7 @@ class _StatusCard extends StatelessWidget {
                   ChartDatum(
                     label: '${entry.key}xx',
                     value: entry.value,
-                    color: CrawlStatTheme.statusColor(entry.key * 100),
+                    color: CrawlStatTheme.statusColor(context, entry.key * 100),
                   ),
               ],
             ),

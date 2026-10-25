@@ -2,6 +2,7 @@
 
 pub mod a11y;
 pub mod architecture;
+pub mod autopilot;
 pub mod audit;
 pub mod compare;
 pub mod config;

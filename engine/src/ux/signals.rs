@@ -123,12 +123,12 @@ pub const VAGUE_LABELS: &[&str] = &[
     "continue", "go", "details", "find out more",
 ];
 
-fn text_of(element: ElementRef<'_>) -> String {
+pub(crate) fn text_of(element: ElementRef<'_>) -> String {
     let raw: String = element.text().collect::<Vec<_>>().join(" ");
     raw.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn region_of(element: ElementRef<'_>) -> Region {
+pub(crate) fn region_of(element: ElementRef<'_>) -> Region {
     // Walk up to the nearest landmark. The first one wins, so a nav inside a
     // footer is footer-weighted, which is right: it is still down there.
     let mut current = element.parent();
@@ -165,7 +165,7 @@ fn nesting_of(element: ElementRef<'_>) -> u16 {
     depth
 }
 
-fn looks_like_commitment(label: &str) -> bool {
+pub(crate) fn looks_like_commitment(label: &str) -> bool {
     let lower = label.to_ascii_lowercase();
     COMMITMENT_WORDS.iter().any(|word| lower.contains(word))
 }

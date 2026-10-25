@@ -113,7 +113,7 @@ class CrawlGauge extends StatelessWidget {
                     value: animatedValue,
                     max: ceiling,
                     progress: progress == null ? null : animatedProgress,
-                    ramp: ramp ?? Soft.accentRamp,
+                    ramp: ramp ?? Soft.accentTravel(context),
                     tickColor: theme.colorScheme.onSurfaceVariant.withValues(
                       alpha: 0.30,
                     ),

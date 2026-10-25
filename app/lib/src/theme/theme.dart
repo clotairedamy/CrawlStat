@@ -125,7 +125,7 @@ class CrawlStatTheme {
       brightness: brightness,
       primary: palette.accent,
       onPrimary: Colors.white,
-      secondary: palette.accent,
+      secondary: palette.highlight,
       onSecondary: Colors.white,
       error: palette.error,
       onError: Colors.white,
@@ -208,7 +208,7 @@ class CrawlStatTheme {
         // the surface rather than a drawn line.
         border: _inputBorder(Color.lerp(surface, Colors.black, 0.18)!),
         enabledBorder: _inputBorder(Color.lerp(surface, Colors.black, 0.18)!),
-        focusedBorder: _inputBorder(palette.accent, width: 1.5),
+        focusedBorder: _inputBorder(palette.highlight, width: 1.5),
         errorBorder: _inputBorder(palette.error),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -245,7 +245,7 @@ class CrawlStatTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: palette.accent,
+          foregroundColor: palette.highlight,
           textStyle: body.copyWith(fontWeight: FontWeight.w500),
           shape: controlShape,
           minimumSize: const Size(0, 32),
@@ -257,7 +257,7 @@ class CrawlStatTheme {
           textStyle: body.copyWith(fontWeight: FontWeight.w500),
           backgroundColor: raised,
           foregroundColor: subdued,
-          selectedBackgroundColor: palette.accent,
+          selectedBackgroundColor: palette.highlight,
           selectedForegroundColor: Colors.white,
           side: BorderSide.none,
           shape: const StadiumBorder(),
@@ -269,12 +269,14 @@ class CrawlStatTheme {
               states.contains(WidgetState.selected) ? Colors.white : subdued,
         ),
         trackColor: WidgetStateProperty.resolveWith(
-          (states) =>
-              states.contains(WidgetState.selected) ? palette.accent : raised,
+          (states) => states.contains(WidgetState.selected)
+              ? palette.highlight
+              : raised,
         ),
         trackOutlineColor: WidgetStateProperty.resolveWith(
-          (states) =>
-              states.contains(WidgetState.selected) ? palette.accent : border,
+          (states) => states.contains(WidgetState.selected)
+              ? palette.highlight
+              : border,
         ),
       ),
       popupMenuTheme: PopupMenuThemeData(
@@ -363,24 +365,28 @@ class CrawlStatTheme {
   }
 
   /// Colour for an HTTP status code: 2xx green, 3xx palette.accent, 4xx/5xx red.
-  static Color statusColor(int? status) {
-    if (status == null) return notice;
-    if (status >= 500) return error;
-    if (status >= 400) return error;
-    if (status >= 300) return warning;
-    if (status >= 200) return success;
-    return notice;
+  /// The colour for an HTTP status, from the theme in force.
+  ///
+  /// This used to be static, which meant every status chip, grid cell and
+  /// severity dot in the app kept the Ember palette's red and green however
+  /// the theme was set. A colour that carries meaning has to follow the
+  /// palette or the palette is decoration.
+  static Color statusColor(BuildContext context, int? status) {
+    final palette = CrawlStatTheme.palette(context);
+    if (status == null) return palette.notice;
+    if (status >= 400) return palette.error;
+    if (status >= 300) return palette.warning;
+    if (status >= 200) return palette.success;
+    return palette.notice;
   }
 
-  static Color severityColor(String severity) {
-    switch (severity) {
-      case 'error':
-        return error;
-      case 'warning':
-        return warning;
-      default:
-        return notice;
-    }
+  static Color severityColor(BuildContext context, String severity) {
+    final palette = CrawlStatTheme.palette(context);
+    return switch (severity) {
+      'error' => palette.error,
+      'warning' => palette.warning,
+      _ => palette.notice,
+    };
   }
 }
 
@@ -417,14 +423,22 @@ class CrawlStatPalette extends ThemeExtension<CrawlStatPalette> {
   const CrawlStatPalette({
     required this.name,
     required this.accent,
+    Color? highlight,
     required this.error,
     required this.warning,
     required this.notice,
     required this.success,
-  });
+  }) : highlight = highlight ?? accent;
 
   final String name;
+
+  /// The primary action. Spent on one button per screen.
   final Color accent;
+
+  /// Selection, focus rings, switch tracks — everything that is *marked*
+  /// rather than *offered*. Defaults to [accent]; a theme sets it separately
+  /// when it wants its colour reserved for the call to action alone.
+  final Color highlight;
   final Color error;
   final Color warning;
   final Color notice;
@@ -469,11 +483,45 @@ class CrawlStatPalette extends ThemeExtension<CrawlStatPalette> {
     success: Color(0xFF5E5B57),
   );
 
-  static const List<CrawlStatPalette> all = [ember, gold];
+  /// Gold for the one button that matters, and nothing else coloured at all.
+  ///
+  /// The difference from [gold] is where the colour is allowed to appear.
+  /// There, the accent marks selection, focus and switches as well, so a busy
+  /// screen ends up with gold in a dozen places and the primary action stops
+  /// standing out. Here it appears once: on the call to action. Everything
+  /// else — selected rows, focus rings, severity — is a step on a grey ramp.
+  ///
+  /// The ramp runs light to dark on purpose. In a dark interface the eye goes
+  /// to the lightest thing, so the most serious finding is the brightest, and
+  /// "fine" is the quietest thing on the screen.
+  static const CrawlStatPalette graphite = CrawlStatPalette(
+    name: 'graphite',
+    accent: Color(0xFFE3AD7B),
+    // A bright neutral, clearly not the gold, so selection never reads as a
+    // button you are supposed to press.
+    highlight: Color(0xFFD9D6D0),
+    error: Color(0xFFF4F3F0),
+    warning: Color(0xFFC3BFB8),
+    notice: Color(0xFF8A8782),
+    success: Color(0xFF615E5A),
+  );
+
+  static const List<CrawlStatPalette> all = [ember, gold, graphite];
 
   /// The light theme needs the ramp inverted: on a pale canvas the *darkest*
   /// tone is the one that draws the eye.
   CrawlStatPalette forLight() {
+    if (name == 'graphite') {
+      return const CrawlStatPalette(
+        name: 'graphite',
+        accent: Color(0xFFA9712F),
+        highlight: Color(0xFF3A3833),
+        error: Color(0xFF141311),
+        warning: Color(0xFF4E4B46),
+        notice: Color(0xFF86837D),
+        success: Color(0xFFB4B0A9),
+      );
+    }
     if (name != 'gold') return this;
     return const CrawlStatPalette(
       name: 'gold',
@@ -487,10 +535,14 @@ class CrawlStatPalette extends ThemeExtension<CrawlStatPalette> {
 
   String get label => switch (name) {
     'gold' => 'Gold on graphite',
+    'graphite' => 'Graphite',
     _ => 'Ember',
   };
 
   String get describes => switch (name) {
+    'graphite' =>
+      'Gold on the call to action and nowhere else. Selection, focus and '
+          'severity are all steps on one grey ramp.',
     'gold' =>
       'The website’s gold, with severity shown by lightness rather than '
           'colour. Quieter, and legible if you cannot separate red from green.',
@@ -505,6 +557,7 @@ class CrawlStatPalette extends ThemeExtension<CrawlStatPalette> {
   CrawlStatPalette copyWith({
     String? name,
     Color? accent,
+    Color? highlight,
     Color? error,
     Color? warning,
     Color? notice,
@@ -513,6 +566,7 @@ class CrawlStatPalette extends ThemeExtension<CrawlStatPalette> {
     return CrawlStatPalette(
       name: name ?? this.name,
       accent: accent ?? this.accent,
+      highlight: highlight ?? this.highlight,
       error: error ?? this.error,
       warning: warning ?? this.warning,
       notice: notice ?? this.notice,
@@ -526,6 +580,7 @@ class CrawlStatPalette extends ThemeExtension<CrawlStatPalette> {
     return CrawlStatPalette(
       name: t < 0.5 ? name : other.name,
       accent: Color.lerp(accent, other.accent, t)!,
+      highlight: Color.lerp(highlight, other.highlight, t)!,
       error: Color.lerp(error, other.error, t)!,
       warning: Color.lerp(warning, other.warning, t)!,
       notice: Color.lerp(notice, other.notice, t)!,

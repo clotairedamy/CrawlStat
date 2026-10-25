@@ -973,6 +973,9 @@ class PaletteOption extends StatelessWidget {
             children: [
               for (final colour in [
                 palette.accent,
+                // Shown separately so a theme that keeps its colour for the
+                // call to action alone is visibly different here.
+                palette.highlight,
                 palette.error,
                 palette.warning,
                 palette.notice,

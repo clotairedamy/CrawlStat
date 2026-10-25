@@ -6,6 +6,7 @@
 
 pub mod accessibility;
 pub mod architecture;
+pub mod autopilot;
 pub mod crawl;
 pub mod license;
 pub mod project;

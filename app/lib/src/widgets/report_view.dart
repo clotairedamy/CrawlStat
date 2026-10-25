@@ -217,7 +217,7 @@ class _NumberBadge extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: Soft.accentGradient(),
-        boxShadow: Soft.emberGlow(depth: 0.5),
+        boxShadow: Soft.accentHalo(context, depth: 0.5),
       ),
       child: Text(
         '$number',

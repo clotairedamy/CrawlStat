@@ -598,6 +598,7 @@ dependencies = [
  "anyhow",
  "crawlstat-engine",
  "flutter_rust_bridge",
+ "rusqlite",
  "serde",
  "serde_json",
  "tempfile",
