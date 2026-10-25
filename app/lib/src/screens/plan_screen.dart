@@ -14,6 +14,7 @@ import '../theme/icons.dart';
 import '../theme/soft.dart';
 import '../theme/theme.dart';
 import '../widgets/common.dart';
+import '../widgets/section_stage.dart';
 import '../widgets/export.dart';
 import '../widgets/report_view.dart';
 import 'shell.dart';
@@ -108,23 +109,30 @@ class _Body extends ConsumerWidget {
               '${templateWins > 0 ? ' · $templateWins can be fixed in a template' : ''}',
         ),
         Expanded(
-          child: ListView(
+          child: Padding(
             padding: const EdgeInsets.fromLTRB(
               CrawlStatTheme.gutter,
               0,
               CrawlStatTheme.gutter,
               CrawlStatTheme.gutter,
             ),
-            children: [
-              _Narrative(plan: plan, path: path),
-              const SizedBox(height: 16),
-              for (final (index, item) in plan.items.indexed) ...[
-                _JobCard(item: item, rank: index + 1),
-                const SizedBox(height: 12),
+            // One job at a time. A ranked list presented as a wall invites
+            // the reader to skim it and do the first thing they recognise,
+            // which is exactly the behaviour the ranking exists to replace.
+            child: SectionStage(
+              labels: [
+                'Summary',
+                for (final (index, item) in plan.items.indexed)
+                  '${index + 1}. ${item.title}',
+                'About the score',
               ],
-              const SizedBox(height: 8),
-              _Caveat(),
-            ],
+              sections: [
+                _Narrative(plan: plan, path: path),
+                for (final (index, item) in plan.items.indexed)
+                  _JobCard(item: item, rank: index + 1),
+                _Caveat(),
+              ],
+            ),
           ),
         ),
       ],

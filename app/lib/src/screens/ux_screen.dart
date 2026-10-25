@@ -11,6 +11,7 @@ import '../theme/icons.dart';
 import '../theme/soft.dart';
 import '../theme/theme.dart';
 import '../widgets/common.dart';
+import '../widgets/section_stage.dart';
 import 'shell.dart';
 
 final _personasProvider = FutureProvider<List<rust.UxPersona>>((ref) {
@@ -156,81 +157,94 @@ class _UxScreenState extends ConsumerState<UxScreen> {
                               'exist but could not be found' : ''}',
         ),
         Expanded(
-          child: ListView(
+          child: Padding(
             padding: const EdgeInsets.fromLTRB(
               CrawlStatTheme.gutter,
               0,
               CrawlStatTheme.gutter,
               CrawlStatTheme.gutter,
             ),
-            children: [
-              _Controls(
-                personas: personas,
-                persona: _persona,
-                running: _running,
-                onPersona: (id) => setState(() {
-                  _personaOverride = id;
-                  _results = null;
-                }),
-                onRun: () => _run(path),
-              ),
-              const SizedBox(height: 16),
-              _TaskBox(
-                controller: _task,
-                running: _running,
-                result: _custom,
-                onRun: () => _runTask(path),
-              ),
-              const SizedBox(height: 16),
-              _BenchmarkCard(
-                projects: ref.watch(recentProjectsProvider),
-                ourPath: path,
-                rivalPath: _rivalPath,
-                results: _benchmark,
-                running: _running,
-                onRival: (value) => setState(() {
-                  _rivalPath = value;
-                  _benchmark = null;
-                }),
-                onRun: () => _compare(path),
-              ),
-              const SizedBox(height: 16),
-              if (_error != null)
-                InlineMessage(message: _error!, severity: 'error')
-              else if (_results == null)
-                const _Explainer()
-              else ...[
-                if (_results!.any((r) => r.unfetchedLinks > 20))
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: InlineMessage(
-                      severity: 'warning',
-                      message:
-                          'This crawl did not fetch every page it found, so '
-                          'some routes are missing from the map. Finish the '
-                          'crawl for a reliable answer.',
-                    ),
-                  ),
-                for (final result in _results!) ...[
-                  _JourneyCard(result: result),
-                  const SizedBox(height: 12),
-                ],
-                if (_ia != null) ...[
-                  const SizedBox(height: 8),
-                  _Architecture(
-                    report: _ia!,
-                    path: path,
-                    deepThreshold: ref.read(settingsProvider).deepThreshold,
-                    crowdedThreshold: ref
-                        .read(settingsProvider)
-                        .crowdedThreshold,
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                const SizedBox(height: 4),
-                const _Caveat(),
+            child: SectionStage(
+              labels: const [
+                'Who is visiting',
+                'Your own task',
+                'Against someone else',
+                'Results',
               ],
-            ],
+              sections: [
+                _Controls(
+                  personas: personas,
+                  persona: _persona,
+                  running: _running,
+                  onPersona: (id) => setState(() {
+                    _personaOverride = id;
+                    _results = null;
+                  }),
+                  onRun: () => _run(path),
+                ),
+                _TaskBox(
+                  controller: _task,
+                  running: _running,
+                  result: _custom,
+                  onRun: () => _runTask(path),
+                ),
+                _BenchmarkCard(
+                  projects: ref.watch(recentProjectsProvider),
+                  ourPath: path,
+                  rivalPath: _rivalPath,
+                  results: _benchmark,
+                  running: _running,
+                  onRival: (value) => setState(() {
+                    _rivalPath = value;
+                    _benchmark = null;
+                  }),
+                  onRun: () => _compare(path),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_error != null)
+                      InlineMessage(message: _error!, severity: 'error')
+                    else if (_results == null)
+                      const _Explainer()
+                    else ...[
+                      if (_results!.any((r) => r.unfetchedLinks > 20))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: InlineMessage(
+                            severity: 'warning',
+                            message:
+                                'This crawl did not fetch every page it found, so '
+                                'some routes are missing from the map. Finish the '
+                                'crawl for a reliable answer.',
+                          ),
+                        ),
+                      for (final result in _results!) ...[
+                        _JourneyCard(result: result),
+                        const SizedBox(height: 12),
+                      ],
+                      if (_ia != null) ...[
+                        const SizedBox(height: 8),
+                        _Architecture(
+                          report: _ia!,
+                          path: path,
+                          deepThreshold: ref
+                              .read(settingsProvider)
+                              .deepThreshold,
+                          crowdedThreshold: ref
+                              .read(settingsProvider)
+                              .crowdedThreshold,
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      const SizedBox(height: 4),
+                      const _Caveat(),
+                    ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ],
