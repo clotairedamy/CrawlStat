@@ -11,7 +11,7 @@ import '../theme/icons.dart';
 import '../theme/soft.dart';
 import '../theme/theme.dart';
 import '../widgets/common.dart';
-import '../widgets/section_stage.dart';
+import '../widgets/reveal_list.dart';
 import 'shell.dart';
 
 final _personasProvider = FutureProvider<List<rust.UxPersona>>((ref) {
@@ -164,14 +164,9 @@ class _UxScreenState extends ConsumerState<UxScreen> {
               CrawlStatTheme.gutter,
               CrawlStatTheme.gutter,
             ),
-            child: SectionStage(
-              labels: const [
-                'Who is visiting',
-                'Your own task',
-                'Against someone else',
-                'Results',
-              ],
-              sections: [
+            child: RevealList(
+              spacing: 16,
+              children: [
                 _Controls(
                   personas: personas,
                   persona: _persona,
