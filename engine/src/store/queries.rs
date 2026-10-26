@@ -52,6 +52,10 @@ pub struct UrlRow {
     pub indexability_reason: Option<String>,
     /// Simplified PageRank, rescaled so the strongest page on the site is 100.
     pub link_score: Option<f64>,
+    /// How many audit issues flag this URL.
+    pub issue_count: i64,
+    /// The most severe of them, as stored: 0 error, 1 warning, 2 notice.
+    pub worst_severity: Option<i64>,
 }
 
 /// The columns `SELECT`ed for a [`UrlRow`], in order.
@@ -60,7 +64,10 @@ const URL_COLUMNS: &str = "
     body_bytes, response_time_ms, title, title_length, meta_description,
     meta_description_length, meta_robots, h1, h1_count, word_count, canonical,
     canonical_is_self, inlinks, internal_links, external_links, redirect_count, error_kind,
-    indexable, indexability_reason, link_score, html_lang, structured_data_types";
+    indexable, indexability_reason, link_score, html_lang, structured_data_types,
+    (SELECT count(*) FROM issue_urls iu WHERE iu.url_id = urls.id) AS issue_count,
+    (SELECT min(i.severity) FROM issue_urls iu JOIN issues i ON i.issue_id = iu.issue_id
+      WHERE iu.url_id = urls.id) AS worst_severity";
 
 fn url_row(row: &Row<'_>) -> rusqlite::Result<UrlRow> {
     Ok(UrlRow {
@@ -95,6 +102,8 @@ fn url_row(row: &Row<'_>) -> rusqlite::Result<UrlRow> {
         link_score: row.get(28)?,
         html_lang: row.get(29)?,
         structured_data_types: row.get(30)?,
+        issue_count: row.get(31)?,
+        worst_severity: row.get(32)?,
     })
 }
 
@@ -118,6 +127,81 @@ pub struct UrlFilter {
     pub issue_id: Option<String>,
     /// `Some(true)` for indexable pages only, `Some(false)` for the rest.
     pub indexable: Option<bool>,
+    /// One of the Pages tab's lenses.
+    pub view: Option<PageView>,
+}
+
+/// A question asked of the pages — "which are slow?" — as a filter.
+///
+/// The thresholds travel with the view, so the same crawl answers with the
+/// limits it was audited against.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PageView {
+    /// Flagged by at least one audit issue.
+    WithIssues,
+    /// A 4xx or 5xx, or a fetch that failed outright.
+    Broken,
+    Redirects,
+    /// Answered in at least this many milliseconds.
+    Slow {
+        ms: i64,
+    },
+    /// An HTML page whose title is missing or outside the range.
+    TitleProblems {
+        min: i64,
+        max: i64,
+    },
+    /// An HTML page whose meta description is missing or outside the range.
+    DescriptionProblems {
+        min: i64,
+        max: i64,
+    },
+    /// An HTML page with fewer words than this.
+    Thin {
+        words: i64,
+    },
+    NonIndexable,
+}
+
+impl PageView {
+    /// The condition, with its parameters.
+    fn clause(self) -> (String, Vec<i64>) {
+        let html_ok = format!(
+            "kind = {} AND status_code >= 200 AND status_code < 300",
+            ResourceKind::Html as i64
+        );
+        match self {
+            PageView::WithIssues => ("id IN (SELECT url_id FROM issue_urls)".into(), Vec::new()),
+            PageView::Broken => (
+                format!(
+                    "(status_code >= 400 OR state = {})",
+                    UrlState::Failed as i64
+                ),
+                Vec::new(),
+            ),
+            PageView::Redirects => (
+                "status_code >= 300 AND status_code < 400".into(),
+                Vec::new(),
+            ),
+            PageView::Slow { ms } => ("response_time_ms >= ?".into(), vec![ms]),
+            PageView::TitleProblems { min, max } => (
+                format!("{html_ok} AND (coalesce(title_length, 0) < ? OR title_length > ?)"),
+                vec![min, max],
+            ),
+            PageView::DescriptionProblems { min, max } => (
+                format!(
+                    "{html_ok} AND (coalesce(meta_description_length, 0) < ? \
+                     OR meta_description_length > ?)"
+                ),
+                vec![min, max],
+            ),
+            PageView::Thin { words } => (
+                format!("{html_ok} AND coalesce(word_count, 0) < ?"),
+                vec![words],
+            ),
+            PageView::NonIndexable => ("indexable = 0".into(), Vec::new()),
+        }
+    }
 }
 
 impl UrlFilter {
@@ -197,6 +281,11 @@ impl UrlFilter {
             clauses.push("indexable = ?".into());
             params.push(Box::new(indexable as i64));
         }
+        if let Some(view) = self.view {
+            let (clause, values) = view.clause();
+            clauses.push(clause);
+            params.extend(values.into_iter().map(|v| Box::new(v) as Box<dyn ToSql>));
+        }
 
         if clauses.is_empty() {
             (String::new(), params)
@@ -222,6 +311,7 @@ pub enum SortBy {
     Inlinks,
     LinkScore,
     Size,
+    Issues,
 }
 
 impl SortBy {
@@ -239,6 +329,7 @@ impl SortBy {
             SortBy::Inlinks => "inlinks",
             SortBy::LinkScore => "link_score",
             SortBy::Size => "body_bytes",
+            SortBy::Issues => "issue_count",
         }
     }
 }
@@ -295,6 +386,33 @@ pub fn list_urls(
         total,
         offset,
     })
+}
+
+/// How many URLs each view would show, within `base`.
+///
+/// One pass over the table, however many views: each is a `sum(CASE …)`.
+pub fn count_views(conn: &Connection, base: &UrlFilter, views: &[PageView]) -> Result<Vec<u64>> {
+    if views.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut params: Vec<Box<dyn ToSql>> = Vec::new();
+    let mut sums = Vec::with_capacity(views.len());
+    for view in views {
+        let (clause, values) = view.clause();
+        sums.push(format!(
+            "coalesce(sum(CASE WHEN {clause} THEN 1 ELSE 0 END), 0)"
+        ));
+        params.extend(values.into_iter().map(|v| Box::new(v) as Box<dyn ToSql>));
+    }
+    let (where_clause, base_params) = base.where_clause();
+    params.extend(base_params);
+    let bound: Vec<&dyn ToSql> = params.iter().map(|p| p.as_ref()).collect();
+    let sql = format!("SELECT {} FROM urls{where_clause}", sums.join(", "));
+    Ok(conn.query_row(&sql, bound.as_slice(), |row| {
+        (0..views.len())
+            .map(|i| row.get::<_, i64>(i).map(|n| n.max(0) as u64))
+            .collect()
+    })?)
 }
 
 /// A single URL by id.
@@ -561,6 +679,41 @@ pub fn issue_details(
     let rows = stmt
         .query_map(params![issue_id, limit as i64], |r| {
             Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
+/// A page one issue affects, with that page's own reason.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AffectedUrl {
+    pub url_id: i64,
+    pub url: String,
+    pub status: Option<u16>,
+    pub detail: Option<String>,
+}
+
+/// One issue's affected pages, the most valuable first: the pages with the
+/// most internal link value, then the shallowest. Fixing the top of this list
+/// does the most good, so that is the order to read it in. Without link scores
+/// it falls back to depth, then the URL.
+pub fn affected_urls(conn: &Connection, issue_id: &str, limit: u32) -> Result<Vec<AffectedUrl>> {
+    let mut stmt = conn.prepare(
+        "SELECT u.id, u.url, u.status_code, i.detail
+         FROM issue_urls i
+         JOIN urls u ON u.id = i.url_id
+         WHERE i.issue_id = ?1
+         ORDER BY coalesce(u.link_score, 0) DESC, u.depth ASC, u.url
+         LIMIT ?2",
+    )?;
+    let rows = stmt
+        .query_map(params![issue_id, limit as i64], |r| {
+            Ok(AffectedUrl {
+                url_id: r.get(0)?,
+                url: r.get(1)?,
+                status: r.get::<_, Option<i64>>(2)?.map(|status| status as u16),
+                detail: r.get(3)?,
+            })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(rows)
@@ -846,5 +999,163 @@ mod structure_tests {
         // Otherwise every page of a flat .html site becomes its own section,
         // and the treemap is a hundred slivers.
         assert_eq!(top_level_section("https://example.com/about.html"), "/");
+    }
+}
+
+#[cfg(test)]
+mod affected_url_tests {
+    use super::*;
+    use crate::store::Store;
+
+    fn store() -> Store {
+        let store = Store::open_in_memory().unwrap();
+        store
+            .connection()
+            .execute_batch(
+                "INSERT INTO urls (id, url, dedup_key, depth, state, kind, is_internal,
+                                   status_code, link_score)
+                 VALUES (1, 'https://a.test/z-deep', 'a.test/z-deep', 4, 2, 0, 1, 404, NULL),
+                        (2, 'https://a.test/',       'a.test/',       0, 2, 0, 1, 200, 0.9),
+                        (3, 'https://a.test/a-mid',  'a.test/a-mid',  2, 2, 0, 1, 200, 0.2),
+                        (4, 'https://a.test/b-mid',  'a.test/b-mid',  2, 2, 0, 1, 200, NULL);
+
+                 INSERT INTO issues (issue_id, title, severity, url_count) VALUES
+                    ('title_missing', 'Missing title', 0, 4);
+
+                 INSERT INTO issue_urls (issue_id, url_id, detail) VALUES
+                    ('title_missing', 1, 'empty <title>'),
+                    ('title_missing', 2, NULL),
+                    ('title_missing', 3, 'no <title>'),
+                    ('title_missing', 4, 'no <title>');",
+            )
+            .unwrap();
+        store
+    }
+
+    #[test]
+    fn the_most_valuable_pages_come_first_then_the_shallowest() {
+        let store = store();
+        let urls = affected_urls(store.connection(), "title_missing", 10).unwrap();
+        let order: Vec<i64> = urls.iter().map(|u| u.url_id).collect();
+        assert_eq!(order, vec![2, 3, 4, 1]);
+        assert_eq!(urls[3].status, Some(404));
+        assert_eq!(urls[3].detail.as_deref(), Some("empty <title>"));
+        assert_eq!(urls[0].detail, None);
+    }
+
+    #[test]
+    fn the_limit_is_respected_and_other_issues_are_left_out() {
+        let store = store();
+        let two = affected_urls(store.connection(), "title_missing", 2).unwrap();
+        assert_eq!(two.len(), 2);
+        let none = affected_urls(store.connection(), "nope", 10).unwrap();
+        assert!(none.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod page_view_tests {
+    use super::*;
+    use crate::store::Store;
+
+    /// Five internal URLs, each a different kind of trouble.
+    fn store() -> Store {
+        let store = Store::open_in_memory().unwrap();
+        store
+            .connection()
+            .execute_batch(
+                "INSERT INTO urls (id, url, dedup_key, depth, state, kind, is_internal,
+                                   status_code, response_time_ms, title_length,
+                                   meta_description_length, word_count, indexable)
+                 VALUES
+                   (1, 'https://a.test/',     'a.test/',     0, 2, 0, 1, 200, 120,  45, 120, 900, 1),
+                   (2, 'https://a.test/slow', 'a.test/slow', 1, 2, 0, 1, 200, 2400, 12, NULL, 80, 1),
+                   (3, 'https://a.test/gone', 'a.test/gone', 1, 2, 0, 1, 404, 90,   NULL, NULL, NULL, 0),
+                   (4, 'https://a.test/old',  'a.test/old',  1, 2, 0, 1, 301, 40,   NULL, NULL, NULL, 0),
+                   (5, 'https://a.test/down', 'a.test/down', 1, 3, 0, 1, NULL, NULL, NULL, NULL, NULL, NULL);
+
+                 INSERT INTO issues (issue_id, title, severity, url_count) VALUES
+                    ('broken', 'Broken', 0, 1), ('short_title', 'Short title', 1, 1),
+                    ('thin', 'Thin', 2, 1);
+                 INSERT INTO issue_urls (issue_id, url_id, detail) VALUES
+                    ('broken', 3, NULL), ('short_title', 2, NULL), ('thin', 2, NULL);",
+            )
+            .unwrap();
+        store
+    }
+
+    fn ids(store: &Store, view: PageView) -> Vec<i64> {
+        let filter = UrlFilter {
+            view: Some(view),
+            ..Default::default()
+        };
+        list_urls(store.connection(), &filter, SortBy::Id, false, 100, 0)
+            .unwrap()
+            .rows
+            .iter()
+            .map(|row| row.id)
+            .collect()
+    }
+
+    #[test]
+    fn each_view_finds_its_pages() {
+        let store = store();
+        assert_eq!(ids(&store, PageView::WithIssues), vec![2, 3]);
+        // A failed fetch is broken too, though it has no status.
+        assert_eq!(ids(&store, PageView::Broken), vec![3, 5]);
+        assert_eq!(ids(&store, PageView::Redirects), vec![4]);
+        assert_eq!(ids(&store, PageView::Slow { ms: 1000 }), vec![2]);
+        assert_eq!(
+            ids(&store, PageView::TitleProblems { min: 30, max: 60 }),
+            vec![2]
+        );
+        assert_eq!(
+            ids(&store, PageView::DescriptionProblems { min: 70, max: 155 }),
+            vec![2]
+        );
+        assert_eq!(ids(&store, PageView::Thin { words: 200 }), vec![2]);
+        assert_eq!(ids(&store, PageView::NonIndexable), vec![3, 4]);
+    }
+
+    #[test]
+    fn counts_match_the_views_in_one_pass() {
+        let store = store();
+        let views = [
+            PageView::WithIssues,
+            PageView::Broken,
+            PageView::Slow { ms: 1000 },
+            PageView::NonIndexable,
+        ];
+        let counts = count_views(store.connection(), &UrlFilter::default(), &views).unwrap();
+        assert_eq!(counts, vec![2, 2, 1, 2]);
+        // Narrowed by the base filter.
+        let base = UrlFilter {
+            url_contains: Some("slow".into()),
+            ..Default::default()
+        };
+        let counts = count_views(store.connection(), &base, &views).unwrap();
+        assert_eq!(counts, vec![1, 0, 1, 0]);
+    }
+
+    #[test]
+    fn rows_carry_their_issue_count_and_worst_severity() {
+        let store = store();
+        let rows = list_urls(
+            store.connection(),
+            &UrlFilter::default(),
+            SortBy::Issues,
+            true,
+            100,
+            0,
+        )
+        .unwrap()
+        .rows;
+        assert_eq!(rows[0].id, 2);
+        assert_eq!(rows[0].issue_count, 2);
+        // A warning and a notice: the warning is the worst.
+        assert_eq!(rows[0].worst_severity, Some(1));
+        assert_eq!(rows[1].worst_severity, Some(0));
+        let clean = rows.iter().find(|row| row.id == 1).unwrap();
+        assert_eq!((clean.issue_count, clean.worst_severity), (0, None));
     }
 }

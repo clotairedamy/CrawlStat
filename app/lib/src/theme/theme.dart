@@ -124,9 +124,9 @@ class CrawlStatTheme {
     final colors = ColorScheme(
       brightness: brightness,
       primary: palette.accent,
-      onPrimary: Colors.white,
+      onPrimary: palette.onAccent,
       secondary: palette.highlight,
-      onSecondary: Colors.white,
+      onSecondary: palette.onHighlight,
       error: palette.error,
       onError: Colors.white,
       surface: surface,
@@ -258,15 +258,16 @@ class CrawlStatTheme {
           backgroundColor: raised,
           foregroundColor: subdued,
           selectedBackgroundColor: palette.highlight,
-          selectedForegroundColor: Colors.white,
+          selectedForegroundColor: palette.onHighlight,
           side: BorderSide.none,
           shape: const StadiumBorder(),
         ),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (states) =>
-              states.contains(WidgetState.selected) ? Colors.white : subdued,
+          (states) => states.contains(WidgetState.selected)
+              ? palette.onHighlight
+              : subdued,
         ),
         trackColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
@@ -506,11 +507,58 @@ class CrawlStatPalette extends ThemeExtension<CrawlStatPalette> {
     success: Color(0xFF615E5A),
   );
 
-  static const List<CrawlStatPalette> all = [ember, gold, graphite];
+  /// Black and white, with no hue anywhere — not even on the call to action.
+  ///
+  /// Where [graphite] still spends gold on the one button that matters, here
+  /// that button is simply the lightest thing on a dark page (the darkest on
+  /// a light one). Severity keeps the same light-to-dark ramp, in a neutral
+  /// grey rather than graphite's warm one, and decoration that would otherwise
+  /// be coloured — host avatars, for instance — drops its hue as well.
+  static const CrawlStatPalette mono = CrawlStatPalette(
+    name: 'mono',
+    accent: Color(0xFFEDEDED),
+    highlight: Color(0xFFD6D6D6),
+    error: Color(0xFFF5F5F5),
+    warning: Color(0xFFBDBDBD),
+    notice: Color(0xFF8A8A8A),
+    success: Color(0xFF5E5E5E),
+  );
+
+  static const List<CrawlStatPalette> all = [ember, gold, graphite, mono];
+
+  /// Whether decoration should be grey too, not just the colours that carry
+  /// meaning.
+  bool get monochrome => name == 'mono';
+
+  /// Text and icons drawn on top of [accent].
+  ///
+  /// Picked from the accent's lightness rather than fixed at white, so a pale
+  /// accent (the monochrome theme's near-white button) still gets legible
+  /// dark text, while ember and gold keep the white they were designed with.
+  Color get onAccent => _contentOn(accent);
+
+  /// Text and icons drawn on top of [highlight].
+  Color get onHighlight => _contentOn(highlight);
+
+  static Color _contentOn(Color background) =>
+      background.computeLuminance() > 0.5
+      ? const Color(0xFF161616)
+      : Colors.white;
 
   /// The light theme needs the ramp inverted: on a pale canvas the *darkest*
   /// tone is the one that draws the eye.
   CrawlStatPalette forLight() {
+    if (name == 'mono') {
+      return const CrawlStatPalette(
+        name: 'mono',
+        accent: Color(0xFF1A1A1A),
+        highlight: Color(0xFF3A3A3A),
+        error: Color(0xFF121212),
+        warning: Color(0xFF4D4D4D),
+        notice: Color(0xFF888888),
+        success: Color(0xFFB5B5B5),
+      );
+    }
     if (name == 'graphite') {
       return const CrawlStatPalette(
         name: 'graphite',
@@ -536,10 +584,14 @@ class CrawlStatPalette extends ThemeExtension<CrawlStatPalette> {
   String get label => switch (name) {
     'gold' => 'Gold on graphite',
     'graphite' => 'Graphite',
+    'mono' => 'Monochrome',
     _ => 'Ember',
   };
 
   String get describes => switch (name) {
+    'mono' =>
+      'Black and white throughout. No colour anywhere: severity, status and '
+          'the main button are all shades of grey.',
     'graphite' =>
       'Gold on the call to action and nowhere else. Selection, focus and '
           'severity are all steps on one grey ramp.',
@@ -551,7 +603,7 @@ class CrawlStatPalette extends ThemeExtension<CrawlStatPalette> {
   };
 
   static CrawlStatPalette byName(String? name) =>
-      all.firstWhere((palette) => name == name, orElse: () => ember);
+      all.firstWhere((palette) => palette.name == name, orElse: () => ember);
 
   @override
   CrawlStatPalette copyWith({

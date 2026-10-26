@@ -86,6 +86,48 @@ Future<void> _export(
   }
 }
 
+/// Write a file into the export folder under the usual name, then say
+/// where it went. `write` is handed the full path; the path is returned, or
+/// null when writing failed and the snackbar has said so.
+Future<String?> exportFile(
+  BuildContext context,
+  WidgetRef ref, {
+  required String name,
+  required String extension,
+  required Future<void> Function(String file) write,
+  required String done,
+}) async {
+  String? written;
+  await _export(
+    context,
+    ref,
+    name: name,
+    extension: extension,
+    write: (file) async {
+      await write(file);
+      written = file;
+      return 1;
+    },
+    done: (_) => done,
+  );
+  return written;
+}
+
+/// Open a file in its default app: a report in the browser or PDF viewer.
+Future<void> openFile(String path) async {
+  try {
+    if (Platform.isMacOS) {
+      await _files.invokeMethod<void>('openFile', path);
+    } else if (Platform.isWindows) {
+      await Process.run('explorer', [path]);
+    } else {
+      await Process.run('xdg-open', [path]);
+    }
+  } on Object {
+    // The snackbar still offers to show the file.
+  }
+}
+
 /// Select a file in the platform's file manager.
 Future<void> revealFile(String path) async {
   try {

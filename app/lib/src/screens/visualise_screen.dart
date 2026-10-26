@@ -1541,7 +1541,11 @@ class _SelectedPage extends ConsumerWidget {
               _Figure(
                 label: 'Status',
                 value: node.status?.toString() ?? '—',
-                color: nodeColour(node.status, theme.colorScheme.onSurface),
+                color: nodeColour(
+                  node.status,
+                  theme.colorScheme.onSurface,
+                  CrawlStatTheme.palette(context),
+                ),
               ),
             ],
           ),

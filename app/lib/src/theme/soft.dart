@@ -201,44 +201,12 @@ class Soft {
     );
   }
 
-  /// The one saturated colour in the whole interface.
-  ///
-  /// Soft UI is almost entirely grey, so a single vivid accent does all the
-  /// work: it marks the primary action and nothing else. Spending it on
-  /// decoration is what makes neumorphic interfaces unusable — if everything
-  /// glows, nothing does.
-  static const Color ember = Color(0xFFFF6A14);
-
-  /// The accent as it appears on a filled control: a short, hot gradient with
-  /// a glow beneath it. The glow is not decoration — on a near-black page a
-  /// flat orange pill looks pasted on, and the halo is what seats it.
-  static const List<Color> emberFill = [Color(0xFFFF4D00), Color(0xFFFF9124)];
-
-  static List<BoxShadow> emberGlow({double depth = 1}) => [
-    BoxShadow(
-      color: const Color(0xFFFF5A00).withValues(alpha: 0.38 * depth),
-      blurRadius: 24 * depth,
-      offset: Offset(0, 8 * depth),
-    ),
-  ];
-
-  /// The progress ramp: deep red through orange into amber, as on the
-  /// reference's scrubber. Running it along an arc or a bar gives a sense of
-  /// travel that a flat fill cannot.
-  static const List<Color> accentRamp = [
-    Color(0xFFD93400),
-    Color(0xFFFF5A00),
-    Color(0xFFFF7A1A),
-    Color(0xFFFFA33D),
-  ];
-
   /// The accent as a gradient, taken from the theme in force.
   ///
-  /// The constants below are the Ember palette's values and were being used
-  /// directly for the primary button, the gauge and the progress bars — so a
-  /// theme could change every severity on the screen and the biggest orange
-  /// object on it would stay orange. Anything with a `BuildContext` should
-  /// use these.
+  /// There used to be Ember constants here, used directly for the primary
+  /// button, the gauge and the progress bars — so a theme could change every
+  /// severity on the screen and the biggest orange object on it would stay
+  /// orange. Every accent fill now comes from the palette.
   static List<Color> accentFill(BuildContext context) {
     final accent = CrawlStatTheme.palette(context).accent;
     return [
@@ -270,11 +238,12 @@ class Soft {
     ];
   }
 
-  static LinearGradient accentGradient({
+  static LinearGradient accentGradient(
+    BuildContext context, {
     AlignmentGeometry begin = Alignment.topLeft,
     AlignmentGeometry end = Alignment.bottomRight,
   }) {
-    return LinearGradient(begin: begin, end: end, colors: emberFill);
+    return LinearGradient(begin: begin, end: end, colors: accentFill(context));
   }
 
   /// A ramp from a single colour, for arcs that must keep a specific meaning
@@ -499,6 +468,7 @@ class _SoftButtonState extends State<SoftButton> {
       widget.radius ?? CrawlStatTheme.controlRadius,
     );
     final onGradient = widget.gradient != null;
+    final onAccent = CrawlStatTheme.palette(context).onAccent;
 
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
@@ -526,13 +496,13 @@ class _SoftButtonState extends State<SoftButton> {
                 : [
                     ...Soft.raised(context, depth: _hovered ? 1.15 : 0.85),
                     if (onGradient)
-                      ...Soft.emberGlow(depth: _hovered ? 1.2 : 1),
+                      ...Soft.accentHalo(context, depth: _hovered ? 1.2 : 1),
                   ],
           ),
           child: DefaultTextStyle.merge(
             style: TextStyle(
               color: onGradient
-                  ? Colors.white
+                  ? onAccent
                   : enabled
                   ? theme.colorScheme.onSurface
                   : theme.colorScheme.onSurfaceVariant,
@@ -546,9 +516,7 @@ class _SoftButtonState extends State<SoftButton> {
                   Icon(
                     widget.icon,
                     size: 15,
-                    color: onGradient
-                        ? Colors.white
-                        : theme.colorScheme.onSurface,
+                    color: onGradient ? onAccent : theme.colorScheme.onSurface,
                   ),
                   const SizedBox(width: 8),
                 ],
@@ -632,7 +600,7 @@ class SoftProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colours = ramp ?? Soft.accentRamp;
+    final colours = ramp ?? Soft.accentTravel(context);
     final fraction = value.isNaN ? 0.0 : value.clamp(0.0, 1.0);
 
     return LayoutBuilder(
@@ -789,7 +757,7 @@ class SoftPill extends StatelessWidget {
     return SoftButton(
       onPressed: onTap,
       radius: 100,
-      gradient: gradient ?? Soft.accentGradient(),
+      gradient: gradient ?? Soft.accentGradient(context),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       child: Text(label),
     );
@@ -856,18 +824,14 @@ class _SoftCircleButtonState extends State<SoftCircleButton> {
             ? Soft.pressed(context, depth: 0.5 * scale)
             : [
                 ...Soft.raised(context, depth: (_hovered ? 0.95 : 0.7) * scale),
-                if (widget.filled) ...Soft.emberGlow(depth: scale),
+                if (widget.filled) ...Soft.accentHalo(context, depth: scale),
               ],
       ),
       child: DecoratedBox(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: widget.filled
-              ? const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: Soft.emberFill,
-                )
+              ? Soft.accentGradient(context)
               : (_pressed ? Soft.hollow(context) : Soft.sheen(context)),
         ),
         child: Center(
@@ -877,7 +841,7 @@ class _SoftCircleButtonState extends State<SoftCircleButton> {
             color:
                 widget.iconColor ??
                 (widget.filled
-                    ? Colors.white
+                    ? CrawlStatTheme.palette(context).onAccent
                     : enabled
                     ? theme.colorScheme.onSurface.withValues(
                         alpha: _hovered ? 1 : 0.8,

@@ -22,19 +22,16 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('packs as many cards as fit, rather than one at a time',
-      (tester) async {
+  testWidgets('packs as many cards as fit, rather than one at a time', (
+    tester,
+  ) async {
     // The whole point of the rewrite: a 700px viewport showing one 90px card
     // in the middle of an empty field was worse than the list it replaced.
     await pump(tester, 10);
-    final onScreen = tester
-        .widgetList<Text>(find.byType(Text))
-        .where((text) {
-          final finder = find.text(text.data!);
-          return finder.evaluate().isNotEmpty &&
-              tester.getTopLeft(finder).dy < 700;
-        })
-        .length;
+    final onScreen = tester.widgetList<Text>(find.byType(Text)).where((text) {
+      final finder = find.text(text.data!);
+      return finder.evaluate().isNotEmpty && tester.getTopLeft(finder).dy < 700;
+    }).length;
     expect(onScreen, greaterThan(4));
   });
 
@@ -51,8 +48,9 @@ void main() {
     expect(tester.getTopLeft(find.text('Card 19')).dy, lessThan(700));
   });
 
-  testWidgets('each card ends up fully opaque once it has arrived',
-      (tester) async {
+  testWidgets('each card ends up fully opaque once it has arrived', (
+    tester,
+  ) async {
     await pump(tester, 5);
     final opacities = tester
         .widgetList<Opacity>(find.byType(Opacity))
@@ -63,14 +61,16 @@ void main() {
     }
   });
 
-  testWidgets('an empty list renders nothing rather than throwing',
-      (tester) async {
+  testWidgets('an empty list renders nothing rather than throwing', (
+    tester,
+  ) async {
     await pump(tester, 0);
     expect(find.byType(ListView), findsNothing);
   });
 
-  testWidgets('scrolling an item away mid-animation does not throw',
-      (tester) async {
+  testWidgets('scrolling an item away mid-animation does not throw', (
+    tester,
+  ) async {
     // The staggered items start a delayed callback; disposing one before it
     // fires used to drive a disposed controller.
     await tester.binding.setSurfaceSize(const Size(900, 300));

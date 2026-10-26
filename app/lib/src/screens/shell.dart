@@ -127,7 +127,7 @@ class AppShell extends ConsumerWidget {
                         collapsed: collapsed,
                         location: location,
                         crawl: crawl,
-                        hasProject: openProject != null,
+                        openPath: openProject,
                         onToggle: () => ref
                             .read(settingsProvider.notifier)
                             .setSidebarCollapsed(!collapsed),
@@ -178,7 +178,7 @@ class _Rail extends ConsumerWidget {
     required this.collapsed,
     required this.location,
     required this.crawl,
-    required this.hasProject,
+    required this.openPath,
     required this.onToggle,
   });
 
@@ -187,7 +187,9 @@ class _Rail extends ConsumerWidget {
   final bool collapsed;
   final String location;
   final LiveCrawl crawl;
-  final bool hasProject;
+
+  /// The crawl whose page the project tabs show.
+  final String? openPath;
   final VoidCallback onToggle;
 
   @override
@@ -206,26 +208,35 @@ class _Rail extends ConsumerWidget {
           1.0,
         );
 
+    // A crawl's tabs belong to Projects — you reach them from a card — so
+    // Projects stays lit on them, as it does on Compare. The exceptions are
+    // the tools with tabs of their own here, and the live crawl's page while
+    // it runs.
+    final inProject = Routes.inProject.contains(location);
+    final onTool = _railTools.any((tool) => tool.$3 == location);
+    final onLivePage =
+        live &&
+        inProject &&
+        !onTool &&
+        openPath != null &&
+        openPath == crawl.dbPath;
+    final onProjects =
+        location == Routes.projects ||
+        location == Routes.compare ||
+        (inProject && !onLivePage && !onTool);
+
     Widget destination(
       Glyph glyph,
       String label,
       String path, {
-      bool needsProject = false,
-      String? tooltip,
-      LiveCrawl? liveCrawl,
-      Widget? badge,
+      bool? selected,
     }) {
-      final enabled = !needsProject || hasProject;
       return _RailItem(
         glyph: glyph,
         label: label,
-        tooltip: enabled ? tooltip : '$label — open a crawl first',
         width: width,
         expansion: expansion,
-        selected: location == path,
-        enabled: enabled,
-        live: liveCrawl,
-        badge: badge,
+        selected: selected ?? location == path,
         onTap: () => context.go(path),
       );
     }
@@ -265,62 +276,63 @@ class _Rail extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 22 - (_rowHeight - _tileSize) / 2),
-                destination(Glyph.projects, 'Projects', Routes.projects),
                 destination(
-                  Glyph.crawl,
-                  'Crawl',
-                  Routes.crawl,
-                  tooltip: live ? _crawlLabel(crawl) : null,
-                  liveCrawl: live ? crawl : null,
-                  badge: live
-                      ? TonePill(
-                          crawl.phase == CrawlPhase.paused ? 'Paused' : 'Live',
-                          color: crawl.phase == CrawlPhase.paused
-                              ? CrawlStatTheme.palette(context).warning
-                              : CrawlStatTheme.palette(context).success,
-                          dot: true,
-                        )
-                      : null,
+                  Glyph.projects,
+                  'Projects',
+                  Routes.projects,
+                  selected: onProjects,
                 ),
-                destination(
-                  Glyph.results,
-                  'Results',
-                  Routes.results,
-                  needsProject: true,
-                ),
-                destination(
-                  Glyph.issues,
-                  'Issues',
-                  Routes.issues,
-                  needsProject: true,
-                ),
-                destination(
-                  Glyph.plan,
-                  'Plan',
-                  Routes.plan,
-                  needsProject: true,
-                ),
-                destination(
-                  Glyph.visualise,
-                  'Visualise',
-                  Routes.visualise,
-                  needsProject: true,
-                ),
-                destination(
-                  Glyph.readerFlow,
-                  'UX Testing',
-                  Routes.ux,
-                  // Free installs can always open it to see what Pro adds.
-                  needsProject: isPro,
-                  tooltip: isPro ? null : 'UX Testing — a Pro feature',
-                ),
-                destination(
-                  Glyph.accessibility,
-                  'Accessibility',
-                  Routes.accessibility,
-                  needsProject: true,
-                ),
-                destination(Glyph.compare, 'Compare', Routes.compare),
+                // Only while something is crawling: a shortcut back to it from
+                // wherever you wandered off to, with its progress on the tile.
+                if (live && crawl.dbPath != null)
+                  _RailItem(
+                    glyph: Glyph.crawl,
+                    label: _liveSite(crawl) ?? 'Live crawl',
+                    tooltip: _crawlLabel(crawl),
+                    width: width,
+                    expansion: expansion,
+                    selected: onLivePage,
+                    live: crawl,
+                    badge: TonePill(
+                      crawl.phase == CrawlPhase.paused ? 'Paused' : 'Live',
+                      color: crawl.phase == CrawlPhase.paused
+                          ? CrawlStatTheme.palette(context).warning
+                          : CrawlStatTheme.palette(context).success,
+                      dot: true,
+                    ),
+                    onTap: () {
+                      ref
+                          .read(openProjectProvider.notifier)
+                          .open(crawl.dbPath!);
+                      context.go(Routes.project);
+                    },
+                  ),
+                for (final (glyph, label, path) in _railTools)
+                  _RailItem(
+                    glyph: glyph,
+                    label: label,
+                    tooltip: path == Routes.ux && !isPro
+                        ? 'UX Testing — a Pro feature'
+                        : null,
+                    width: width,
+                    expansion: expansion,
+                    selected: location == path,
+                    onTap: () {
+                      // They read one crawl: the open one, or failing that
+                      // the last one used.
+                      if (openPath == null) {
+                        final latest = ref
+                            .read(recentProjectsProvider)
+                            .firstOrNull;
+                        if (latest != null) {
+                          ref
+                              .read(openProjectProvider.notifier)
+                              .open(latest.path);
+                        }
+                      }
+                      context.go(path);
+                    },
+                  ),
                 const Spacer(),
                 const SizedBox(height: 16),
                 if (!isPro)
@@ -358,10 +370,21 @@ class _Rail extends ConsumerWidget {
   }
 }
 
-/// The Crawl tile's tooltip, which doubles as the live crawl's status line.
-String _crawlLabel(LiveCrawl crawl) {
+/// Tools with a sidebar tab of their own as well as one on a crawl's page.
+const _railTools = [
+  (Glyph.accessibility, 'Accessibility', Routes.accessibility),
+  (Glyph.readerFlow, 'UX Testing', Routes.ux),
+];
+
+/// The live crawl's site, as short as it can be said.
+String? _liveSite(LiveCrawl crawl) {
   final host = Uri.tryParse(crawl.startUrl ?? '')?.host;
-  final site = host == null || host.isEmpty ? crawl.startUrl : host;
+  return host == null || host.isEmpty ? crawl.startUrl : host;
+}
+
+/// The live tile's tooltip, which doubles as the crawl's status line.
+String _crawlLabel(LiveCrawl crawl) {
+  final site = _liveSite(crawl);
   final phase = switch (crawl.phase) {
     CrawlPhase.paused => 'Paused',
     CrawlPhase.auditing => 'Auditing',
@@ -546,6 +569,7 @@ class _NewCrawlTileState extends State<_NewCrawlTile> {
         ? '⌘N'
         : 'Ctrl+N';
     final corner = BorderRadius.circular(_tileRadius);
+    final onAccent = CrawlStatTheme.palette(context).onAccent;
     const glyphSize = 22.0;
     const textLeft = _tileSize - 4;
 
@@ -595,13 +619,13 @@ class _NewCrawlTileState extends State<_NewCrawlTile> {
               ),
               child: Stack(
                 children: [
-                  const Positioned(
+                  Positioned(
                     left: (_tileSize - glyphSize) / 2,
                     top: (_tileSize - glyphSize) / 2,
                     child: GlyphIcon(
                       Glyph.add,
                       size: glyphSize,
-                      stroke: Colors.white,
+                      stroke: onAccent,
                       fill: _none,
                       strokeWidth: 2.2,
                     ),
@@ -618,12 +642,12 @@ class _NewCrawlTileState extends State<_NewCrawlTile> {
                         padding: const EdgeInsets.only(right: 16),
                         child: Row(
                           children: [
-                            const Expanded(
+                            Expanded(
                               child: Text(
                                 'New crawl',
                                 maxLines: 1,
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: onAccent,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -632,7 +656,7 @@ class _NewCrawlTileState extends State<_NewCrawlTile> {
                             Text(
                               shortcut,
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.72),
+                                color: onAccent.withValues(alpha: 0.72),
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -682,7 +706,6 @@ class _RailItem extends StatefulWidget {
     required this.onTap,
     this.tooltip,
     this.selected = false,
-    this.enabled = true,
     this.alwaysLit = false,
     this.compact = false,
     this.live,
@@ -703,7 +726,6 @@ class _RailItem extends StatefulWidget {
   final double expansion;
   final VoidCallback onTap;
   final bool selected;
-  final bool enabled;
 
   /// Lights the glyph's filled part even at rest, for the Pro tile.
   final bool alwaysLit;
@@ -741,27 +763,30 @@ class _RailItemState extends State<_RailItem> {
     final surface = theme.colorScheme.surface;
     // A tile is cut from whatever it stands on: the canvas, or the tab.
     final base = Color.lerp(theme.scaffoldBackgroundColor, surface, tab)!;
-    final enabled = widget.enabled;
-    final hovered = _hovered && enabled;
-    final sunk = _pressed && enabled && !widget.selected;
+    final hovered = _hovered;
+    final sunk = _pressed && !widget.selected;
     final size = widget.compact ? 36.0 : _tileSize;
     final radius = widget.compact ? 11.0 : _tileRadius;
     final rowHeight = widget.compact ? 52.0 : _rowHeight;
     final corner = BorderRadius.circular(radius);
 
     final subdued = theme.colorScheme.onSurfaceVariant;
-    final stroke = !enabled
-        ? subdued.withValues(alpha: 0.3)
-        : widget.selected
-        ? const Color(0xFFFF7A1A)
+    // Selection, not an action, so it takes the highlight: in the themes that
+    // keep their accent for the call to action, a lit tab is grey, not gold.
+    final highlight = CrawlStatTheme.palette(context).highlight;
+    final stroke = widget.selected
+        ? Color.lerp(highlight, Colors.white, 0.06)!
         : hovered
         ? theme.colorScheme.onSurface
         : subdued;
     final fill = widget.selected || widget.alwaysLit
-        ? const LinearGradient(
+        ? LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFFFFA33D), Color(0xFFFF4D00)],
+            colors: [
+              Color.lerp(highlight, Colors.white, 0.24)!,
+              Color.lerp(highlight, Colors.black, 0.12)!,
+            ],
           )
         : LinearGradient(
             begin: Alignment.topCenter,
@@ -787,9 +812,7 @@ class _RailItemState extends State<_RailItem> {
             ? Soft.pressed(context, depth: 0.5)
             : Soft.raised(
                 context,
-                depth: !enabled
-                    ? 0.35
-                    : hovered || widget.selected
+                depth: hovered || widget.selected
                     ? 0.8
                     : widget.compact
                     ? 0.45
@@ -828,9 +851,7 @@ class _RailItemState extends State<_RailItem> {
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: widget.selected ? FontWeight.w600 : FontWeight.w500,
-              color: !enabled
-                  ? subdued.withValues(alpha: 0.45)
-                  : widget.selected || hovered
+              color: widget.selected || hovered
                   ? theme.colorScheme.onSurface
                   : subdued,
             ),
@@ -881,26 +902,25 @@ class _RailItemState extends State<_RailItem> {
 
     final tooltip = widget.tooltip ?? widget.label;
     // Once the label is on screen a tooltip repeating it is noise; one that
-    // says something more (why a tile is disabled, how a crawl is doing)
+    // says something more (what Pro adds, how a crawl is doing)
     // still earns its place.
     final showTooltip = widget.expansion < 0.5 || tooltip != widget.label;
 
     final interactive = Semantics(
       button: true,
-      enabled: enabled,
       selected: widget.selected,
       label: tooltip,
       child: ExcludeSemantics(
         child: MouseRegion(
-          cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+          cursor: SystemMouseCursors.click,
           onEnter: (_) => setState(() => _hovered = true),
           onExit: (_) => setState(() => _hovered = _pressed = false),
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
+            onTapDown: (_) => setState(() => _pressed = true),
             onTapCancel: () => setState(() => _pressed = false),
             onTapUp: (_) => setState(() => _pressed = false),
-            onTap: enabled ? widget.onTap : null,
+            onTap: widget.onTap,
             child: row,
           ),
         ),
@@ -1214,6 +1234,9 @@ class ScreenHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Under a crawl's own header it heads a tab, not the window, so it
+    // steps down a size and tucks up under the tabs.
+    final nested = ProjectScope.isInside(context);
     final heading = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -1225,7 +1248,9 @@ class ScreenHeader extends StatelessWidget {
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleLarge,
+                style: nested
+                    ? theme.textTheme.titleMedium
+                    : theme.textTheme.titleLarge,
               ),
             ),
             if (leading != null) ...[const SizedBox(width: 12), leading!],
@@ -1244,11 +1269,11 @@ class ScreenHeader extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         CrawlStatTheme.gutter,
-        24,
+        nested ? 14 : 24,
         CrawlStatTheme.gutter,
-        20,
+        nested ? 16 : 20,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1256,7 +1281,7 @@ class ScreenHeader extends StatelessWidget {
           // A minimum height, so the rule beneath sits at the same place on
           // every screen whether or not it has a subtitle or buttons.
           ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 46),
+            constraints: BoxConstraints(minHeight: nested ? 40 : 46),
             child: LayoutBuilder(
               builder: (context, constraints) => Row(
                 children: [
@@ -1287,12 +1312,23 @@ class ScreenHeader extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: nested ? 14 : 18),
           const _Engraving(),
         ],
       ),
     );
   }
+}
+
+/// Marks a screen as one tab of a crawl's page rather than a page of its own.
+class ProjectScope extends InheritedWidget {
+  const ProjectScope({super.key, required super.child});
+
+  static bool isInside(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ProjectScope>() != null;
+
+  @override
+  bool updateShouldNotify(ProjectScope oldWidget) => false;
 }
 
 /// Shown on Results and Issues when no crawl is open.

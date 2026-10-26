@@ -74,7 +74,7 @@ class _Section extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final kind = _SectionKind.of(heading);
+    final kind = _SectionKind.of(heading, CrawlStatTheme.palette(context));
 
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -134,22 +134,18 @@ class _SectionKind {
   final Color color;
   final bool callout;
 
-  static _SectionKind of(String heading) {
+  static _SectionKind of(String heading, CrawlStatPalette palette) {
     final text = heading.toLowerCase();
     if (text.contains('first')) {
-      return const _SectionKind(
-        AppIcon.priority,
-        CrawlStatTheme.accent,
-        callout: true,
-      );
+      return _SectionKind(AppIcon.priority, palette.accent, callout: true);
     }
     if (text.contains('quick')) {
-      return const _SectionKind(AppIcon.quickWin, CrawlStatTheme.success);
+      return _SectionKind(AppIcon.quickWin, palette.success);
     }
     if (text.contains('wait') || text.contains('later')) {
-      return const _SectionKind(AppIcon.queued, CrawlStatTheme.notice);
+      return _SectionKind(AppIcon.queued, palette.notice);
     }
-    return const _SectionKind(AppIcon.issues, CrawlStatTheme.accent);
+    return _SectionKind(AppIcon.issues, palette.accent);
   }
 }
 
@@ -216,13 +212,13 @@ class _NumberBadge extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: Soft.accentGradient(),
+        gradient: Soft.accentGradient(context),
         boxShadow: Soft.accentHalo(context, depth: 0.5),
       ),
       child: Text(
         '$number',
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: CrawlStatTheme.palette(context).onAccent,
           fontSize: 12,
           fontWeight: FontWeight.w700,
           fontFeatures: [FontFeature.tabularFigures()],

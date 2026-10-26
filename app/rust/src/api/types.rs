@@ -52,6 +52,8 @@ pub struct CrawlRequest {
     pub crawl_documents: bool,
 
     pub store_html: bool,
+    /// Run each page's JavaScript in headless Chrome before reading it.
+    pub render_javascript: bool,
     pub run_audits: bool,
 
     /// A full [`CrawlConfig`] as JSON. When present every other field is
@@ -88,9 +90,59 @@ impl CrawlRequest {
             crawl_javascript: defaults.resources.javascript,
             crawl_documents: defaults.resources.documents,
             store_html: defaults.store_html,
+            render_javascript: defaults.render_javascript,
             run_audits: defaults.run_audits,
             config_json: None,
         }
+    }
+
+    /// The request that reproduces `config` exactly.
+    ///
+    /// The flat fields are filled in so a dialog can show them, and the full
+    /// configuration rides along in `config_json`, so re-running it keeps the
+    /// options the flat shape cannot hold (audit thresholds, stored headers,
+    /// retries…). A crawl run again with different settings would not be
+    /// comparable with the first, which is the reason to run it again.
+    pub(crate) fn from_config(config: &CrawlConfig) -> anyhow::Result<Self> {
+        let (mode, start_url, list_urls) = match config.seeds.first() {
+            Some(Seed::Sitemap { url }) => ("sitemap", url.clone(), Vec::new()),
+            Some(Seed::List { urls }) => (
+                "list",
+                urls.first().cloned().unwrap_or_default(),
+                urls.clone(),
+            ),
+            Some(Seed::Url { url }) => ("spider", url.clone(), Vec::new()),
+            None => ("spider", String::new(), Vec::new()),
+        };
+        Ok(Self {
+            start_url,
+            mode: if config.mode == CrawlMode::List {
+                "list".into()
+            } else {
+                mode.into()
+            },
+            list_urls,
+            max_urls: config.max_urls.map(|value| value as i64),
+            max_depth: config.max_depth.map(i64::from),
+            concurrency: config.concurrency as i64,
+            crawl_delay_ms: config.crawl_delay_ms as i64,
+            request_timeout_ms: config.request_timeout_ms as i64,
+            respect_robots: config.respect_robots,
+            user_agent: config.user_agent.clone(),
+            crawl_subdomains: config.crawl_subdomains,
+            check_external_links: config.check_external_links,
+            follow_nofollow: config.follow_nofollow,
+            include_patterns: config.include_patterns.clone(),
+            exclude_patterns: config.exclude_patterns.clone(),
+            crawl_images: config.resources.images,
+            crawl_css: config.resources.css,
+            crawl_javascript: config.resources.javascript,
+            crawl_documents: config.resources.documents,
+            store_html: config.store_html,
+            render_javascript: config.render_javascript,
+            run_audits: config.run_audits,
+            config_json: Some(serde_json::to_string(config)?),
+        })
     }
 
     /// Build the engine's configuration.
@@ -143,6 +195,7 @@ impl CrawlRequest {
             documents: self.crawl_documents,
         };
         config.store_html = self.store_html;
+        config.render_javascript = self.render_javascript;
         config.run_audits = self.run_audits;
 
         // Fail here rather than three frames later, so the dialog can show the
@@ -329,6 +382,10 @@ pub struct UrlRow {
     pub redirect_count: i64,
     pub link_score: Option<f64>,
     pub error_kind: Option<String>,
+    /// How many audit issues flag this URL.
+    pub issue_count: i64,
+    /// `"error"`, `"warning"` or `"notice"`: the worst of them.
+    pub worst_severity: Option<String>,
 }
 
 impl From<queries::UrlRow> for UrlRow {
@@ -365,6 +422,15 @@ impl From<queries::UrlRow> for UrlRow {
             redirect_count: row.redirect_count,
             link_score: row.link_score,
             error_kind: row.error_kind,
+            issue_count: row.issue_count,
+            worst_severity: row.worst_severity.map(|severity| {
+                match severity {
+                    0 => "error",
+                    1 => "warning",
+                    _ => "notice",
+                }
+                .to_string()
+            }),
         }
     }
 }
@@ -391,6 +457,8 @@ pub struct UrlQuery {
     pub url_contains: Option<String>,
     pub issue_id: Option<String>,
     pub max_depth: Option<i64>,
+    /// One of the Pages tab's lenses, by [`PageLens::id`]; `None` for all.
+    pub view: Option<String>,
     /// A column name from `SortBy`; unknown values fall back to row order.
     pub sort_by: String,
     pub descending: bool,
@@ -439,6 +507,7 @@ impl UrlQuery {
             "inlinks" => queries::SortBy::Inlinks,
             "link_score" => queries::SortBy::LinkScore,
             "size" => queries::SortBy::Size,
+            "issues" => queries::SortBy::Issues,
             _ => queries::SortBy::Id,
         };
 
@@ -450,6 +519,68 @@ impl UrlQuery {
             self.offset.max(0) as u64,
         )
     }
+}
+
+/// Fewer words than this and a page is thin. There is no audit for it, so
+/// this is the usual rule of thumb rather than a crawl setting.
+pub(crate) const THIN_WORDS: i64 = 200;
+
+/// The lenses, in the order the Pages tab shows them.
+pub(crate) const LENSES: [(&str, &str); 8] = [
+    ("issues", "Has issues"),
+    ("broken", "Broken"),
+    ("redirects", "Redirects"),
+    ("slow", "Slow"),
+    ("titles", "Title problems"),
+    ("descriptions", "Description problems"),
+    ("thin", "Thin content"),
+    ("non_indexable", "Not indexable"),
+];
+
+/// A lens by id, with the crawl's own thresholds.
+pub(crate) fn page_view(id: &str, config: &audit::AuditConfig) -> Option<queries::PageView> {
+    Some(match id {
+        "issues" => queries::PageView::WithIssues,
+        "broken" => queries::PageView::Broken,
+        "redirects" => queries::PageView::Redirects,
+        "slow" => queries::PageView::Slow {
+            ms: config.slow_response_ms as i64,
+        },
+        "titles" => queries::PageView::TitleProblems {
+            min: config.title_min_chars as i64,
+            max: config.title_max_chars as i64,
+        },
+        "descriptions" => queries::PageView::DescriptionProblems {
+            min: config.description_min_chars as i64,
+            max: config.description_max_chars as i64,
+        },
+        "thin" => queries::PageView::Thin { words: THIN_WORDS },
+        "non_indexable" => queries::PageView::NonIndexable,
+        _ => return None,
+    })
+}
+
+/// One lens on the Pages tab and how many rows it would show.
+#[derive(Debug, Clone)]
+pub struct PageLens {
+    pub id: String,
+    pub label: String,
+    pub count: i64,
+}
+
+/// The lenses for a table view, with the limits they measure against — the
+/// grid draws title lengths and response times against the same ones.
+#[derive(Debug, Clone)]
+pub struct PageLenses {
+    pub lenses: Vec<PageLens>,
+    /// Rows in the view with no lens applied.
+    pub total: i64,
+    pub title_min: i64,
+    pub title_max: i64,
+    pub description_min: i64,
+    pub description_max: i64,
+    pub slow_ms: i64,
+    pub thin_words: i64,
 }
 
 /// Everything the URL detail panel shows.
@@ -839,6 +970,39 @@ mod tests {
             Some(Seed::Url { url }) => assert_eq!(url, "https://saved.test/"),
             other => panic!("expected the saved seed, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_stored_config_comes_back_as_a_request_that_reproduces_it() {
+        let mut saved = CrawlConfig::spider("https://saved.test/");
+        saved.max_urls = Some(500);
+        saved.exclude_patterns = vec!["/cart".into()];
+        // Not one of the flat fields: only the JSON carries it.
+        saved.max_retries = 7;
+
+        let request = CrawlRequest::from_config(&saved).unwrap();
+        assert_eq!(request.mode, "spider");
+        assert_eq!(request.start_url, "https://saved.test/");
+        assert_eq!(request.max_urls, Some(500));
+        assert_eq!(request.exclude_patterns, vec!["/cart".to_string()]);
+
+        // Running it again gives the same crawl, down to the options the
+        // dialog cannot show.
+        let again = request.to_config().unwrap();
+        assert_eq!(again.max_retries, 7);
+        assert_eq!(
+            serde_json::to_value(&again).unwrap(),
+            serde_json::to_value(&saved).unwrap()
+        );
+    }
+
+    #[test]
+    fn a_stored_list_crawl_comes_back_in_list_mode() {
+        let mut listed = request("list");
+        listed.list_urls = vec!["https://a.test/one".into(), "https://a.test/two".into()];
+        let request = CrawlRequest::from_config(&listed.to_config().unwrap()).unwrap();
+        assert_eq!(request.mode, "list");
+        assert_eq!(request.list_urls.len(), 2);
     }
 
     #[test]

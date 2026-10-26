@@ -10,6 +10,7 @@ import '../rust/api/autopilot.dart' as ap;
 import '../state/license.dart';
 import '../state/projects.dart';
 import '../state/settings.dart';
+import '../theme/icons.dart';
 import '../theme/theme.dart';
 import '../widgets/common.dart';
 import '../widgets/export.dart';
@@ -34,13 +35,13 @@ class UxScreen extends ConsumerStatefulWidget {
 }
 
 enum _Segment {
-  setup('Setup', Icons.tune),
-  overview('Overview', Icons.dashboard_outlined),
-  findings('Findings', Icons.flag_outlined),
-  checks('Checks', Icons.checklist),
-  journeys('Journeys', Icons.route_outlined),
-  retest('Retest', Icons.compare_arrows),
-  export('Export', Icons.ios_share);
+  setup('Setup', AppIcon.setup),
+  overview('Overview', AppIcon.overview),
+  findings('Findings', AppIcon.finding),
+  checks('Checks', AppIcon.checklist),
+  journeys('Journeys', AppIcon.journey),
+  retest('Retest', AppIcon.compare),
+  export('Export', AppIcon.share);
 
   const _Segment(this.label, this.icon);
   final String label;
@@ -176,12 +177,12 @@ class _UxScreenState extends ConsumerState<UxScreen> {
               ),
             if (audit != null) ...[
               ToolbarButton(
-                icon: Icons.refresh,
+                icon: AppIcon.refresh,
                 tooltip: 'Retest this page',
                 onPressed: _busy ? null : () => _retest(path),
               ),
               ToolbarButton(
-                icon: Icons.delete_outline,
+                icon: AppIcon.delete,
                 tooltip: 'Delete this audit',
                 onPressed: _busy ? null : () => _delete(path),
               ),
@@ -253,7 +254,7 @@ class _UxScreenState extends ConsumerState<UxScreen> {
               ),
               _Segment.journeys => const JourneysPanel(),
               _ when audit == null => const EmptyState(
-                icon: Icons.science_outlined,
+                icon: AppIcon.experiment,
                 title: 'No audit yet',
                 message: 'Run one from Setup, or open a saved one above.',
               ),
@@ -285,7 +286,8 @@ class _UxScreenState extends ConsumerState<UxScreen> {
     );
   }
 
-  String _label(String vocabulary, Object? id) => _labelIn(_catalog, vocabulary, id);
+  String _label(String vocabulary, Object? id) =>
+      _labelIn(_catalog, vocabulary, id);
 }
 
 /// What a free install sees: what the tab does, and where to unlock it. The
@@ -301,11 +303,12 @@ class _ProGate extends StatelessWidget {
       children: [
         const ScreenHeader(
           title: 'UX Testing',
-          subtitle: 'Test a page against its goal, prove each finding, fix, retest',
+          subtitle:
+              'Test a page against its goal, prove each finding, fix, retest',
         ),
         Expanded(
           child: EmptyState(
-            icon: Icons.workspace_premium_outlined,
+            icon: AppIcon.pro,
             title: 'UX Testing is part of CrawlStat Pro',
             message:
                 'Audit any page against what it is for: around 60 checks chosen '
@@ -315,7 +318,7 @@ class _ProGate extends StatelessWidget {
                 'developer CSV.',
             action: FilledButton.icon(
               onPressed: () => context.go(Routes.settings),
-              icon: const Icon(Icons.key_outlined, size: 18),
+              icon: const Icon(AppIcon.key, size: 18),
               label: const Text('Upgrade or enter a licence key'),
             ),
           ),
@@ -425,7 +428,8 @@ class _SummaryStrip extends StatelessWidget {
       StatTile(
         label: 'Not tested',
         value: '${(s['not_tested'] as int) + (s['blocked'] as int)}',
-        hint: '${s['not_tested']} not tested, ${s['blocked']} blocked — never counted as passes',
+        hint:
+            '${s['not_tested']} not tested, ${s['blocked']} blocked — never counted as passes',
       ),
       StatTile(
         label: 'Coverage',
@@ -477,7 +481,7 @@ class _AuditPicker extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  a['id'] == selected ? Icons.check : Icons.history,
+                  a['id'] == selected ? AppIcon.check : AppIcon.history,
                   size: 16,
                 ),
                 const SizedBox(width: 8),
@@ -501,10 +505,10 @@ class _AuditPicker extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.history, size: 18),
+            const Icon(AppIcon.history, size: 18),
             const SizedBox(width: 6),
             Text('${audits.length} saved'),
-            const Icon(Icons.arrow_drop_down, size: 18),
+            const Icon(AppIcon.chevronDown, size: 18),
           ],
         ),
       ),
@@ -772,7 +776,7 @@ class _SetupFormState extends ConsumerState<_SetupForm> {
                 alignment: Alignment.centerLeft,
                 child: FilledButton.icon(
                   onPressed: widget.busy ? null : _submit,
-                  icon: const Icon(Icons.play_arrow, size: 18),
+                  icon: const Icon(AppIcon.play, size: 18),
                   label: Text(widget.busy ? 'Testing…' : 'Run audit'),
                 ),
               ),
@@ -818,10 +822,7 @@ class _Overview extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 130,
-              child: Text(label, style: text.bodySmall),
-            ),
+            SizedBox(width: 130, child: Text(label, style: text.bodySmall)),
             Expanded(child: SelectableText(shown)),
           ],
         ),
@@ -1070,10 +1071,24 @@ class _FindingsState extends State<_Findings> {
                 ),
               ),
             const SizedBox(width: 8),
-            menu('Any evidence', _evidence, vocab('evidence'), (v) => _evidence = v),
-            menu('Any area', _category, vocab('categories'), (v) => _category = v),
-            menu('Any region', _region, [for (final r in regions) (r, r)], (v) => _region = v),
-            menu('Any device', _device, [for (final d in devices) (d, d)], (v) => _device = v),
+            menu(
+              'Any evidence',
+              _evidence,
+              vocab('evidence'),
+              (v) => _evidence = v,
+            ),
+            menu(
+              'Any area',
+              _category,
+              vocab('categories'),
+              (v) => _category = v,
+            ),
+            menu('Any region', _region, [
+              for (final r in regions) (r, r),
+            ], (v) => _region = v),
+            menu('Any device', _device, [
+              for (final d in devices) (d, d),
+            ], (v) => _device = v),
             menu('Any status', _work, vocab('work'), (v) => _work = v),
             FilterChip(
               label: const Text('Show flagged'),
@@ -1086,7 +1101,7 @@ class _FindingsState extends State<_Findings> {
         Expanded(
           child: shown.isEmpty
               ? const EmptyState(
-                  icon: Icons.filter_alt_off_outlined,
+                  icon: AppIcon.clearFilter,
                   title: 'Nothing matches',
                   message: 'Loosen the filters to see more findings.',
                 )
@@ -1138,9 +1153,13 @@ class _FindingCard extends StatefulWidget {
 class _FindingCardState extends State<_FindingCard> {
   bool _open = false;
   late _Json _draft = Map.of(widget.state);
-  late final _owner = TextEditingController(text: widget.state['owner'] as String);
+  late final _owner = TextEditingController(
+    text: widget.state['owner'] as String,
+  );
   late final _due = TextEditingController(text: widget.state['due'] as String);
-  late final _note = TextEditingController(text: widget.state['note'] as String);
+  late final _note = TextEditingController(
+    text: widget.state['note'] as String,
+  );
   late final _flagReason = TextEditingController(
     text: widget.state['flag_reason'] as String,
   );
@@ -1199,7 +1218,10 @@ class _FindingCardState extends State<_FindingCard> {
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: SelectableText(body, style: CrawlStatTheme.mono(context, size: 12)),
+      child: SelectableText(
+        body,
+        style: CrawlStatTheme.mono(context, size: 12),
+      ),
     );
 
     return SectionCard(
@@ -1212,7 +1234,8 @@ class _FindingCardState extends State<_FindingCard> {
             child: Row(
               children: [
                 TonePill(
-                  label('severities', severity) + (override != null ? ' *' : ''),
+                  label('severities', severity) +
+                      (override != null ? ' *' : ''),
                   color: _severityColor(context, severity),
                   dot: true,
                 ),
@@ -1252,7 +1275,7 @@ class _FindingCardState extends State<_FindingCard> {
                     style: CrawlStatTheme.mono(context, size: 12),
                   ),
                 ),
-                Icon(_open ? Icons.expand_less : Icons.expand_more),
+                Icon(_open ? AppIcon.chevronUp : AppIcon.chevronDown),
               ],
             ),
           ),
@@ -1324,7 +1347,8 @@ class _FindingCardState extends State<_FindingCard> {
                     isDense: true,
                     decoration: const InputDecoration(labelText: 'Status'),
                     items: [
-                      for (final o in (widget.catalog['work'] as List).cast<_Json>())
+                      for (final o
+                          in (widget.catalog['work'] as List).cast<_Json>())
                         DropdownMenuItem(
                           value: o['id'] as String,
                           child: Text(o['label'] as String),
@@ -1365,8 +1389,13 @@ class _FindingCardState extends State<_FindingCard> {
                       labelText: 'Override severity',
                     ),
                     items: [
-                      const DropdownMenuItem(value: '', child: Text('No override')),
-                      for (final o in (widget.catalog['severities'] as List).cast<_Json>())
+                      const DropdownMenuItem(
+                        value: '',
+                        child: Text('No override'),
+                      ),
+                      for (final o
+                          in (widget.catalog['severities'] as List)
+                              .cast<_Json>())
                         DropdownMenuItem(
                           value: o['id'] as String,
                           child: Text(o['label'] as String),
@@ -1396,14 +1425,18 @@ class _FindingCardState extends State<_FindingCard> {
               controller: _note,
               minLines: 1,
               maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Note', isDense: true),
+              decoration: const InputDecoration(
+                labelText: 'Note',
+                isDense: true,
+              ),
             ),
             const SizedBox(height: 6),
             Row(
               children: [
                 Checkbox(
                   value: _draft['flagged'] == true,
-                  onChanged: (v) => setState(() => _draft['flagged'] = v ?? false),
+                  onChanged: (v) =>
+                      setState(() => _draft['flagged'] = v ?? false),
                 ),
                 const Text('This finding is wrong'),
                 const SizedBox(width: 10),
@@ -1512,17 +1545,23 @@ class _ChecksState extends State<_Checks> {
                     children: [
                       for (final c in entry.value)
                         Theme(
-                          data: Theme.of(context).copyWith(
-                            dividerColor: Colors.transparent,
-                          ),
+                          data: Theme.of(context)
+                              .copyWith(dividerColor: Colors.transparent),
                           child: ExpansionTile(
                             tilePadding: EdgeInsets.zero,
                             dense: true,
                             leading: SizedBox(
                               width: 104,
                               child: TonePill(
-                                _labelIn(widget.catalog, 'statuses', c['status']),
-                                color: _statusColor(context, c['status'] as String),
+                                _labelIn(
+                                  widget.catalog,
+                                  'statuses',
+                                  c['status'],
+                                ),
+                                color: _statusColor(
+                                  context,
+                                  c['status'] as String,
+                                ),
                               ),
                             ),
                             title: Text(c['title'] as String),
@@ -1535,7 +1574,8 @@ class _ChecksState extends State<_Checks> {
                               '${c['method']} · ${c['baseline'] == true ? 'baseline' : 'page type'}',
                               style: text.bodySmall,
                             ),
-                            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                            expandedCrossAxisAlignment:
+                                CrossAxisAlignment.start,
                             childrenPadding: const EdgeInsets.only(
                               left: 116,
                               bottom: 10,
@@ -1544,7 +1584,9 @@ class _ChecksState extends State<_Checks> {
                               Text('Question: ${c['question']}'),
                               const SizedBox(height: 4),
                               SelectableText(c['summary'] as String),
-                              for (final o in (c['evidence']['observed'] as List).cast<String>())
+                              for (final o
+                                  in (c['evidence']['observed'] as List)
+                                      .cast<String>())
                                 SelectableText('•  $o', style: text.bodySmall),
                               const SizedBox(height: 4),
                               Text(
@@ -1587,12 +1629,12 @@ class _Retest extends StatelessWidget {
     final p = CrawlStatTheme.palette(context);
     final button = FilledButton.icon(
       onPressed: busy ? null : onRetest,
-      icon: const Icon(Icons.refresh, size: 18),
+      icon: const Icon(AppIcon.refresh, size: 18),
       label: const Text('Retest now'),
     );
     if (c == null) {
       return EmptyState(
-        icon: Icons.compare_arrows,
+        icon: AppIcon.compare,
         title: 'Not retested yet',
         message:
             'After shipping fixes, re-crawl (or allow a live fetch) and retest. '
@@ -1616,7 +1658,11 @@ class _Retest extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: StatTile(label: 'Fixed', value: '${c['fixed']}', color: p.success),
+              child: StatTile(
+                label: 'Fixed',
+                value: '${c['fixed']}',
+                color: p.success,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -1628,7 +1674,11 @@ class _Retest extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: StatTile(label: 'Regressed', value: '${c['regressed']}', color: p.error),
+              child: StatTile(
+                label: 'Regressed',
+                value: '${c['regressed']}',
+                color: p.error,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -1656,10 +1706,16 @@ class _Retest extends StatelessWidget {
                         child: Row(
                           children: [
                             Expanded(child: Text(r['title'] as String)),
-                            SizedBox(width: 110, child: Text(status(r['before']))),
-                            const Icon(Icons.arrow_forward, size: 14),
+                            SizedBox(
+                              width: 110,
+                              child: Text(status(r['before'])),
+                            ),
+                            const Icon(AppIcon.forward, size: 14),
                             const SizedBox(width: 8),
-                            SizedBox(width: 110, child: Text(status(r['after']))),
+                            SizedBox(
+                              width: 110,
+                              child: Text(status(r['after'])),
+                            ),
                             SizedBox(
                               width: 120,
                               child: TonePill(
@@ -1700,7 +1756,7 @@ class _Export extends StatelessWidget {
               'are shown as overrides.',
           trailing: FilledButton.icon(
             onPressed: onReport,
-            icon: const Icon(Icons.description_outlined, size: 18),
+            icon: const Icon(AppIcon.report, size: 18),
             label: const Text('Save report'),
           ),
           child: const SizedBox.shrink(),
@@ -1714,7 +1770,7 @@ class _Export extends StatelessWidget {
               'result — ready for a tracker.',
           trailing: FilledButton.icon(
             onPressed: onCsv,
-            icon: const Icon(Icons.table_chart_outlined, size: 18),
+            icon: const Icon(AppIcon.table, size: 18),
             label: const Text('Save CSV'),
           ),
           child: const SizedBox.shrink(),

@@ -966,3 +966,45 @@ async fn a_licensed_crawl_is_not_capped() {
 
     crate::license::set_current(crate::license::LicenseStatus::Free);
 }
+
+/// Stands in for Chrome: the home page's script adds a link the served HTML
+/// does not have.
+struct ScriptedSite;
+
+impl crate::chrome::Renderer for ScriptedSite {
+    fn render<'a>(&'a self, url: &'a str) -> BoxFuture<'a, std::result::Result<String, String>> {
+        Box::pin(async move {
+            Ok(if url == "https://js.test/" {
+                r#"<html><head><title>App</title></head>
+                   <body><a href="/added-by-script">Later</a></body></html>"#
+                    .to_string()
+            } else {
+                r#"<html><head><title>Inner</title></head><body></body></html>"#.to_string()
+            })
+        })
+    }
+}
+
+#[tokio::test]
+async fn a_rendered_crawl_follows_links_that_scripts_add() {
+    let fetcher = MockFetcher::new();
+    fetcher.page("https://js.test/", r#"<html><body><div id="app"></div></body></html>"#);
+    fetcher.page("https://js.test/added-by-script", "<html><body></body></html>");
+    let rendering = crate::chrome::RenderingFetcher::new(fetcher, ScriptedSite, 2);
+
+    let store = Store::open_in_memory().unwrap();
+    let (crawler, _handle) = Crawler::start_with_fetcher(
+        CrawlConfig::spider("https://js.test/"),
+        store,
+        Arc::new(rendering),
+        None,
+    )
+    .await
+    .unwrap();
+    let (_, store) = crawler.run_and_close().await.unwrap();
+
+    let crawled = urls_in(&store, &UrlFilter::default());
+    assert!(crawled.contains(&"https://js.test/added-by-script".to_string()), "{crawled:?}");
+    let home = queries::url_by_address(store.connection(), "https://js.test/").unwrap().unwrap();
+    assert_eq!(home.title.as_deref(), Some("App"), "the rendered title is the one recorded");
+}

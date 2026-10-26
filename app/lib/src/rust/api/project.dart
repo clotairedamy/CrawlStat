@@ -11,8 +11,8 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'types.dart';
 part 'project.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `audit_config`, `kind_name`, `region_name`, `to_benchmark`, `to_result`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `audit_config`, `kind_name`, `lens`, `region_name`, `to_benchmark`, `to_result`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Open a crawl file and describe it, for the projects screen.
 Future<ProjectInfo> openProject({required String dbPath}) =>
@@ -24,6 +24,13 @@ void closeProject() => RustLib.instance.api.crateApiProjectCloseProject();
 /// Summarise a crawl file without opening it in the UI.
 Future<ProjectInfo> projectInfo({required String dbPath}) =>
     RustLib.instance.api.crateApiProjectProjectInfo(dbPath: dbPath);
+
+/// The settings a crawl was started with, as a request that runs it again.
+///
+/// Fails for a file with no stored configuration — one written by a build
+/// old enough not to record it — since there is nothing to repeat.
+Future<CrawlRequest> storedCrawlRequest({required String dbPath}) =>
+    RustLib.instance.api.crateApiProjectStoredCrawlRequest(dbPath: dbPath);
 
 /// Live counters, polled by the crawl screen between progress events.
 Future<ProjectStats> projectStats({required String dbPath}) =>
@@ -60,6 +67,18 @@ Future<AuditReport> runAudit({
 /// One issue's full text, for the panel that explains it.
 Issue? issueDefinition({required String issueId}) =>
     RustLib.instance.api.crateApiProjectIssueDefinition(issueId: issueId);
+
+/// An issue's affected pages, the most valuable first, for the list under
+/// the issue's explanation.
+Future<List<AffectedPage>> issueUrls({
+  required String dbPath,
+  required String issueId,
+  required int limit,
+}) => RustLib.instance.api.crateApiProjectIssueUrls(
+  dbPath: dbPath,
+  issueId: issueId,
+  limit: limit,
+);
 
 /// `(status code, count)` for the response-codes tab.
 Future<List<StatusCount>> statusSummary({required String dbPath}) =>
@@ -103,6 +122,16 @@ Future<PlatformInt64> exportLinksCsv({
 }) => RustLib.instance.api.crateApiProjectExportLinksCsv(
   dbPath: dbPath,
   outPath: outPath,
+);
+
+/// How many rows each Pages lens would show for a table view, ignoring any
+/// lens the query already has, so the counts stay put while you switch.
+Future<PageLenses> pageLenses({
+  required String dbPath,
+  required UrlQuery query,
+}) => RustLib.instance.api.crateApiProjectPageLenses(
+  dbPath: dbPath,
+  query: query,
 );
 
 /// Read the site structure. `node_limit` caps the diagram; 400 draws fast and
@@ -296,6 +325,35 @@ Future<TaskBenchmark> benchmarkTaskAgainst({
   task: task,
 );
 
+/// The browser CrawlStat would use to render pages and print reports, or
+/// `None` when there is none.
+String? chromePath() => RustLib.instance.api.crateApiProjectChromePath();
+
+/// Write the client report for a crawl to `out_path`, as a self-contained
+/// HTML page or, with `pdf`, printed to PDF by Chrome.
+///
+/// `previous_path` adds a "since the last crawl" section. That is the crawl
+/// comparison, so it is left out without Pro rather than failing the export.
+Future<String> exportReport({
+  required String dbPath,
+  String? previousPath,
+  required String outPath,
+  String? preparedBy,
+  String? accent,
+  required String standard,
+  String? narrative,
+  required bool pdf,
+}) => RustLib.instance.api.crateApiProjectExportReport(
+  dbPath: dbPath,
+  previousPath: previousPath,
+  outPath: outPath,
+  preparedBy: preparedBy,
+  accent: accent,
+  standard: standard,
+  narrative: narrative,
+  pdf: pdf,
+);
+
 class ActionPlan {
   final List<PlanItem> items;
   final PlatformInt64 affectedPages;
@@ -327,6 +385,37 @@ class ActionPlan {
           affectedPages == other.affectedPages &&
           totalPages == other.totalPages &&
           valueAtRisk == other.valueAtRisk;
+}
+
+/// A page one issue affects, with that page's own reason.
+class AffectedPage {
+  final PlatformInt64 urlId;
+  final String url;
+  final PlatformInt64? status;
+
+  /// Why this page in particular: the over-long title, the broken target.
+  final String? detail;
+
+  const AffectedPage({
+    required this.urlId,
+    required this.url,
+    this.status,
+    this.detail,
+  });
+
+  @override
+  int get hashCode =>
+      urlId.hashCode ^ url.hashCode ^ status.hashCode ^ detail.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AffectedPage &&
+          runtimeType == other.runtimeType &&
+          urlId == other.urlId &&
+          url == other.url &&
+          status == other.status &&
+          detail == other.detail;
 }
 
 /// A page that was fine and now is not.

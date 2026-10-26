@@ -45,15 +45,25 @@ void main() {
   });
 
   group('node colour', () {
+    const ember = CrawlStatPalette.ember;
+    const mono = CrawlStatPalette.mono;
+
     test('carries the status class', () {
-      expect(nodeColour(200, Colors.green), Colors.green);
-      expect(nodeColour(301, Colors.green), CrawlStatTheme.warning);
-      expect(nodeColour(404, Colors.green), CrawlStatTheme.error);
-      expect(nodeColour(503, Colors.green), isNot(CrawlStatTheme.error));
+      expect(nodeColour(200, Colors.green, ember), Colors.green);
+      expect(nodeColour(301, Colors.green, ember), ember.warning);
+      expect(nodeColour(404, Colors.green, ember), ember.error);
+      expect(nodeColour(503, Colors.green, ember), isNot(ember.error));
+    });
+
+    test('follows the palette rather than Ember', () {
+      expect(nodeColour(301, Colors.green, mono), mono.warning);
+      expect(nodeColour(404, Colors.green, mono), mono.error);
+      // On a grey ramp 5xx shares the error tone, so it cannot look calmer.
+      expect(nodeColour(503, Colors.green, mono), mono.error);
     });
 
     test('a page that was never fetched is neutral, not an error', () {
-      expect(nodeColour(null, Colors.green), CrawlStatTheme.notice);
+      expect(nodeColour(null, Colors.green, ember), ember.notice);
     });
   });
 

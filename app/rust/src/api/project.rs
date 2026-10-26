@@ -20,8 +20,9 @@ use flutter_rust_bridge::frb;
 use crate::frb_generated::StreamSink;
 
 use super::types::{
-    AuditReport, HeaderPair, ImageRow, Issue, LinkRow, ProjectInfo, ProjectStats, RedirectHop,
-    UrlDetail, UrlIssue, UrlPage, UrlQuery, UrlRow,
+    page_view, AuditReport, CrawlRequest, HeaderPair, ImageRow, Issue, LinkRow, PageLens,
+    PageLenses, ProjectInfo, ProjectStats, RedirectHop, UrlDetail, UrlIssue, UrlPage, UrlQuery,
+    UrlRow, LENSES, THIN_WORDS,
 };
 use crate::runtime;
 
@@ -77,6 +78,17 @@ pub fn project_info(db_path: String) -> Result<ProjectInfo, String> {
     .map_err(|error| error.to_string())
 }
 
+/// The settings a crawl was started with, as a request that runs it again.
+///
+/// Fails for a file with no stored configuration — one written by a build
+/// old enough not to record it — since there is nothing to repeat.
+pub fn stored_crawl_request(db_path: String) -> Result<CrawlRequest, String> {
+    let config = runtime::with_store(&db_path, |store| store.stored_config())
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "this crawl did not record its settings".to_string())?;
+    CrawlRequest::from_config(&config).map_err(|error| error.to_string())
+}
+
 /// Live counters, polled by the crawl screen between progress events.
 pub fn project_stats(db_path: String) -> Result<ProjectStats, String> {
     runtime::with_store(&db_path, |store| Ok(ProjectStats::from(store.stats()?)))
@@ -85,8 +97,9 @@ pub fn project_stats(db_path: String) -> Result<ProjectStats, String> {
 
 /// One page of the results table.
 pub fn list_urls(db_path: String, query: UrlQuery) -> Result<UrlPage, String> {
-    let (filter, sort, descending, limit, offset) = query.to_filter();
+    let (mut filter, sort, descending, limit, offset) = query.to_filter();
     runtime::with_store(&db_path, |store| {
+        filter.view = lens(store, &query)?;
         let page =
             queries::list_urls(store.connection(), &filter, sort, descending, limit, offset)?;
         Ok(UrlPage {
@@ -207,6 +220,38 @@ pub fn issue_definition(issue_id: String) -> Option<Issue> {
     })
 }
 
+/// A page one issue affects, with that page's own reason.
+#[derive(Debug, Clone)]
+pub struct AffectedPage {
+    pub url_id: i64,
+    pub url: String,
+    pub status: Option<i64>,
+    /// Why this page in particular: the over-long title, the broken target.
+    pub detail: Option<String>,
+}
+
+/// An issue's affected pages, the most valuable first, for the list under
+/// the issue's explanation.
+pub fn issue_urls(
+    db_path: String,
+    issue_id: String,
+    limit: u32,
+) -> Result<Vec<AffectedPage>, String> {
+    runtime::with_store(&db_path, |store| {
+        let pages = queries::affected_urls(store.connection(), &issue_id, limit)?;
+        Ok(pages
+            .into_iter()
+            .map(|page| AffectedPage {
+                url_id: page.url_id,
+                url: page.url,
+                status: page.status.map(i64::from),
+                detail: page.detail.filter(|detail| !detail.is_empty()),
+            })
+            .collect())
+    })
+    .map_err(|error| error.to_string())
+}
+
 /// `(status code, count)` for the response-codes tab.
 pub fn status_summary(db_path: String) -> Result<Vec<StatusCount>, String> {
     runtime::with_store(&db_path, |store| {
@@ -229,8 +274,9 @@ pub struct StatusCount {
 
 /// Export the rows a table view is showing. Returns how many were written.
 pub fn export_urls_csv(db_path: String, query: UrlQuery, out_path: String) -> Result<i64, String> {
-    let (filter, sort, descending, _, _) = query.to_filter();
+    let (mut filter, sort, descending, _, _) = query.to_filter();
     runtime::with_store(&db_path, |store| {
+        filter.view = lens(store, &query)?;
         Ok(export::urls_to_csv(store, &filter, sort, descending, Path::new(&out_path))? as i64)
     })
     .map_err(|error| error.to_string())
@@ -267,6 +313,59 @@ pub fn export_issue_urls_csv(
 pub fn export_links_csv(db_path: String, out_path: String) -> Result<i64, String> {
     runtime::with_store(&db_path, |store| {
         Ok(export::links_to_csv(store, Path::new(&out_path))? as i64)
+    })
+    .map_err(|error| error.to_string())
+}
+
+/// The lens a query asks for, with the crawl's thresholds.
+fn lens(
+    store: &Store,
+    query: &UrlQuery,
+) -> Result<Option<queries::PageView>, crawlstat_engine::error::EngineError> {
+    Ok(match query.view.as_deref() {
+        Some(id) => page_view(id, &audit_config(store)?),
+        None => None,
+    })
+}
+
+/// How many rows each Pages lens would show for a table view, ignoring any
+/// lens the query already has, so the counts stay put while you switch.
+pub fn page_lenses(db_path: String, query: UrlQuery) -> Result<PageLenses, String> {
+    let (filter, _, _, _, _) = query.to_filter();
+    runtime::with_store(&db_path, |store| {
+        let config = audit_config(store)?;
+        let views: Vec<_> = LENSES
+            .iter()
+            .filter_map(|(id, _)| page_view(id, &config))
+            .collect();
+        let counts = queries::count_views(store.connection(), &filter, &views)?;
+        let total = queries::list_urls(
+            store.connection(),
+            &filter,
+            queries::SortBy::Id,
+            false,
+            1,
+            0,
+        )?
+        .total;
+        Ok(PageLenses {
+            lenses: LENSES
+                .iter()
+                .zip(counts)
+                .map(|((id, label), count)| PageLens {
+                    id: id.to_string(),
+                    label: label.to_string(),
+                    count: count as i64,
+                })
+                .collect(),
+            total: total as i64,
+            title_min: config.title_min_chars as i64,
+            title_max: config.title_max_chars as i64,
+            description_min: config.description_min_chars as i64,
+            description_max: config.description_max_chars as i64,
+            slow_ms: config.slow_response_ms as i64,
+            thin_words: THIN_WORDS,
+        })
     })
     .map_err(|error| error.to_string())
 }
@@ -1254,4 +1353,70 @@ pub fn benchmark_task_against(
         ux::journey::benchmark_task(ours.connection(), theirs.connection(), persona, &task)
             .map_err(|error| error.to_string())?,
     ))
+}
+
+/// The browser CrawlStat would use to render pages and print reports, or
+/// `None` when there is none.
+#[frb(sync)]
+pub fn chrome_path() -> Option<String> {
+    crawlstat_engine::chrome::Chrome::locate().map(|chrome| chrome.path().display().to_string())
+}
+
+/// Write the client report for a crawl to `out_path`, as a self-contained
+/// HTML page or, with `pdf`, printed to PDF by Chrome.
+///
+/// `previous_path` adds a "since the last crawl" section. That is the crawl
+/// comparison, so it is left out without Pro rather than failing the export.
+#[allow(clippy::too_many_arguments)]
+pub fn export_report(
+    db_path: String,
+    previous_path: Option<String>,
+    out_path: String,
+    prepared_by: Option<String>,
+    accent: Option<String>,
+    standard: String,
+    narrative: Option<String>,
+    pdf: bool,
+) -> Result<String, String> {
+    use crawlstat_engine::a11y::Standard;
+    use crawlstat_engine::chrome::Chrome;
+    use crawlstat_engine::license;
+    use crawlstat_engine::report::{self, ReportOptions};
+
+    let compare = license::current()
+        .entitlement()
+        .has(license::features::CRAWL_COMPARISON);
+    let previous = match previous_path.filter(|_| compare) {
+        Some(path) => Some(Store::open(Path::new(&path)).map_err(|e| e.to_string())?),
+        None => None,
+    };
+    let options = ReportOptions {
+        prepared_by: prepared_by.filter(|p| !p.trim().is_empty()),
+        accent,
+        standard: Standard::parse(&standard).unwrap_or_default(),
+        narrative,
+        ..ReportOptions::default()
+    };
+    let html = runtime::with_store(&db_path, |store| {
+        let report = report::build(store, previous.as_ref(), options)?;
+        Ok(report::html(&report))
+    })
+    .map_err(|error| error.to_string())?;
+
+    let out = Path::new(&out_path);
+    if !pdf {
+        std::fs::write(out, html).map_err(|error| error.to_string())?;
+        return Ok(out_path);
+    }
+    let chrome = Chrome::locate().ok_or(
+        "Saving a PDF needs Chrome, Chromium, Edge or Brave installed. Save it as a web page \
+         instead, and print it from any browser.",
+    )?;
+    // Chrome prints a file, so the page goes to disk first, beside the PDF
+    // where the app is allowed to write.
+    let page = out.with_extension("report.html");
+    std::fs::write(&page, html).map_err(|error| error.to_string())?;
+    let printed = chrome.print_to_pdf(&page, out, std::time::Duration::from_secs(90));
+    let _ = std::fs::remove_file(&page);
+    printed.map(|()| out_path)
 }

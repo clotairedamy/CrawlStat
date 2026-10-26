@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:crawlstat/src/state/projects.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -54,6 +56,31 @@ void main() {
         suggestedProjectFileName('///', now: at),
         'crawl-20260224-1432.db',
       );
+    });
+  });
+
+  group('newProjectPath', () {
+    late Directory root;
+    setUp(() => root = Directory.systemTemp.createTempSync('crawlstat-'));
+    tearDown(() => root.deleteSync(recursive: true));
+
+    test('creates the folder and uses the suggested name', () {
+      final folder = '${root.path}${Platform.pathSeparator}crawls';
+      final path = newProjectPath(folder, 'example.com', now: at);
+      expect(Directory(folder).existsSync(), isTrue);
+      expect(path, endsWith('example-com-20260224-1432.db'));
+    });
+
+    test('never lands on a crawl that already exists', () {
+      // A recrawl started the same minute as the crawl it repeats.
+      final first = newProjectPath(root.path, 'example.com', now: at);
+      File(first).writeAsStringSync('');
+      final second = newProjectPath(root.path, 'example.com', now: at);
+      File(second).writeAsStringSync('');
+      final third = newProjectPath(root.path, 'example.com', now: at);
+
+      expect(second, endsWith('example-com-20260224-1432-2.db'));
+      expect(third, endsWith('example-com-20260224-1432-3.db'));
     });
   });
 

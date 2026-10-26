@@ -51,6 +51,46 @@ void main() {
     expect(names, CrawlStatPalette.all.map((p) => p.name).toList());
   });
 
+  test('every palette can be found by its own name', () {
+    // byName once compared the argument with itself, so every lookup matched
+    // the first palette and the app ran Ember whatever was chosen.
+    for (final palette in CrawlStatPalette.all) {
+      expect(CrawlStatPalette.byName(palette.name), same(palette));
+    }
+  });
+
+  group('monochrome', () {
+    bool isGrey(Color c) => c.r == c.g && c.g == c.b;
+
+    test('has no hue anywhere, in either brightness', () {
+      for (final palette in [
+        CrawlStatPalette.mono,
+        CrawlStatPalette.mono.forLight(),
+      ]) {
+        for (final colour in [
+          palette.accent,
+          palette.highlight,
+          palette.error,
+          palette.warning,
+          palette.notice,
+          palette.success,
+        ]) {
+          expect(isGrey(colour), isTrue, reason: '$colour');
+        }
+      }
+    });
+
+    test('text on its pale accent is dark, not white', () {
+      expect(CrawlStatPalette.mono.onAccent, isNot(Colors.white));
+      expect(CrawlStatPalette.mono.forLight().onAccent, Colors.white);
+    });
+
+    test('ember and gold keep white text on the accent', () {
+      expect(CrawlStatPalette.ember.onAccent, Colors.white);
+      expect(CrawlStatPalette.gold.onAccent, Colors.white);
+    });
+  });
+
   test('an unknown palette name falls back rather than throwing', () {
     expect(CrawlStatPalette.byName('nonsense').name, 'ember');
     expect(CrawlStatPalette.byName(null).name, 'ember');
@@ -94,8 +134,10 @@ void main() {
     });
 
     test('every palette is offered in Settings', () {
-      expect(CrawlStatPalette.all.map((p) => p.name),
-          containsAll(['ember', 'gold', 'graphite']));
+      expect(
+        CrawlStatPalette.all.map((p) => p.name),
+        containsAll(['ember', 'gold', 'graphite']),
+      );
     });
   });
 }

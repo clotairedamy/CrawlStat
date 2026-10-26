@@ -431,7 +431,9 @@ class _VerdictPanel extends StatelessWidget {
                         flex: count,
                         child: Tooltip(
                           message: '${_statusLabel(status)}: $count',
-                          child: ColoredBox(color: _statusColour(status)),
+                          child: ColoredBox(
+                            color: _statusColour(context, status),
+                          ),
                         ),
                       ),
                 ],
@@ -452,7 +454,7 @@ class _VerdictPanel extends StatelessWidget {
                         width: 8,
                         height: 8,
                         decoration: BoxDecoration(
-                          color: _statusColour(status),
+                          color: _statusColour(context, status),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -540,7 +542,7 @@ class _RuleCardState extends ConsumerState<_RuleCard> {
     final theme = Theme.of(context);
     final rule = widget.rule;
     final info = rule.info;
-    final tone = _impactColour(info.impact);
+    final tone = _impactColour(context, info.impact);
 
     return SoftPanel(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
@@ -1018,7 +1020,7 @@ class _CriterionTileState extends ConsumerState<_CriterionTile> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final c = widget.criterion;
-    final tone = _statusColour(c.status);
+    final tone = _statusColour(context, c.status);
     final hits = widget.report.rules
         .where((rule) => c.rulesHit.contains(rule.info.id))
         .toList();
@@ -1338,7 +1340,7 @@ class _CheckUrlPanelState extends State<_CheckUrlPanel> {
               const SizedBox(width: 10),
               SoftButton(
                 icon: AppIcon.search,
-                gradient: Soft.accentGradient(),
+                gradient: Soft.accentGradient(context),
                 onPressed: _running ? null : _check,
                 child: const Text('Check page'),
               ),
@@ -1462,7 +1464,7 @@ class _HitTileState extends State<_HitTile> {
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: _impactColour(info.impact),
+                      color: _impactColour(context, info.impact),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -1570,13 +1572,21 @@ class _LawPanel extends StatelessWidget {
 
 const _checkedBlue = Color(0xFF5B9BD5);
 
-Color _statusColour(String status) => switch (status) {
-  'fail' => CrawlStatTheme.error,
-  'review' => CrawlStatTheme.warning,
-  'checks_passed' => _checkedBlue,
-  'pass' => CrawlStatTheme.success,
-  _ => CrawlStatTheme.notice,
-};
+Color _statusColour(BuildContext context, String status) {
+  final palette = CrawlStatTheme.palette(context);
+  return switch (status) {
+    'fail' => palette.error,
+    'review' => palette.warning,
+    // Blue only where severity is a hue at all; on a grey ramp it sits
+    // between "check" and "passes".
+    'checks_passed' =>
+      palette.name == 'ember'
+          ? _checkedBlue
+          : Color.lerp(palette.notice, palette.success, 0.5)!,
+    'pass' => palette.success,
+    _ => palette.notice,
+  };
+}
 
 String _statusLabel(String status) => switch (status) {
   'fail' => 'Fails',
@@ -1588,12 +1598,21 @@ String _statusLabel(String status) => switch (status) {
   _ => status,
 };
 
-Color _impactColour(String impact) => switch (impact) {
-  'critical' => CrawlStatTheme.error,
-  'serious' => CrawlStatTheme.accent,
-  'moderate' => CrawlStatTheme.warning,
-  _ => CrawlStatTheme.notice,
-};
+Color _impactColour(BuildContext context, String impact) {
+  final palette = CrawlStatTheme.palette(context);
+  return switch (impact) {
+    'critical' => palette.error,
+    // Between critical and moderate. Ember has an orange for that; the grey
+    // ramps take the step between their error and warning tones, since their
+    // accent is reserved for the call to action.
+    'serious' =>
+      palette.name == 'ember'
+          ? palette.accent
+          : Color.lerp(palette.error, palette.warning, 0.5)!,
+    'moderate' => palette.warning,
+    _ => palette.notice,
+  };
+}
 
 String _capitalise(String text) =>
     text.isEmpty ? text : text[0].toUpperCase() + text.substring(1);

@@ -30,6 +30,7 @@ class UrlQuerySpec {
     this.statusClass,
     this.issueId,
     this.maxDepth,
+    this.view,
   });
 
   final String tab;
@@ -40,6 +41,9 @@ class UrlQuerySpec {
   final int? statusClass;
   final String? issueId;
   final int? maxDepth;
+
+  /// A Pages lens — `"slow"`, `"broken"`… — or `null` for every row.
+  final String? view;
 
   UrlQuerySpec copyWith({
     String? tab,
@@ -55,6 +59,8 @@ class UrlQuerySpec {
     bool clearIssue = false,
     int? maxDepth,
     bool clearMaxDepth = false,
+    String? view,
+    bool clearView = false,
   }) {
     return UrlQuerySpec(
       tab: tab ?? this.tab,
@@ -65,6 +71,7 @@ class UrlQuerySpec {
       statusClass: clearStatusClass ? null : (statusClass ?? this.statusClass),
       issueId: clearIssue ? null : (issueId ?? this.issueId),
       maxDepth: clearMaxDepth ? null : (maxDepth ?? this.maxDepth),
+      view: clearView ? null : (view ?? this.view),
     );
   }
 
@@ -74,7 +81,8 @@ class UrlQuerySpec {
       statusCode != null ||
       statusClass != null ||
       issueId != null ||
-      maxDepth != null;
+      maxDepth != null ||
+      view != null;
 
   UrlQuerySpec cleared() =>
       UrlQuerySpec(tab: tab, sortBy: sortBy, descending: descending);
@@ -88,6 +96,7 @@ class UrlQuerySpec {
       urlContains: (search == null || search!.isEmpty) ? null : search,
       issueId: issueId,
       maxDepth: maxDepth,
+      view: view,
       sortBy: sortBy,
       descending: descending,
       limit: limit,
@@ -105,7 +114,8 @@ class UrlQuerySpec {
         other.statusCode == statusCode &&
         other.statusClass == statusClass &&
         other.issueId == issueId &&
-        other.maxDepth == maxDepth;
+        other.maxDepth == maxDepth &&
+        other.view == view;
   }
 
   @override
@@ -118,6 +128,18 @@ class UrlQuerySpec {
     statusClass,
     issueId,
     maxDepth,
+    view,
+  );
+
+  /// The rows the lenses count within: this query without its lens, and
+  /// without the order, which does not change a count.
+  UrlQuerySpec get lensBase => UrlQuerySpec(
+    tab: tab,
+    search: search,
+    statusCode: statusCode,
+    statusClass: statusClass,
+    issueId: issueId,
+    maxDepth: maxDepth,
   );
 }
 
@@ -216,6 +238,14 @@ class UrlTable extends Notifier<UrlTableState> {
 
   void clearFilters() => setQuery(state.query.cleared());
 
+  /// Look through one lens, or through none when it is already the one.
+  void setView(String? view) => setQuery(
+    state.query.copyWith(
+      view: view == state.query.view ? null : view,
+      clearView: view == null || view == state.query.view,
+    ),
+  );
+
   /// Sort by a column, flipping the direction when it is already sorted.
   void sortBy(String column) {
     final descending = state.query.sortBy == column
@@ -306,6 +336,16 @@ final selectedUrlProvider = NotifierProvider<SelectedUrl, int?>(
 final urlDetailProvider =
     FutureProvider.family<UrlDetail, ({String path, int urlId})>(
       (ref, args) => rust.urlDetail(dbPath: args.path, urlId: args.urlId),
+    );
+
+/// How many rows each Pages lens would show for a view of the table, and the
+/// limits the grid measures lengths and times against.
+final pageLensesProvider = FutureProvider.autoDispose
+    .family<PageLenses, ({String path, UrlQuerySpec base})>(
+      (ref, args) => rust.pageLenses(
+        dbPath: args.path,
+        query: args.base.toRequest(offset: 0, limit: 1),
+      ),
     );
 
 /// The audit report for the open project.

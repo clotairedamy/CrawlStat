@@ -145,6 +145,10 @@ pub struct CrawlConfig {
     pub store_headers: Vec<String>,
     /// Keep the raw HTML body in the database. Costly; off by default.
     pub store_html: bool,
+    /// Run each page's JavaScript in headless Chrome before parsing it, so
+    /// links and content a script adds are seen. Much slower; needs a
+    /// Chromium-family browser on the machine.
+    pub render_javascript: bool,
 }
 
 /// Response headers kept by default: SEO-relevant plus caching basics.
@@ -207,6 +211,7 @@ impl Default for CrawlConfig {
                 .map(|s| (*s).to_string())
                 .collect(),
             store_html: false,
+            render_javascript: false,
         }
     }
 }

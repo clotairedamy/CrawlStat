@@ -242,3 +242,38 @@ String suggestedProjectFileName(String startUrl, {DateTime? now}) {
       '${at.year}${two(at.month)}${two(at.day)}-${two(at.hour)}${two(at.minute)}';
   return '$host-$stamp.db';
 }
+
+/// A path in [directory] for a new crawl of [startUrl] that is not taken yet,
+/// creating the directory if it is missing.
+///
+/// The suggested name is stamped to the minute, so a recrawl started straight
+/// after the crawl it repeats would otherwise land on the same file.
+String newProjectPath(String directory, String startUrl, {DateTime? now}) {
+  final folder = Directory(directory);
+  if (!folder.existsSync()) folder.createSync(recursive: true);
+
+  final name = suggestedProjectFileName(startUrl, now: now);
+  final stem = name.substring(0, name.length - '.db'.length);
+  String at(String file) => '${folder.path}${Platform.pathSeparator}$file';
+
+  var path = at(name);
+  for (var copy = 2; File(path).existsSync(); copy++) {
+    path = at('$stem-$copy.db');
+  }
+  return path;
+}
+
+/// The report the local model last wrote for each crawl, by crawl path, so
+/// the PDF export can include it wherever it is started from. Kept for the
+/// session only: the wording is a draft to read through, not a record.
+class WrittenReports extends Notifier<Map<String, String>> {
+  @override
+  Map<String, String> build() => const {};
+
+  void put(String path, String markdown) => state = {...state, path: markdown};
+
+  void clear(String path) => state = {...state}..remove(path);
+}
+
+final writtenReportsProvider =
+    NotifierProvider<WrittenReports, Map<String, String>>(WrittenReports.new);

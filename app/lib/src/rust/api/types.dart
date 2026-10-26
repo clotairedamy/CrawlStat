@@ -9,8 +9,8 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `kind_name`, `link_source_name`, `new`, `position_name`, `state_name`, `to_config`, `to_filter`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These functions are ignored because they are not marked as `pub`: `from_config`, `kind_name`, `link_source_name`, `new`, `page_view`, `position_name`, `state_name`, `to_config`, `to_filter`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 /// The Issues screen's whole payload.
 class AuditReport {
@@ -122,6 +122,9 @@ class CrawlRequest {
   final bool crawlJavascript;
   final bool crawlDocuments;
   final bool storeHtml;
+
+  /// Run each page's JavaScript in headless Chrome before reading it.
+  final bool renderJavascript;
   final bool runAudits;
 
   /// A full [`CrawlConfig`] as JSON. When present every other field is
@@ -150,6 +153,7 @@ class CrawlRequest {
     required this.crawlJavascript,
     required this.crawlDocuments,
     required this.storeHtml,
+    required this.renderJavascript,
     required this.runAudits,
     this.configJson,
   });
@@ -176,6 +180,7 @@ class CrawlRequest {
       crawlJavascript.hashCode ^
       crawlDocuments.hashCode ^
       storeHtml.hashCode ^
+      renderJavascript.hashCode ^
       runAudits.hashCode ^
       configJson.hashCode;
 
@@ -204,6 +209,7 @@ class CrawlRequest {
           crawlJavascript == other.crawlJavascript &&
           crawlDocuments == other.crawlDocuments &&
           storeHtml == other.storeHtml &&
+          renderJavascript == other.renderJavascript &&
           runAudits == other.runAudits &&
           configJson == other.configJson;
 }
@@ -490,6 +496,78 @@ class LinkRow {
           linkType == other.linkType &&
           nofollow == other.nofollow &&
           statusCode == other.statusCode;
+}
+
+/// One lens on the Pages tab and how many rows it would show.
+class PageLens {
+  final String id;
+  final String label;
+  final PlatformInt64 count;
+
+  const PageLens({required this.id, required this.label, required this.count});
+
+  @override
+  int get hashCode => id.hashCode ^ label.hashCode ^ count.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PageLens &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          label == other.label &&
+          count == other.count;
+}
+
+/// The lenses for a table view, with the limits they measure against — the
+/// grid draws title lengths and response times against the same ones.
+class PageLenses {
+  final List<PageLens> lenses;
+
+  /// Rows in the view with no lens applied.
+  final PlatformInt64 total;
+  final PlatformInt64 titleMin;
+  final PlatformInt64 titleMax;
+  final PlatformInt64 descriptionMin;
+  final PlatformInt64 descriptionMax;
+  final PlatformInt64 slowMs;
+  final PlatformInt64 thinWords;
+
+  const PageLenses({
+    required this.lenses,
+    required this.total,
+    required this.titleMin,
+    required this.titleMax,
+    required this.descriptionMin,
+    required this.descriptionMax,
+    required this.slowMs,
+    required this.thinWords,
+  });
+
+  @override
+  int get hashCode =>
+      lenses.hashCode ^
+      total.hashCode ^
+      titleMin.hashCode ^
+      titleMax.hashCode ^
+      descriptionMin.hashCode ^
+      descriptionMax.hashCode ^
+      slowMs.hashCode ^
+      thinWords.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PageLenses &&
+          runtimeType == other.runtimeType &&
+          lenses == other.lenses &&
+          total == other.total &&
+          titleMin == other.titleMin &&
+          titleMax == other.titleMax &&
+          descriptionMin == other.descriptionMin &&
+          descriptionMax == other.descriptionMax &&
+          slowMs == other.slowMs &&
+          thinWords == other.thinWords;
 }
 
 class ProgressSnapshot {
@@ -802,6 +880,9 @@ class UrlQuery {
   final String? issueId;
   final PlatformInt64? maxDepth;
 
+  /// One of the Pages tab's lenses, by [`PageLens::id`]; `None` for all.
+  final String? view;
+
   /// A column name from `SortBy`; unknown values fall back to row order.
   final String sortBy;
   final bool descending;
@@ -815,6 +896,7 @@ class UrlQuery {
     this.urlContains,
     this.issueId,
     this.maxDepth,
+    this.view,
     required this.sortBy,
     required this.descending,
     required this.limit,
@@ -832,6 +914,7 @@ class UrlQuery {
       urlContains.hashCode ^
       issueId.hashCode ^
       maxDepth.hashCode ^
+      view.hashCode ^
       sortBy.hashCode ^
       descending.hashCode ^
       limit.hashCode ^
@@ -848,6 +931,7 @@ class UrlQuery {
           urlContains == other.urlContains &&
           issueId == other.issueId &&
           maxDepth == other.maxDepth &&
+          view == other.view &&
           sortBy == other.sortBy &&
           descending == other.descending &&
           limit == other.limit &&
@@ -890,6 +974,12 @@ class UrlRow {
   final double? linkScore;
   final String? errorKind;
 
+  /// How many audit issues flag this URL.
+  final PlatformInt64 issueCount;
+
+  /// `"error"`, `"warning"` or `"notice"`: the worst of them.
+  final String? worstSeverity;
+
   const UrlRow({
     required this.id,
     required this.url,
@@ -922,6 +1012,8 @@ class UrlRow {
     required this.redirectCount,
     this.linkScore,
     this.errorKind,
+    required this.issueCount,
+    this.worstSeverity,
   });
 
   @override
@@ -956,7 +1048,9 @@ class UrlRow {
       externalLinks.hashCode ^
       redirectCount.hashCode ^
       linkScore.hashCode ^
-      errorKind.hashCode;
+      errorKind.hashCode ^
+      issueCount.hashCode ^
+      worstSeverity.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -993,5 +1087,7 @@ class UrlRow {
           externalLinks == other.externalLinks &&
           redirectCount == other.redirectCount &&
           linkScore == other.linkScore &&
-          errorKind == other.errorKind;
+          errorKind == other.errorKind &&
+          issueCount == other.issueCount &&
+          worstSeverity == other.worstSeverity;
 }

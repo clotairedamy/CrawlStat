@@ -389,44 +389,36 @@ class _DataGridState<T> extends State<DataGrid<T>> {
         },
         child: Focus(
           focusNode: _focus,
-          child: Scrollbar(
+          child: SingleChildScrollView(
             controller: _horizontal,
-            scrollbarOrientation: ScrollbarOrientation.bottom,
-            child: SingleChildScrollView(
-              controller: _horizontal,
-              scrollDirection: Axis.horizontal,
-              // The vertical constraint passes straight through a horizontal
-              // scroll view, so the header can stay put while the rows scroll.
-              child: SizedBox(
-                width: width,
-                child: Column(
-                  children: [
-                    _header(context, columns),
-                    Expanded(
-                      child: Scrollbar(
-                        controller: _vertical,
-                        child: ListView.builder(
-                          controller: _vertical,
-                          itemCount: widget.total,
-                          itemExtent: CrawlStatTheme.rowHeight,
-                          // Fixed extents mean the list can jump straight to any
-                          // offset without measuring the rows in between.
-                          itemBuilder: (context, index) =>
-                              _row(context, columns, index),
-                        ),
+            scrollDirection: Axis.horizontal,
+            // The vertical constraint passes straight through a horizontal
+            // scroll view, so the header can stay put while the rows scroll.
+            child: SizedBox(
+              width: width,
+              child: Column(
+                children: [
+                  _header(context, columns),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: _vertical,
+                      itemCount: widget.total,
+                      itemExtent: CrawlStatTheme.rowHeight,
+                      // Fixed extents mean the list can jump straight to any
+                      // offset without measuring the rows in between.
+                      itemBuilder: (context, index) =>
+                          _row(context, columns, index),
+                    ),
+                  ),
+                  if (widget.loading)
+                    SizedBox(
+                      height: 2,
+                      child: LinearProgressIndicator(
+                        minHeight: 2,
+                        backgroundColor: theme.colorScheme.surfaceContainerLow,
                       ),
                     ),
-                    if (widget.loading)
-                      SizedBox(
-                        height: 2,
-                        child: LinearProgressIndicator(
-                          minHeight: 2,
-                          backgroundColor:
-                              theme.colorScheme.surfaceContainerLow,
-                        ),
-                      ),
-                  ],
-                ),
+                ],
               ),
             ),
           ),

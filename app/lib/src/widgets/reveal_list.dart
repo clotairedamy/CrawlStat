@@ -38,42 +38,24 @@ class RevealList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (children.isEmpty) return const SizedBox.shrink();
 
-    return ScrollConfiguration(
-      // The scrollbar is the only thing being removed; the rest of the
-      // scrolling behaviour stays exactly as it was.
-      behavior: const _NoScrollbar(),
-      child: ListView.builder(
-        padding: padding,
-        itemCount: children.length,
-        itemBuilder: (context, index) => Padding(
-          padding: EdgeInsets.only(
-            bottom: index == children.length - 1 ? 0 : spacing,
-          ),
-          child: _Reveal(
-            // Only the opening screenful is staggered. Past that, an item is
-            // being built because the reader scrolled to it, and a delay
-            // would read as lag.
-            delay: index < 6
-                ? Duration(milliseconds: 55 * index)
-                : Duration.zero,
-            child: children[index],
-          ),
+    // No scrollbar here or anywhere else: the app's scroll behaviour removes
+    // them all and fades the edges instead.
+    return ListView.builder(
+      padding: padding,
+      itemCount: children.length,
+      itemBuilder: (context, index) => Padding(
+        padding: EdgeInsets.only(
+          bottom: index == children.length - 1 ? 0 : spacing,
+        ),
+        child: _Reveal(
+          // Only the opening screenful is staggered. Past that, an item is
+          // being built because the reader scrolled to it, and a delay
+          // would read as lag.
+          delay: index < 6 ? Duration(milliseconds: 55 * index) : Duration.zero,
+          child: children[index],
         ),
       ),
     );
-  }
-}
-
-class _NoScrollbar extends ScrollBehavior {
-  const _NoScrollbar();
-
-  @override
-  Widget buildScrollbar(
-    BuildContext context,
-    Widget child,
-    ScrollableDetails details,
-  ) {
-    return child;
   }
 }
 

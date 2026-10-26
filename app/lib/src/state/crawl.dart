@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../rust/api/crawl.dart' as rust;
+import '../rust/api/project.dart' as project_api;
 import '../rust/api/types.dart';
 import 'projects.dart';
 
@@ -62,6 +63,11 @@ class LiveCrawl {
       phase == CrawlPhase.finished ||
       phase == CrawlPhase.cancelled ||
       phase == CrawlPhase.failed;
+
+  /// Whether the engine is still occupied, so another crawl cannot start —
+  /// it runs one at a time, and auditing counts.
+  bool get isBusy =>
+      isRunning || phase == CrawlPhase.starting || phase == CrawlPhase.auditing;
 
   /// Crawled over discovered, or `null` when there is no limit to measure
   /// against — a spider crawl has no total until it ends.
@@ -285,3 +291,14 @@ class CrawlController extends Notifier<LiveCrawl> {
 final crawlControllerProvider = NotifierProvider<CrawlController, LiveCrawl>(
   CrawlController.new,
 );
+
+/// The browser used to render JavaScript and print reports, or null when
+/// none is installed. Looked up once: nobody installs Chrome mid-session
+/// often enough to justify checking the disk on every rebuild.
+final chromePathProvider = Provider<String?>((ref) {
+  try {
+    return project_api.chromePath();
+  } on Object {
+    return null;
+  }
+});

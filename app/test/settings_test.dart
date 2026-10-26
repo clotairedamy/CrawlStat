@@ -25,6 +25,9 @@ void main() {
         runAudits: false,
         projectsDirectory: '/tmp/crawls',
         exportDirectory: '/tmp/exports',
+        projectsView: 'list',
+        reportPreparedBy: 'Acme Agency',
+        reportAccent: '#0F9F8F',
       );
 
       final restored = Settings.fromJson(
@@ -49,6 +52,9 @@ void main() {
       expect(restored.runAudits, isFalse);
       expect(restored.projectsDirectory, '/tmp/crawls');
       expect(restored.exportDirectory, '/tmp/exports');
+      expect(restored.projectsView, 'list');
+      expect(restored.reportPreparedBy, 'Acme Agency');
+      expect(restored.reportAccent, '#0F9F8F');
     });
 
     test('a file from an older build still opens', () {

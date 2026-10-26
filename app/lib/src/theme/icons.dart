@@ -34,6 +34,7 @@ class AppIcon {
   static const IconData add = LucideIcons.plus;
   static const IconData remove = LucideIcons.minus;
   static const IconData refresh = LucideIcons.refreshCw;
+  static const IconData recrawl = LucideIcons.rotateCw;
   static const IconData play = LucideIcons.play;
   static const IconData pause = LucideIcons.pause;
   static const IconData stop = LucideIcons.square;
@@ -46,6 +47,9 @@ class AppIcon {
   static const IconData close = LucideIcons.x;
   static const IconData more = LucideIcons.moreVertical;
   static const IconData open = LucideIcons.externalLink;
+  static const IconData compare = LucideIcons.gitCompareArrows;
+  static const IconData forward = LucideIcons.arrowRight;
+  static const IconData back = LucideIcons.arrowLeft;
 
   // Crawl concepts.
   static const IconData folder = LucideIcons.folder;
@@ -67,6 +71,23 @@ class AppIcon {
   static const IconData quickWin = LucideIcons.zap;
   static const IconData save = LucideIcons.save;
   static const IconData localModel = LucideIcons.cpu;
+  static const IconData accessibility = LucideIcons.personStanding;
+  static const IconData history = LucideIcons.history;
+  static const IconData delete = LucideIcons.trash2;
+  static const IconData check = LucideIcons.check;
+  static const IconData key = LucideIcons.keyRound;
+  static const IconData share = LucideIcons.share;
+  static const IconData table = LucideIcons.table2;
+  static const IconData code = LucideIcons.code;
+  static const IconData palette = LucideIcons.palette;
+
+  // UX testing.
+  static const IconData setup = LucideIcons.slidersHorizontal;
+  static const IconData overview = LucideIcons.layoutDashboard;
+  static const IconData finding = LucideIcons.flag;
+  static const IconData checklist = LucideIcons.listChecks;
+  static const IconData journey = LucideIcons.route;
+  static const IconData experiment = LucideIcons.flaskConical;
 
   // Severity. These three carry meaning, so they keep their familiar shapes:
   // a triangle warns, a circle informs, a tick confirms.
@@ -80,4 +101,13 @@ class AppIcon {
   static const IconData chevronUp = LucideIcons.chevronUp;
   static const IconData chevronDown = LucideIcons.chevronDown;
   static const IconData chevronRight = LucideIcons.chevronRight;
+
+  // Layouts.
+  static const IconData gridView = LucideIcons.layoutGrid;
+  static const IconData listView = LucideIcons.layoutList;
+
+  // Change between two crawls. Named for direction, not meaning: whether up
+  // is good depends on what is being measured.
+  static const IconData trendUp = LucideIcons.trendingUp;
+  static const IconData trendDown = LucideIcons.trendingDown;
 }

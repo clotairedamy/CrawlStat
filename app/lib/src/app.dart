@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'router.dart';
 import 'state/settings.dart';
+import 'theme/scrolling.dart';
 import 'theme/theme.dart';
 
 class CrawlStatApp extends ConsumerStatefulWidget {
@@ -33,9 +34,8 @@ class _CrawlStatAppState extends ConsumerState<CrawlStatApp> {
       darkTheme: CrawlStatTheme.dark(palette),
       themeMode: themeMode,
       routerConfig: _router,
-      // Desktop users resize windows; a scroll behaviour that shows scrollbars
-      // on every axis is the right default here, unlike on a phone.
-      scrollBehavior: const MaterialScrollBehavior(),
+      // No scrollbars anywhere: see CrawlStatScrollBehavior for why.
+      scrollBehavior: const CrawlStatScrollBehavior(),
     );
   }
 }

@@ -1,23 +1,34 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme/icons.dart';
 import '../router.dart';
+import '../rust/api/types.dart';
 import '../state/crawl.dart';
 import '../state/projects.dart';
+import '../state/results.dart';
 import '../state/settings.dart';
 import '../theme/theme.dart';
 import '../widgets/common.dart';
 import '../widgets/license_card.dart';
 
-Future<void> showNewCrawlDialog(BuildContext context, {String? startUrl}) {
+/// Opens the dialog, empty or prefilled.
+///
+/// [from] is an earlier crawl's settings — "recrawl with changes" — and fills
+/// in the whole form. What the dialog does not show (concurrency, the user
+/// agent, which resources to fetch…) is kept from it too rather than taken
+/// from Settings, so a change to the URL limit does not quietly change
+/// everything else about the crawl.
+Future<void> showNewCrawlDialog(
+  BuildContext context, {
+  String? startUrl,
+  CrawlRequest? from,
+}) {
   return showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (context) => NewCrawlDialog(initialUrl: startUrl),
+    builder: (context) => NewCrawlDialog(initialUrl: startUrl, from: from),
   );
 }
 
@@ -27,9 +38,12 @@ Future<void> showNewCrawlDialog(BuildContext context, {String? startUrl}) {
 /// the engine — so there is exactly one place that decides what CrawlStat does
 /// when the user changes nothing.
 class NewCrawlDialog extends ConsumerStatefulWidget {
-  const NewCrawlDialog({super.key, this.initialUrl});
+  const NewCrawlDialog({super.key, this.initialUrl, this.from});
 
   final String? initialUrl;
+
+  /// The earlier crawl being repeated, when there is one.
+  final CrawlRequest? from;
 
   @override
   ConsumerState<NewCrawlDialog> createState() => _NewCrawlDialogState();
@@ -46,6 +60,7 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
 
   String _mode = 'spider';
   bool _advanced = false;
+  bool _renderJavascript = false;
   bool _starting = false;
   String? _error;
 
@@ -53,6 +68,25 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
   void initState() {
     super.initState();
     _url = TextEditingController(text: widget.initialUrl ?? '');
+
+    final from = widget.from;
+    if (from != null) {
+      _mode = from.mode;
+      if (from.mode == 'list') {
+        _listUrls.text = from.listUrls.join('\n');
+      } else {
+        _url.text = from.startUrl;
+      }
+      _maxUrls.text = from.maxUrls?.toString() ?? '';
+      _maxDepth.text = from.maxDepth?.toString() ?? '';
+      _include.text = from.includePatterns.join('\n');
+      _exclude.text = from.excludePatterns.join('\n');
+      _renderJavascript = from.renderJavascript;
+      // Open the advanced section when it holds something, or the patterns
+      // would carry over without the user ever seeing them.
+      _advanced =
+          from.includePatterns.isNotEmpty || from.excludePatterns.isNotEmpty;
+    }
   }
 
   @override
@@ -91,29 +125,56 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
           ? (listUrls.firstOrNull ?? '')
           : _url.text.trim();
 
-      final request = settings.toRequest(
-        startUrl: startUrl,
-        mode: _mode,
-        listUrls: listUrls,
-        maxUrls: int.tryParse(_maxUrls.text.trim()),
-        maxDepth: int.tryParse(_maxDepth.text.trim()),
-        includePatterns: _splitLines(_include),
-        excludePatterns: _splitLines(_exclude),
-      );
+      final maxUrls = int.tryParse(_maxUrls.text.trim());
+      final maxDepth = int.tryParse(_maxDepth.text.trim());
+      final from = widget.from;
+      final request = from == null
+          ? settings.toRequest(
+              startUrl: startUrl,
+              mode: _mode,
+              listUrls: listUrls,
+              maxUrls: maxUrls,
+              maxDepth: maxDepth,
+              includePatterns: _splitLines(_include),
+              excludePatterns: _splitLines(_exclude),
+              renderJavascript: _renderJavascript,
+            )
+          : CrawlRequest(
+              startUrl: startUrl,
+              mode: _mode,
+              listUrls: listUrls,
+              maxUrls: maxUrls,
+              maxDepth: maxDepth,
+              concurrency: from.concurrency,
+              crawlDelayMs: from.crawlDelayMs,
+              requestTimeoutMs: from.requestTimeoutMs,
+              respectRobots: from.respectRobots,
+              userAgent: from.userAgent,
+              crawlSubdomains: from.crawlSubdomains,
+              checkExternalLinks: from.checkExternalLinks,
+              followNofollow: from.followNofollow,
+              includePatterns: _splitLines(_include),
+              excludePatterns: _splitLines(_exclude),
+              crawlImages: from.crawlImages,
+              crawlCss: from.crawlCss,
+              crawlJavascript: from.crawlJavascript,
+              crawlDocuments: from.crawlDocuments,
+              storeHtml: from.storeHtml,
+              renderJavascript: _renderJavascript,
+              runAudits: from.runAudits,
+              // Left out on purpose: the engine would use it verbatim and
+              // ignore every field the user just edited.
+            );
 
-      final directory = Directory(settings.resolvedProjectsDirectory);
-      if (!directory.existsSync()) {
-        directory.createSync(recursive: true);
-      }
-      final path =
-          '${directory.path}${Platform.pathSeparator}${suggestedProjectFileName(startUrl)}';
+      final path = newProjectPath(settings.resolvedProjectsDirectory, startUrl);
 
       await ref.read(crawlControllerProvider.notifier).start(request, path);
       ref.read(openProjectProvider.notifier).open(path);
+      ref.read(urlTableProvider.notifier).reset();
 
       if (!mounted) return;
       Navigator.of(context).pop();
-      context.go(Routes.crawl);
+      context.go(Routes.project);
     } on Object catch (error) {
       if (!mounted) return;
       setState(() {
@@ -141,7 +202,10 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                child: Text('New crawl', style: theme.textTheme.titleLarge),
+                child: Text(
+                  widget.from == null ? 'New crawl' : 'Recrawl with changes',
+                  style: theme.textTheme.titleLarge,
+                ),
               ),
               if (_error != null)
                 Padding(
@@ -238,6 +302,13 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 14),
+                      _RenderJavascript(
+                        value: _renderJavascript,
+                        chrome: ref.watch(chromePathProvider),
+                        onChanged: (value) =>
+                            setState(() => _renderJavascript = value),
+                      ),
                       const SizedBox(height: 12),
                       FreeTierNote(
                         onUpgrade: () {
@@ -288,7 +359,7 @@ class _NewCrawlDialogState extends ConsumerState<NewCrawlDialog> {
                           ),
                         ),
                         const SizedBox(height: 14),
-                        _SettingsSummary(),
+                        _SettingsSummary(from: widget.from),
                       ],
                     ],
                   ),
@@ -420,6 +491,73 @@ class _ModeSelector extends StatelessWidget {
   }
 }
 
+/// Whether to run each page's scripts in Chrome before reading it.
+///
+/// Off by default and said plainly why: it is several times slower, and most
+/// sites serve their content in the HTML anyway. Without a browser on the
+/// machine the switch is shown, disabled, so the feature is discoverable.
+class _RenderJavascript extends StatelessWidget {
+  const _RenderJavascript({
+    required this.value,
+    required this.chrome,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final String? chrome;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final available = chrome != null;
+    final browser = chrome?.split('/').last.split(r'\').last;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: value
+            ? CrawlStatTheme.palette(context).accent.withValues(alpha: 0.08)
+            : theme.colorScheme.surfaceContainerLow,
+        border: Border.all(
+          color: value
+              ? CrawlStatTheme.palette(context).accent.withValues(alpha: 0.5)
+              : theme.dividerColor,
+        ),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            AppIcon.code,
+            size: 18,
+            color: value
+                ? CrawlStatTheme.palette(context).accent
+                : theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Render JavaScript', style: theme.textTheme.bodyMedium),
+                const SizedBox(height: 2),
+                Text(
+                  available
+                      ? 'Runs each page in $browser first, for sites built '
+                            'with React, Vue and the like. Several times slower.'
+                      : 'Needs Chrome, Chromium, Edge or Brave installed.',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          Switch(value: value, onChanged: available ? onChanged : null),
+        ],
+      ),
+    );
+  }
+}
+
 /// A labelled field with a hint underneath.
 class _Field extends StatelessWidget {
   const _Field({required this.label, required this.child, this.hint});
@@ -448,19 +586,26 @@ class _Field extends StatelessWidget {
 
 /// Reminds the user which defaults this crawl will use, with a way to change
 /// them — rather than duplicating every engine option in this dialog.
+///
+/// For a recrawl it is the earlier crawl's settings instead, and Settings has
+/// no say — so there is nothing to change there.
 class _SettingsSummary extends ConsumerWidget {
+  const _SettingsSummary({this.from});
+
+  final CrawlRequest? from;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(settingsProvider);
+    final request = from ?? ref.watch(settingsProvider).toRequest(startUrl: '');
     final theme = Theme.of(context);
 
     final parts = [
-      '${settings.concurrency} at a time',
-      if (settings.crawlDelayMs > 0) '${settings.crawlDelayMs} ms apart',
-      settings.respectRobots ? 'robots.txt respected' : 'robots.txt ignored',
-      if (settings.crawlSubdomains) 'subdomains included',
-      if (settings.checkExternalLinks) 'external links checked',
-      if (settings.runAudits) 'audits on finish',
+      '${request.concurrency} at a time',
+      if (request.crawlDelayMs > 0) '${request.crawlDelayMs} ms apart',
+      request.respectRobots ? 'robots.txt respected' : 'robots.txt ignored',
+      if (request.crawlSubdomains) 'subdomains included',
+      if (request.checkExternalLinks) 'external links checked',
+      if (request.runAudits) 'audits on finish',
     ];
 
     return Container(
@@ -473,15 +618,19 @@ class _SettingsSummary extends ConsumerWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(parts.join(' · '), style: theme.textTheme.bodySmall),
+            child: Text(
+              '${from == null ? '' : 'As before: '}${parts.join(' · ')}',
+              style: theme.textTheme.bodySmall,
+            ),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              context.go(Routes.settings);
-            },
-            child: const Text('Change'),
-          ),
+          if (from == null)
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                context.go(Routes.settings);
+              },
+              child: const Text('Change'),
+            ),
         ],
       ),
     );

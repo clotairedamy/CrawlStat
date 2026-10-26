@@ -24,6 +24,10 @@ class MainFlutterWindow: NSWindow {
       case "reveal":
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: argument)])
         result(nil)
+      case "openFile":
+        // Only what the app itself wrote: the report it just exported.
+        NSWorkspace.shared.open(URL(fileURLWithPath: argument))
+        result(nil)
       case "openUrl":
         guard let url = URL(string: argument),
               url.scheme == "https" || url.scheme == "http" else {

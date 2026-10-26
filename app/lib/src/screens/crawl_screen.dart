@@ -6,12 +6,14 @@ import '../theme/icons.dart';
 import '../router.dart';
 import '../rust/api/types.dart';
 import '../state/crawl.dart';
+import '../state/projects.dart';
 import '../state/results.dart';
 import '../theme/theme.dart';
 import '../widgets/common.dart';
 import '../widgets/gauge.dart';
 import '../widgets/data_grid.dart';
 import 'new_crawl_dialog.dart';
+import 'projects_screen.dart' show previousCrawl;
 import 'shell.dart';
 import '../theme/soft.dart';
 
@@ -120,16 +122,19 @@ class CrawlScreen extends ConsumerWidget {
 }
 
 /// The phase as a word and a colour, shared by the header and the progress.
-(String, Color) _phaseLook(CrawlPhase phase) => switch (phase) {
-  CrawlPhase.starting => ('Starting', CrawlStatTheme.accent),
-  CrawlPhase.running => ('Crawling', CrawlStatTheme.success),
-  CrawlPhase.paused => ('Paused', CrawlStatTheme.warning),
-  CrawlPhase.auditing => ('Auditing', CrawlStatTheme.accent),
-  CrawlPhase.finished => ('Finished', CrawlStatTheme.success),
-  CrawlPhase.cancelled => ('Stopped', CrawlStatTheme.warning),
-  CrawlPhase.failed => ('Failed', CrawlStatTheme.error),
-  CrawlPhase.idle => ('Idle', CrawlStatTheme.notice),
-};
+(String, Color) _phaseLook(BuildContext context, CrawlPhase phase) {
+  final palette = CrawlStatTheme.palette(context);
+  return switch (phase) {
+    CrawlPhase.starting => ('Starting', palette.accent),
+    CrawlPhase.running => ('Crawling', palette.success),
+    CrawlPhase.paused => ('Paused', palette.warning),
+    CrawlPhase.auditing => ('Auditing', palette.accent),
+    CrawlPhase.finished => ('Finished', palette.success),
+    CrawlPhase.cancelled => ('Stopped', palette.warning),
+    CrawlPhase.failed => ('Failed', palette.error),
+    CrawlPhase.idle => ('Idle', palette.notice),
+  };
+}
 
 class _CrawlHeader extends ConsumerWidget {
   const _CrawlHeader({required this.crawl});
@@ -139,9 +144,17 @@ class _CrawlHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(crawlControllerProvider.notifier);
-    final (label, color) = _phaseLook(crawl.phase);
+    final (label, color) = _phaseLook(context, crawl.phase);
     final host = Uri.tryParse(crawl.startUrl ?? '')?.host;
     final live = crawl.isRunning || crawl.phase == CrawlPhase.auditing;
+
+    // A finished crawl of a site crawled before is usually a recrawl, and the
+    // question after a recrawl is what changed.
+    final recents = ref.watch(recentProjectsProvider);
+    final current = crawl.isFinished
+        ? recents.where((p) => p.path == crawl.dbPath).firstOrNull
+        : null;
+    final previous = current == null ? null : previousCrawl(current, recents);
 
     final details = [
       ?crawl.startUrl,
@@ -149,8 +162,15 @@ class _CrawlHeader extends ConsumerWidget {
       if (crawl.seeded > 0) '${formatCount(crawl.seeded)} seeded',
     ];
 
+    // Inside a crawl's page, which already says which site it is.
+    final title = ProjectScope.isInside(context)
+        ? 'Progress'
+        : host == null || host.isEmpty
+        ? (crawl.startUrl ?? 'Crawl')
+        : host;
+
     return ScreenHeader(
-      title: host == null || host.isEmpty ? (crawl.startUrl ?? 'Crawl') : host,
+      title: title,
       leading: TonePill(label, color: color, dot: live),
       subtitle: details.isEmpty ? null : details.join('  ·  '),
       actions: [
@@ -180,6 +200,14 @@ class _CrawlHeader extends ConsumerWidget {
             onPressed: controller.clear,
             child: const Text('Clear'),
           ),
+          if (previous != null)
+            OutlinedButton.icon(
+              onPressed: () => context.go(
+                Routes.comparing(before: previous.path, after: current!.path),
+              ),
+              icon: const Icon(AppIcon.compare, size: 16),
+              label: const Text('Compare with previous crawl'),
+            ),
           FilledButton.icon(
             onPressed: () {
               // The crawl is over, so the results are complete: send the
@@ -188,7 +216,7 @@ class _CrawlHeader extends ConsumerWidget {
               context.go(Routes.results);
             },
             icon: const Icon(AppIcon.results, size: 16),
-            label: const Text('See results'),
+            label: const Text('See pages'),
           ),
         ],
       ],

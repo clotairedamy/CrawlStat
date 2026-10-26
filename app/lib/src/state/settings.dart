@@ -44,6 +44,9 @@ class Settings {
     this.defaultPersona = 'task_oriented',
     this.deepThreshold = 4,
     this.crowdedThreshold = 120,
+    this.projectsView = 'grid',
+    this.reportPreparedBy = '',
+    this.reportAccent = '',
   });
 
   final String userAgent;
@@ -79,8 +82,8 @@ class Settings {
   final String ollamaEndpoint;
   final String ollamaModel;
 
-  /// Which set of meaningful colours to use: `ember` or `gold`.
-  /// Only severity and the accent change; the surfaces do not.
+  /// Which set of meaningful colours to use: `ember`, `gold`, `graphite` or
+  /// `mono`. Only severity and the accent change; the surfaces do not.
   final String paletteName;
 
   /// Which visitor the Journeys screen starts on.
@@ -92,6 +95,16 @@ class Settings {
 
   /// Links on one page past which choosing becomes the task.
   final int crowdedThreshold;
+
+  /// How the Projects screen lays out crawls: `grid` (one card per crawl) or
+  /// `list` (one row per site, with its history).
+  final String projectsView;
+
+  /// "Prepared by" on exported reports, and their brand colour as `#rrggbb`
+  /// (blank for CrawlStat's own). Remembered because an agency sends the
+  /// same name and colour on every report.
+  final String reportPreparedBy;
+  final String reportAccent;
 
   String get resolvedProjectsDirectory =>
       projectsDirectory ?? defaultProjectsDirectory();
@@ -123,6 +136,9 @@ class Settings {
     String? defaultPersona,
     int? deepThreshold,
     int? crowdedThreshold,
+    String? projectsView,
+    String? reportPreparedBy,
+    String? reportAccent,
   }) {
     return Settings(
       userAgent: userAgent ?? this.userAgent,
@@ -149,6 +165,9 @@ class Settings {
       defaultPersona: defaultPersona ?? this.defaultPersona,
       deepThreshold: deepThreshold ?? this.deepThreshold,
       crowdedThreshold: crowdedThreshold ?? this.crowdedThreshold,
+      projectsView: projectsView ?? this.projectsView,
+      reportPreparedBy: reportPreparedBy ?? this.reportPreparedBy,
+      reportAccent: reportAccent ?? this.reportAccent,
     );
   }
 
@@ -160,6 +179,9 @@ class Settings {
     'defaultPersona': defaultPersona,
     'deepThreshold': deepThreshold,
     'crowdedThreshold': crowdedThreshold,
+    'projectsView': projectsView,
+    'reportPreparedBy': reportPreparedBy,
+    'reportAccent': reportAccent,
     'themeMode': themeMode.name,
     'concurrency': concurrency,
     'crawlDelayMs': crawlDelayMs,
@@ -200,6 +222,10 @@ class Settings {
       deepThreshold: pick<int>('deepThreshold') ?? defaults.deepThreshold,
       crowdedThreshold:
           pick<int>('crowdedThreshold') ?? defaults.crowdedThreshold,
+      projectsView: pick<String>('projectsView') ?? defaults.projectsView,
+      reportPreparedBy:
+          pick<String>('reportPreparedBy') ?? defaults.reportPreparedBy,
+      reportAccent: pick<String>('reportAccent') ?? defaults.reportAccent,
       themeMode: ThemeMode.values.firstWhere(
         (mode) => mode.name == pick<String>('themeMode'),
         orElse: () => ThemeMode.system,
@@ -236,6 +262,7 @@ class Settings {
     int? maxDepth,
     List<String> includePatterns = const [],
     List<String> excludePatterns = const [],
+    bool renderJavascript = false,
   }) {
     return CrawlRequest(
       startUrl: startUrl,
@@ -258,6 +285,7 @@ class Settings {
       crawlJavascript: crawlJavascript,
       crawlDocuments: crawlDocuments,
       storeHtml: storeHtml,
+      renderJavascript: renderJavascript,
       runAudits: runAudits,
     );
   }

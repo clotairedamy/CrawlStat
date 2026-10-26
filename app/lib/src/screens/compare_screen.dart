@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../router.dart';
 import '../rust/api/project.dart' as rust;
 import '../rust/api/types.dart';
 import '../state/projects.dart';
@@ -15,19 +17,39 @@ import 'shell.dart';
 /// The other screens say what is wrong and what to do first. This one closes
 /// the loop — without it every crawl is an island and there is no reason to
 /// run the tool twice.
+///
+/// There is no tab for it: a comparison starts from a crawl, so it is opened
+/// from the Compare button on a project card or row, with both crawls
+/// already chosen. The pickers stay, to swap either side.
 class CompareScreen extends ConsumerStatefulWidget {
-  const CompareScreen({super.key});
+  const CompareScreen({super.key, this.before, this.after});
+
+  /// The crawls to open on. When both are given the comparison runs at once.
+  final String? before;
+  final String? after;
 
   @override
   ConsumerState<CompareScreen> createState() => _CompareScreenState();
 }
 
 class _CompareScreenState extends ConsumerState<CompareScreen> {
-  String? _before;
-  String? _after;
+  late String? _before = widget.before;
+  late String? _after = widget.after;
   rust.CrawlComparison? _result;
   String? _error;
   bool _running = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.before != null && widget.after != null) {
+      // After the first frame, so the "Comparing…" state has a screen to
+      // show on.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _run();
+      });
+    }
+  }
 
   Future<void> _run() async {
     final before = _before;
@@ -54,11 +76,18 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
   Widget build(BuildContext context) {
     final projects = ref.watch(recentProjectsProvider);
 
+    // With the tab gone, this is the way back to where the comparison began.
+    final back = OutlinedButton.icon(
+      onPressed: () => context.go(Routes.projects),
+      icon: const Icon(AppIcon.back, size: 16),
+      label: const Text('Projects'),
+    );
+
     if (projects.length < 2) {
-      return const Column(
+      return Column(
         children: [
-          ScreenHeader(title: 'Compare'),
-          Expanded(
+          ScreenHeader(title: 'Compare', actions: [back]),
+          const Expanded(
             child: EmptyState(
               icon: AppIcon.report,
               title: 'Two crawls needed',
@@ -79,9 +108,10 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const ScreenHeader(
+        ScreenHeader(
           title: 'Compare',
           subtitle: 'What a change actually moved',
+          actions: [back],
         ),
         Expanded(
           child: ListView(

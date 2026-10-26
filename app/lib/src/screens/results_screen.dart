@@ -10,6 +10,7 @@ import '../widgets/export.dart';
 import '../theme/theme.dart';
 import '../widgets/common.dart';
 import '../widgets/data_grid.dart';
+import 'issues_screen.dart' show ShareBar;
 import 'shell.dart';
 import 'url_detail_panel.dart';
 import '../theme/soft.dart';
@@ -45,6 +46,7 @@ class ResultsTab {
       filterTab: 'internal',
       columns: [
         'status',
+        'issues',
         'url',
         'indexable',
         'title',
@@ -149,6 +151,10 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
   final _searchFocus = FocusNode();
   String _tabId = 'internal';
 
+  /// The last lens counts that arrived, shown while the next ones load so
+  /// the strip does not blink on every keystroke in the filter.
+  PageLenses? _lenses;
+
   /// Column overrides per tab, so turning a column on does not leak into the
   /// other tabs' presets.
   final Map<String, Set<String>> _columnOverrides = {};
@@ -214,7 +220,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
     if (path == null) {
       return const Column(
         children: [
-          ScreenHeader(title: 'Results'),
+          ScreenHeader(title: 'Pages'),
           Expanded(child: NoProjectState()),
         ],
       );
@@ -222,7 +228,13 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
 
     final table = ref.watch(urlTableProvider);
     final selected = ref.watch(selectedUrlProvider);
-    final columns = buildUrlColumns(context);
+    final lenses =
+        ref
+            .watch(pageLensesProvider((path: path, base: table.query.lensBase)))
+            .value ??
+        _lenses;
+    _lenses = lenses;
+    final columns = buildUrlColumns(context, limits: lenses);
 
     return CallbackShortcuts(
       bindings: {
@@ -236,7 +248,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ScreenHeader(
-            title: 'Results',
+            title: 'Pages',
             subtitle:
                 '${formatCount(table.total)} '
                 '${table.total == 1 ? 'row' : 'rows'}'
@@ -270,7 +282,13 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
               },
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
+          _LensStrip(
+            lenses: lenses,
+            selected: table.query.view,
+            onSelect: ref.read(urlTableProvider.notifier).setView,
+          ),
+          const SizedBox(height: 8),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
@@ -352,6 +370,260 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                   ],
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The questions you can ask of the pages, each with its answer already
+/// counted: "which are slow?" shows how many before you click.
+///
+/// Every tile is the same width, so the counts and bars line up across the
+/// strip, and a lens with nothing in it steps back rather than disappearing —
+/// zero broken pages is worth seeing.
+class _LensStrip extends StatelessWidget {
+  const _LensStrip({
+    required this.lenses,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  /// `null` until the first counts arrive.
+  final PageLenses? lenses;
+  final String? selected;
+  final void Function(String?) onSelect;
+
+  static const double tileWidth = 138;
+  static const double tileHeight = 74;
+
+  static Color tone(BuildContext context, String id) {
+    final palette = CrawlStatTheme.palette(context);
+    return switch (id) {
+      'broken' => palette.error,
+      'issues' || 'slow' => palette.warning,
+      'titles' || 'descriptions' || 'thin' => palette.accent,
+      'all' => palette.success,
+      _ => palette.notice,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lenses = this.lenses;
+    final total = lenses?.total.toInt();
+    final tiles = <(String?, String, int?)>[
+      (null, 'All rows', total),
+      for (final lens in lenses?.lenses ?? const <PageLens>[])
+        (lens.id, lens.label, lens.count.toInt()),
+    ];
+    return SizedBox(
+      height: tileHeight + 16,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+          horizontal: CrawlStatTheme.gutter,
+          vertical: 8,
+        ),
+        clipBehavior: Clip.none,
+        itemCount: lenses == null ? 1 : tiles.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final (id, label, count) = tiles[index];
+          return _LensTile(
+            label: label,
+            count: count,
+            total: total,
+            tone: tone(context, id ?? 'all'),
+            selected: selected == id,
+            onTap: () => onSelect(id),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _LensTile extends StatelessWidget {
+  const _LensTile({
+    required this.label,
+    required this.count,
+    required this.total,
+    required this.tone,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+
+  /// `null` while counting.
+  final int? count;
+  final int? total;
+  final Color tone;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final count = this.count;
+    final total = this.total;
+    final empty = count == 0;
+    final share = count == null || total == null || total == 0
+        ? 0.0
+        : count / total;
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return SizedBox(
+      width: _LensStrip.tileWidth,
+      height: _LensStrip.tileHeight,
+      child: Opacity(
+        opacity: empty && !selected ? 0.55 : 1,
+        child: SoftPanel(
+          pressed: selected,
+          onTap: onTap,
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: empty ? muted : tone,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                        color: selected ? theme.colorScheme.onSurface : null,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Text(
+                count == null ? '…' : formatCount(count),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  height: 1.1,
+                  color: selected ? tone : theme.colorScheme.onSurface,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(height: 6),
+              ShareBar(
+                share: share,
+                color: empty ? muted : tone,
+                width: _LensStrip.tileWidth - 24,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A length against the range it should fall in: the number, then a short
+/// track with the good range drawn on it and a mark where this one lands.
+class LengthGauge extends StatelessWidget {
+  const LengthGauge({
+    super.key,
+    required this.length,
+    required this.min,
+    required this.max,
+  });
+
+  /// `null` or 0 when missing.
+  final int? length;
+  final int min;
+  final int max;
+
+  static const double trackWidth = 40;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = CrawlStatTheme.palette(context);
+    final length = this.length ?? 0;
+    // The track runs a little past the maximum, so too long has somewhere
+    // to land.
+    final scale = max * 1.35;
+    final good = length >= min && length <= max;
+    final tone = length == 0
+        ? palette.error
+        : good
+        ? palette.success
+        : palette.warning;
+    double at(num value) => (value / scale).clamp(0.0, 1.0) * trackWidth;
+    return Tooltip(
+      message: length == 0
+          ? 'Missing — aim for $min–$max characters'
+          : '$length characters — aim for $min–$max',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 26,
+            child: Text(
+              length == 0 ? '—' : '$length',
+              textAlign: TextAlign.right,
+              style: CrawlStatTheme.mono(
+                context,
+                size: 11.5,
+                color: good ? null : tone,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          SizedBox(
+            width: trackWidth,
+            height: 8,
+            child: Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                Container(
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: tone.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Positioned(
+                  left: at(min),
+                  width: at(max) - at(min),
+                  child: Container(
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: palette.success.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                if (length > 0)
+                  Positioned(
+                    left: (at(length) - 1.5).clamp(0, trackWidth - 3),
+                    child: Container(
+                      width: 3,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: tone,
+                        borderRadius: BorderRadius.circular(1.5),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
@@ -542,8 +814,10 @@ class _StatusClassFilter extends ConsumerWidget {
                 ),
                 decoration: BoxDecoration(
                   color: selected == value
-                      ? CrawlStatTheme.statusColor(context, value * 100)
-                            .withValues(alpha: 0.16)
+                      ? CrawlStatTheme.statusColor(
+                          context,
+                          value * 100,
+                        ).withValues(alpha: 0.16)
                       : null,
                   border: Border.all(
                     color: selected == value
@@ -613,7 +887,23 @@ class _ActiveFilterChip extends StatelessWidget {
 ///
 /// One list for every tab: the tabs pick from it, so a column behaves
 /// identically wherever it appears.
-List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
+///
+/// [limits] are the crawl's own audit thresholds, which title and
+/// description lengths and response times are drawn against.
+List<GridColumn<UrlRow>> buildUrlColumns(
+  BuildContext context, {
+  PageLenses? limits,
+}) {
+  final titleMin = limits?.titleMin.toInt() ?? 30;
+  final titleMax = limits?.titleMax.toInt() ?? 60;
+  final descriptionMin = limits?.descriptionMin.toInt() ?? 70;
+  final descriptionMax = limits?.descriptionMax.toInt() ?? 155;
+  final slow = limits?.slowMs.toInt() ?? 1000;
+  final palette = CrawlStatTheme.palette(context);
+  bool isPage(UrlRow row) =>
+      row.kind == 'html' &&
+      (row.statusCode ?? 0) >= 200 &&
+      row.statusCode! < 300;
   return [
     GridColumn<UrlRow>(
       id: 'status',
@@ -633,6 +923,32 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
           ? const SizedBox.shrink()
           : StatusChip(row.finalStatusCode),
       defaultVisible: false,
+    ),
+    GridColumn<UrlRow>(
+      id: 'issues',
+      label: 'Issues',
+      width: 72,
+      sortKey: 'issues',
+      align: TextAlign.right,
+      tooltip: 'Audit issues on this URL, coloured by the worst',
+      value: (row) => row.issueCount == 0 ? '' : row.issueCount.toString(),
+      cell: (context, row) => row.issueCount == 0
+          ? const SizedBox.shrink()
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                SeverityDot(row.worstSeverity ?? 'notice', size: 7),
+                const SizedBox(width: 7),
+                SizedBox(
+                  width: 24,
+                  child: Text(
+                    formatCount(row.issueCount),
+                    textAlign: TextAlign.right,
+                    style: CrawlStatTheme.mono(context, size: 11.5),
+                  ),
+                ),
+              ],
+            ),
     ),
     GridColumn<UrlRow>(
       id: 'url',
@@ -663,13 +979,23 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
     ),
     GridColumn<UrlRow>(
       id: 'title_length',
-      label: 'Len',
-      width: 52,
+      label: 'Length',
+      width: 104,
       sortKey: 'title_length',
       align: TextAlign.right,
       mono: true,
-      tooltip: 'Title length in characters',
+      tooltip: 'Title length in characters, against $titleMin–$titleMax',
       value: (row) => row.titleLength?.toString() ?? '',
+      cell: (context, row) => !isPage(row)
+          ? const SizedBox.shrink()
+          : Align(
+              alignment: Alignment.centerRight,
+              child: LengthGauge(
+                length: row.titleLength,
+                min: titleMin,
+                max: titleMax,
+              ),
+            ),
     ),
     GridColumn<UrlRow>(
       id: 'description',
@@ -679,12 +1005,25 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
     ),
     GridColumn<UrlRow>(
       id: 'description_length',
-      label: 'Len',
-      width: 52,
+      label: 'Length',
+      width: 104,
       sortKey: 'meta_description_length',
       align: TextAlign.right,
       mono: true,
+      tooltip:
+          'Description length in characters, against '
+          '$descriptionMin–$descriptionMax',
       value: (row) => row.metaDescriptionLength?.toString() ?? '',
+      cell: (context, row) => !isPage(row)
+          ? const SizedBox.shrink()
+          : Align(
+              alignment: Alignment.centerRight,
+              child: LengthGauge(
+                length: row.metaDescriptionLength,
+                min: descriptionMin,
+                max: descriptionMax,
+              ),
+            ),
     ),
     GridColumn<UrlRow>(
       id: 'h1',
@@ -818,11 +1157,13 @@ List<GridColumn<UrlRow>> buildUrlColumns(BuildContext context) {
       sortKey: 'response_time',
       align: TextAlign.right,
       mono: true,
-      tooltip: 'Server response time',
+      tooltip: 'Server response time; slow from ${formatMillis(slow)}',
       value: (row) => formatMillis(row.responseTimeMs),
-      color: (row) => (row.responseTimeMs ?? 0) > 1000
-          ? CrawlStatTheme.palette(context).warning
-          : null,
+      color: (row) => switch (row.responseTimeMs ?? 0) {
+        final ms when ms >= slow => palette.error,
+        final ms when ms >= slow ~/ 2 => palette.warning,
+        _ => null,
+      },
     ),
     GridColumn<UrlRow>(
       id: 'error',

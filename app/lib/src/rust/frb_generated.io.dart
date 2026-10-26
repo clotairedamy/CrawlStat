@@ -79,6 +79,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ActionPlan dco_decode_action_plan(dynamic raw);
 
   @protected
+  AffectedPage dco_decode_affected_page(dynamic raw);
+
+  @protected
   ArchExample dco_decode_arch_example(dynamic raw);
 
   @protected
@@ -220,6 +223,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<A11yStandard> dco_decode_list_a_11_y_standard(dynamic raw);
 
   @protected
+  List<AffectedPage> dco_decode_list_affected_page(dynamic raw);
+
+  @protected
   List<ArchExample> dco_decode_list_arch_example(dynamic raw);
 
   @protected
@@ -269,6 +275,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<OllamaModel> dco_decode_list_ollama_model(dynamic raw);
+
+  @protected
+  List<PageLens> dco_decode_list_page_lens(dynamic raw);
 
   @protected
   List<PlanExample> dco_decode_list_plan_example(dynamic raw);
@@ -335,6 +344,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Issue? dco_decode_opt_box_autoadd_issue(dynamic raw);
+
+  @protected
+  PageLens dco_decode_page_lens(dynamic raw);
+
+  @protected
+  PageLenses dco_decode_page_lenses(dynamic raw);
 
   @protected
   PlanExample dco_decode_plan_example(dynamic raw);
@@ -468,6 +483,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ActionPlan sse_decode_action_plan(SseDeserializer deserializer);
+
+  @protected
+  AffectedPage sse_decode_affected_page(SseDeserializer deserializer);
 
   @protected
   ArchExample sse_decode_arch_example(SseDeserializer deserializer);
@@ -625,6 +643,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<AffectedPage> sse_decode_list_affected_page(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<ArchExample> sse_decode_list_arch_example(SseDeserializer deserializer);
 
   @protected
@@ -676,6 +699,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<OllamaModel> sse_decode_list_ollama_model(SseDeserializer deserializer);
+
+  @protected
+  List<PageLens> sse_decode_list_page_lens(SseDeserializer deserializer);
 
   @protected
   List<PlanExample> sse_decode_list_plan_example(SseDeserializer deserializer);
@@ -744,6 +770,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Issue? sse_decode_opt_box_autoadd_issue(SseDeserializer deserializer);
+
+  @protected
+  PageLens sse_decode_page_lens(SseDeserializer deserializer);
+
+  @protected
+  PageLenses sse_decode_page_lenses(SseDeserializer deserializer);
 
   @protected
   PlanExample sse_decode_plan_example(SseDeserializer deserializer);
@@ -888,6 +920,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_action_plan(ActionPlan self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_affected_page(AffectedPage self, SseSerializer serializer);
 
   @protected
   void sse_encode_arch_example(ArchExample self, SseSerializer serializer);
@@ -1073,6 +1108,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_affected_page(
+    List<AffectedPage> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_arch_example(
     List<ArchExample> self,
     SseSerializer serializer,
@@ -1161,6 +1202,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     List<OllamaModel> self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_list_page_lens(List<PageLens> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_plan_example(
@@ -1263,6 +1307,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_issue(Issue? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_page_lens(PageLens self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_page_lenses(PageLenses self, SseSerializer serializer);
 
   @protected
   void sse_encode_plan_example(PlanExample self, SseSerializer serializer);

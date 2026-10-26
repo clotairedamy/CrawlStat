@@ -8,6 +8,8 @@ import 'package:go_router/go_router.dart';
 
 import '../router.dart';
 import '../rust/api/project.dart' as rust;
+import '../rust/api/types.dart' show ProjectInfo;
+import '../state/issues.dart';
 import '../state/projects.dart';
 import '../state/settings.dart';
 import '../theme/icons.dart';
@@ -17,15 +19,8 @@ import '../widgets/common.dart';
 import '../widgets/reveal_list.dart';
 import '../widgets/export.dart';
 import '../widgets/report_view.dart';
+import 'projects_screen.dart' show showReportDialog;
 import 'shell.dart';
-
-/// The ranked plan for the open crawl.
-final actionPlanProvider = FutureProvider.family<rust.ActionPlan, String>((
-  ref,
-  path,
-) {
-  return rust.actionPlan(dbPath: path);
-});
 
 /// What to fix, in order.
 ///
@@ -150,7 +145,7 @@ class _JobCardState extends ConsumerState<_JobCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final item = widget.item;
-    final tone = _severityColour(item.severity);
+    final tone = CrawlStatTheme.severityColor(context, item.severity);
 
     return SoftPanel(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
@@ -231,7 +226,7 @@ class _JobCardState extends ConsumerState<_JobCard> {
               alignment: Alignment.centerLeft,
               child: SoftButton(
                 icon: AppIcon.issues,
-                onPressed: () => context.go(Routes.issues),
+                onPressed: () => context.go(Routes.issue(item.issueId)),
                 child: const Text('See every page'),
               ),
             ),
@@ -411,6 +406,14 @@ class _NarrativeState extends ConsumerState<_Narrative> {
   bool get _running => _subscription != null;
 
   @override
+  void initState() {
+    super.initState();
+    // The last report written for this crawl, so leaving the screen and
+    // coming back does not lose it.
+    _report = ref.read(writtenReportsProvider)[widget.path];
+  }
+
+  @override
   void dispose() {
     _subscription?.cancel();
     super.dispose();
@@ -426,6 +429,7 @@ class _NarrativeState extends ConsumerState<_Narrative> {
       _took = null;
       _startedAt = DateTime.now();
     });
+    ref.read(writtenReportsProvider.notifier).clear(widget.path);
     _subscription = rust
         .ollamaWriteReport(
           dbPath: widget.path,
@@ -455,6 +459,7 @@ class _NarrativeState extends ConsumerState<_Narrative> {
       case rust.ReportEvent_Progress(:final text):
         setState(() => _report = text);
       case rust.ReportEvent_Done(:final text):
+        ref.read(writtenReportsProvider.notifier).put(widget.path, text);
         setState(() {
           _report = text;
           if (_startedAt != null) {
@@ -495,6 +500,9 @@ class _NarrativeState extends ConsumerState<_Narrative> {
     contents: _report!,
     done: 'Report saved as Markdown',
   );
+
+  /// The designed client report, with what the model wrote as its summary.
+  void _exportPdf(ProjectInfo project) => showReportDialog(context, project);
 
   Future<void> _showBrief() async {
     final text = await rust.ollamaBrief(
@@ -544,6 +552,10 @@ class _NarrativeState extends ConsumerState<_Narrative> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final finished = !_running && (_report ?? '').isNotEmpty;
+    final project = ref
+        .watch(recentProjectsProvider)
+        .where((p) => p.path == widget.path)
+        .firstOrNull;
 
     return SoftPanel(
       padding: const EdgeInsets.fromLTRB(22, 18, 22, 20),
@@ -591,9 +603,16 @@ class _NarrativeState extends ConsumerState<_Narrative> {
                     SoftButton(
                       icon: AppIcon.save,
                       onPressed: _save,
-                      child: const Text('Save'),
+                      child: const Text('Markdown'),
                     ),
                   ],
+                  if (project != null && !_running)
+                    SoftButton(
+                      icon: AppIcon.download,
+                      gradient: finished ? Soft.accentGradient(context) : null,
+                      onPressed: () => _exportPdf(project),
+                      child: const Text('Export PDF'),
+                    ),
                   if (_running)
                     SoftButton(
                       icon: AppIcon.stop,
@@ -603,7 +622,9 @@ class _NarrativeState extends ConsumerState<_Narrative> {
                   else
                     SoftButton(
                       icon: AppIcon.pro,
-                      gradient: _report == null ? Soft.accentGradient() : null,
+                      gradient: _report == null
+                          ? Soft.accentGradient(context)
+                          : null,
                       onPressed: _write,
                       child: Text(
                         _report == null ? 'Write the report' : 'Rewrite',
@@ -785,12 +806,6 @@ class _Caveat extends StatelessWidget {
     );
   }
 }
-
-Color _severityColour(String severity) => switch (severity) {
-  'error' => CrawlStatTheme.error,
-  'warning' => CrawlStatTheme.warning,
-  _ => CrawlStatTheme.notice,
-};
 
 String _effortLabel(String effort) => switch (effort) {
   'template' => 'One template',

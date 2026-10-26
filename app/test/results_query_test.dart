@@ -25,6 +25,25 @@ void main() {
       expect(query.copyWith(clearSearch: true).statusClass, 4);
     });
 
+    test('a lens narrows the result, and the lenses count without it', () {
+      const query = UrlQuerySpec(
+        tab: 'html',
+        search: 'blog',
+        sortBy: 'title',
+        descending: true,
+        view: 'slow',
+      );
+      expect(query.hasFilters, isTrue);
+      expect(query.toRequest(offset: 0, limit: 1).view, 'slow');
+      expect(query.copyWith(clearView: true).view, isNull);
+      // Same counts whichever lens is on and however the rows are sorted.
+      expect(query.lensBase, const UrlQuerySpec(tab: 'html', search: 'blog'));
+      expect(
+        query.lensBase,
+        query.copyWith(view: 'broken', sortBy: 'url').lensBase,
+      );
+    });
+
     test('knows whether anything is narrowing the result', () {
       expect(const UrlQuerySpec().hasFilters, isFalse);
       // The tab itself is not a filter: every tab shows something.
@@ -115,4 +134,5 @@ UrlRow _row(int id) => UrlRow(
   depth: 1,
   inlinks: 0,
   redirectCount: 0,
+  issueCount: 0,
 );

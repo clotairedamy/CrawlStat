@@ -42,6 +42,7 @@ pub use host::HostScheduler;
 pub use seed::SeedOutcome;
 pub use visit::{visit, VisitOutcome};
 
+use crate::chrome::{self, Chrome, ChromeRenderer, RenderingFetcher};
 use crate::config::{CompiledConfig, CrawlConfig, Seed};
 use crate::error::{EngineError, Result};
 use crate::fetch::{Fetcher, HttpFetcher};
@@ -132,6 +133,30 @@ impl std::fmt::Debug for Crawler {
     }
 }
 
+/// The production fetcher: plain HTTP, or HTTP followed by headless Chrome
+/// when the crawl asks for JavaScript to be rendered.
+fn fetcher_for(compiled: &CompiledConfig) -> Result<Arc<dyn Fetcher>> {
+    let http = HttpFetcher::new(compiled).map_err(|e| EngineError::HttpClient(e.to_string()))?;
+    if !compiled.config.render_javascript {
+        return Ok(Arc::new(http));
+    }
+    let chrome = Chrome::locate().ok_or_else(|| {
+        EngineError::Config(
+            "rendering JavaScript needs Chrome, Chromium, Edge or Brave installed, and none was \
+             found"
+                .into(),
+        )
+    })?;
+    let renderer = ChromeRenderer {
+        chrome,
+        user_agent: compiled.config.user_agent.clone(),
+        budget: chrome::DEFAULT_SCRIPT_BUDGET,
+        timeout: compiled.config.request_timeout().max(Duration::from_secs(30)),
+    };
+    let slots = compiled.config.concurrency.min(chrome::DEFAULT_RENDER_SLOTS);
+    Ok(Arc::new(RenderingFetcher::new(http, renderer, slots)))
+}
+
 impl Crawler {
     /// Start a new crawl, creating or reusing the database at `db_path`.
     pub async fn start(
@@ -140,9 +165,7 @@ impl Crawler {
         progress: Option<mpsc::Sender<ProgressEvent>>,
     ) -> Result<(Self, CrawlHandle)> {
         let compiled = config.compile()?;
-        let fetcher: Arc<dyn Fetcher> = Arc::new(
-            HttpFetcher::new(&compiled).map_err(|e| EngineError::HttpClient(e.to_string()))?,
-        );
+        let fetcher = fetcher_for(&compiled)?;
         let store = Store::open(db_path)?;
         Self::assemble(compiled, store, fetcher, progress, false).await
     }
@@ -172,9 +195,7 @@ impl Crawler {
             EngineError::Config("this database holds no crawl configuration".into())
         })?;
         let compiled = config.compile()?;
-        let fetcher: Arc<dyn Fetcher> = Arc::new(
-            HttpFetcher::new(&compiled).map_err(|e| EngineError::HttpClient(e.to_string()))?,
-        );
+        let fetcher = fetcher_for(&compiled)?;
         Self::assemble(compiled, store, fetcher, progress, true).await
     }
 

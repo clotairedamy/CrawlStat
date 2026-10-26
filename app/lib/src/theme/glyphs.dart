@@ -169,23 +169,25 @@ class _GlyphPainter extends CustomPainter {
         canvas.drawCircle(hub, hubRadius, line);
 
       case Glyph.readerFlow:
-        // An eye following a path: where the reader is led.
+        // A pointer mid-click, the arrow lit: someone using the page.
+        final pointer = Path()
+          ..moveTo(9.4, 9.4)
+          ..lineTo(20.4, 13.9)
+          ..lineTo(15.9, 15.5)
+          ..lineTo(14.3, 20.2)
+          ..close();
+        canvas.drawPath(pointer, tone);
+        canvas.drawPath(pointer, line);
         canvas.drawPath(
           Path()
-            ..moveTo(3.4, 7.4)
-            ..cubicTo(8, 4.2, 16, 4.2, 20.6, 7.4)
-            ..cubicTo(16, 10.6, 8, 10.6, 3.4, 7.4)
-            ..close(),
-          line,
-        );
-        canvas.drawCircle(const Offset(12, 7.4), 2.1, tone);
-        canvas.drawCircle(const Offset(12, 7.4), 2.1, line);
-        canvas.drawPath(
-          Path()
-            ..moveTo(4.6, 14.2)
-            ..lineTo(13, 14.2)
-            ..moveTo(4.6, 18)
-            ..lineTo(19.4, 18),
+            ..moveTo(7.7, 2.9)
+            ..lineTo(8.3, 5.4)
+            ..moveTo(2.9, 7.7)
+            ..lineTo(5.4, 8.3)
+            ..moveTo(13.4, 4.4)
+            ..lineTo(11.7, 6.1)
+            ..moveTo(4.4, 13.4)
+            ..lineTo(6.1, 11.7),
           line,
         );
 
@@ -193,34 +195,34 @@ class _GlyphPainter extends CustomPainter {
         // The universal access figure in a ring, its head lit.
         const ring = Offset(12, 12);
         canvas.drawCircle(ring, 9.4, line);
-        canvas.drawCircle(const Offset(12, 7.2), 1.8, tone);
-        canvas.drawCircle(const Offset(12, 7.2), 1.8, line);
+        canvas.drawCircle(const Offset(12, 7), 2, tone);
+        canvas.drawCircle(const Offset(12, 7), 2, line);
         canvas.drawPath(
           Path()
-            ..moveTo(7.2, 10.4)
-            ..lineTo(16.8, 10.4)
-            ..moveTo(12, 10.4)
+            ..moveTo(7, 10)
+            ..quadraticBezierTo(12, 11.6, 17, 10)
+            ..moveTo(12, 11)
             ..lineTo(12, 14.2)
-            ..lineTo(9.6, 18.4)
+            ..lineTo(9.8, 18.2)
             ..moveTo(12, 14.2)
-            ..lineTo(14.4, 18.4),
+            ..lineTo(14.2, 18.2),
           line,
         );
 
       case Glyph.compare:
-        // Two bars, one shorter: before and after.
-        final tall = _rrect(4.6, 4.5, 10.4, 19.5, 2.2);
-        canvas.drawRRect(tall, line);
-        final short = _rrect(13.6, 11, 19.4, 19.5, 2.2);
-        canvas.drawRRect(short, tone);
-        canvas.drawRRect(short, line);
-        // The arrow between them: it went down.
+        // Before and after: a tall bar, a shorter lit one, and the arc from
+        // one to the other.
+        canvas.drawRRect(_rrect(4, 10, 9.8, 20.5, 2.2), line);
+        final after = _rrect(14.2, 14, 20, 20.5, 2.2);
+        canvas.drawRRect(after, tone);
+        canvas.drawRRect(after, line);
         canvas.drawPath(
           Path()
-            ..moveTo(11.6, 8.6)
-            ..lineTo(12.6, 8.6)
-            ..moveTo(12.1, 7.2)
-            ..lineTo(12.1, 9.8),
+            ..moveTo(6.9, 7)
+            ..cubicTo(7.8, 3.4, 17.1, 2.8, 17.1, 10)
+            ..moveTo(14.8, 7.9)
+            ..lineTo(17.1, 10.2)
+            ..lineTo(19.4, 7.9),
           line,
         );
 

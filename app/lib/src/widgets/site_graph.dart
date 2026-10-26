@@ -215,11 +215,16 @@ double depthRing(int depth, int maxDepth) {
 ///
 /// The diagram's one job beyond shape is to show you where the site is broken,
 /// so a 4xx page is red wherever it sits.
-Color nodeColour(int? status, Color fallback) {
-  if (status == null) return CrawlStatTheme.notice;
-  if (status >= 500) return const Color(0xFFB91C4B);
-  if (status >= 400) return CrawlStatTheme.error;
-  if (status >= 300) return CrawlStatTheme.warning;
+Color nodeColour(int? status, Color fallback, CrawlStatPalette palette) {
+  if (status == null) return palette.notice;
+  if (status >= 500) {
+    // A deeper crimson only where severity is a hue. On the grey ramps a
+    // darker 5xx would read as *less* urgent than a 4xx, so it shares the
+    // error tone instead.
+    return palette.name == 'ember' ? const Color(0xFFB91C4B) : palette.error;
+  }
+  if (status >= 400) return palette.error;
+  if (status >= 300) return palette.warning;
   return fallback;
 }
 
@@ -628,7 +633,7 @@ class _SiteGraphViewState extends State<SiteGraphView>
                             ? null
                             : _indexOf[widget.selectedId!],
                         baseColour: theme.colorScheme.onSurfaceVariant,
-                        accent: CrawlStatTheme.palette(context).accent,
+                        palette: CrawlStatTheme.palette(context),
                         edgeColour: theme.colorScheme.onSurfaceVariant
                             .withValues(alpha: 0.13),
                       ),
@@ -666,7 +671,7 @@ class _GraphPainter extends CustomPainter {
     required this.hovered,
     required this.selected,
     required this.baseColour,
-    required this.accent,
+    required this.palette,
     required this.edgeColour,
   });
 
@@ -686,7 +691,8 @@ class _GraphPainter extends CustomPainter {
   final int? hovered;
   final int? selected;
   final Color baseColour;
-  final Color accent;
+  final CrawlStatPalette palette;
+  Color get accent => palette.accent;
   final Color edgeColour;
 
   @override
@@ -788,7 +794,7 @@ class _GraphPainter extends CustomPainter {
       // the highlighted section take the accent, the rest stay neutral.
       final colour = highlighted != null && highlighted!.contains(i) && working
           ? accent
-          : nodeColour(node.status, baseColour);
+          : nodeColour(node.status, baseColour, palette);
       final isFocus = i == focus;
 
       if (isFocus) {
@@ -1016,6 +1022,7 @@ class _Tooltip extends StatelessWidget {
                       color: nodeColour(
                         node.status,
                         theme.colorScheme.onSurface,
+                        CrawlStatTheme.palette(context),
                       ),
                     ),
                   ],
