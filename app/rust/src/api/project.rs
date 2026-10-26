@@ -1412,9 +1412,16 @@ pub fn export_report(
         "Saving a PDF needs Chrome, Chromium, Edge or Brave installed. Save it as a web page \
          instead, and print it from any browser.",
     )?;
-    // Chrome prints a file, so the page goes to disk first, beside the PDF
-    // where the app is allowed to write.
-    let page = out.with_extension("report.html");
+    // Chrome prints a file, so the page goes to disk first, in the app's own
+    // temporary folder: the sandboxed browser can read there, and not always
+    // in Downloads.
+    let page = std::env::temp_dir().join(format!(
+        "crawlstat-report-{}-{}.html",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_millis())
+    ));
     std::fs::write(&page, html).map_err(|error| error.to_string())?;
     let printed = chrome.print_to_pdf(&page, out, std::time::Duration::from_secs(90));
     let _ = std::fs::remove_file(&page);

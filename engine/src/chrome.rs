@@ -126,7 +126,7 @@ impl Chrome {
         // Inside the macOS App Sandbox Chrome cannot start its own sandbox,
         // and refuses to run at all unless told not to try. It still runs
         // inside the app's.
-        if std::env::var_os("APP_SANDBOX_CONTAINER_ID").is_some() {
+        if sandboxed() {
             args.push("--no-sandbox".into());
         }
         args
@@ -177,29 +177,35 @@ impl Chrome {
 
     /// Print a local HTML file to PDF. Blocking: it is called once, off the
     /// UI thread, when a report is exported.
+    ///
+    /// Chrome writes into its own profile directory, and this process copies
+    /// the result to `pdf`: inside the App Sandbox the child browser does not
+    /// share the app's right to write to Downloads or a folder the user chose.
     pub fn print_to_pdf(&self, html: &Path, pdf: &Path, timeout: Duration) -> Result<(), String> {
         let profile = Profile::new()?;
         let source = url::Url::from_file_path(html)
             .map_err(|_| format!("{} is not an absolute path", html.display()))?;
-        let _ = std::fs::remove_file(pdf);
+        let printed = profile.0.join("print.pdf");
+        let log_path = profile.0.join("chrome.log");
+        let log = std::fs::File::create(&log_path).map_err(|error| error.to_string())?;
         let mut child = std::process::Command::new(&self.path)
-            .args(Self::base_args(&profile.0))
+            .args(Self::base_args(&profile.0.join("profile")))
             // The new switch, then the one older versions understood.
             .arg("--no-pdf-header-footer")
             .arg("--print-to-pdf-no-header")
             .arg("--virtual-time-budget=2000")
-            .arg(format!("--print-to-pdf={}", pdf.display()))
+            .arg(format!("--print-to-pdf={}", printed.display()))
             .arg(source.as_str())
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(log)
             .spawn()
             .map_err(|error| format!("could not start {}: {error}", self.path.display()))?;
 
         let started = std::time::Instant::now();
-        loop {
+        let status = loop {
             match child.try_wait().map_err(|error| error.to_string())? {
-                Some(_) => break,
+                Some(status) => break status,
                 None if started.elapsed() > timeout => {
                     let _ = child.kill();
                     let _ = child.wait();
@@ -207,13 +213,33 @@ impl Chrome {
                 }
                 None => std::thread::sleep(Duration::from_millis(50)),
             }
-        }
+        };
         // Chrome exits 0 on some failures; the file is the only real answer.
-        match std::fs::metadata(pdf) {
-            Ok(meta) if meta.len() > 0 => Ok(()),
-            _ => Err("the browser did not write a PDF".into()),
+        match std::fs::metadata(&printed) {
+            Ok(meta) if meta.len() > 0 => {}
+            _ => {
+                let log = std::fs::read_to_string(&log_path).unwrap_or_default();
+                let tail: Vec<&str> = log.lines().filter(|line| !line.trim().is_empty()).collect();
+                let tail = tail[tail.len().saturating_sub(3)..].join(" / ");
+                return Err(if tail.is_empty() {
+                    format!("the browser did not write a PDF ({status})")
+                } else {
+                    format!("the browser did not write a PDF ({status}): {tail}")
+                });
+            }
         }
+        std::fs::copy(&printed, pdf)
+            .map(|_| ())
+            .map_err(|error| format!("could not save {}: {error}", pdf.display()))
     }
+}
+
+/// Whether this process runs inside the macOS App Sandbox. The container id
+/// is the documented signal; a home directory inside `~/Library/Containers`
+/// is the fallback when the variable is not passed on.
+fn sandboxed() -> bool {
+    std::env::var_os("APP_SANDBOX_CONTAINER_ID").is_some()
+        || std::env::var("HOME").is_ok_and(|home| home.contains("/Library/Containers/"))
 }
 
 /// A throwaway profile directory, removed when the job ends.

@@ -40,7 +40,7 @@ use std::collections::HashMap;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
-use crate::audit::{catalog, Severity};
+use crate::audit::{catalog, AuditConfig, Severity};
 use crate::error::Result;
 
 /// How much work a job is, inferred from the shape of its findings.
@@ -267,11 +267,15 @@ pub fn build(conn: &Connection) -> Result<ActionPlan> {
             value_at_risk += reach;
         }
 
+        // The catalogue's text carries markers such as `{title_max_chars}`;
+        // fill them with the thresholds the audits ran with, as the Issues
+        // screen does. Only SQL reads `site_is_https`, so its value is moot.
+        let config = AuditConfig::default();
         items.push(PlanItem {
             issue_id: issue_id.clone(),
-            title: audit.title.to_string(),
+            title: config.apply(audit.title, false),
             severity: audit.severity,
-            how_to_fix: audit.how_to_fix.to_string(),
+            how_to_fix: config.apply(audit.how_to_fix, false),
             docs_slug: audit.docs_slug.to_string(),
             pages,
             distinct_fixes,
@@ -409,6 +413,27 @@ mod tests {
         )
         .unwrap();
         store
+    }
+
+    #[test]
+    fn fix_text_has_its_thresholds_filled_in() {
+        let store = Store::open_in_memory().unwrap();
+        store
+            .connection()
+            .execute_batch(
+                "INSERT INTO urls (id, url, dedup_key, depth, state, kind, is_internal,
+                                   status_code, link_score)
+                 VALUES (1, 'https://a.test/', 'a.test/', 0, 2, 0, 1, 200, 1.0);
+                 INSERT INTO issues (issue_id, title, severity, url_count) VALUES
+                    ('description_missing', 'Missing meta description', 1, 1);
+                 INSERT INTO issue_urls (issue_id, url_id, detail) VALUES
+                    ('description_missing', 1, NULL);",
+            )
+            .unwrap();
+        let plan = build(store.connection()).unwrap();
+        let fix = &plan.items[0].how_to_fix;
+        assert!(!fix.contains('{'), "{fix}");
+        assert!(fix.contains("70"), "{fix}");
     }
 
     #[test]

@@ -31,19 +31,10 @@ fn esc(text: &str) -> String {
     out
 }
 
-/// Escape, then set `code spans` in monospace: the fix texts use backticks
-/// for tag and attribute names.
+/// Escape, then set the fix texts' `code spans` and *emphasis*, as the app
+/// does.
 fn prose(text: &str) -> String {
-    let escaped = esc(text);
-    let mut out = String::with_capacity(escaped.len());
-    for (i, part) in escaped.split('`').enumerate() {
-        if i % 2 == 1 {
-            let _ = write!(out, "<code>{part}</code>");
-        } else {
-            out.push_str(part);
-        }
-    }
-    out
+    inline(text)
 }
 
 /// 12345 → "12,345".
@@ -587,7 +578,12 @@ fn standing(out: &mut String, report: &SiteReport) {
         out,
         "<div class=\"card\"><h3>Indexable pages</h3><p class=\"big\">{share}</p>\
          <div class=\"stack thin\"><span class=\"seg tone-ok\" style=\"width:{a:.2}%\"></span><span class=\"seg tone-mute\" style=\"width:{b:.2}%\"></span></div>\
-         <p class=\"note\">{indexable} pages can appear in search results; {blocked} are kept out by noindex, a canonical elsewhere or a robots rule.</p></div>",
+         <p class=\"note\">{indexable} can appear in search results; {blocked} kept out by noindex, a canonical elsewhere or a robots rule.</p></div>",
+        indexable = plural(indexable, "page", "pages"),
+        blocked = match blocked {
+            1 => "1 is".to_string(),
+            n => format!("{} are", count(n)),
+        },
         share = if indexable + blocked == 0 {
             "—".into()
         } else {
@@ -595,8 +591,6 @@ fn standing(out: &mut String, report: &SiteReport) {
         },
         a = width(indexable, indexable + blocked),
         b = width(blocked, indexable + blocked),
-        indexable = count(indexable),
-        blocked = count(blocked),
     );
     out.push_str("</div>");
 
@@ -1095,10 +1089,11 @@ background:radial-gradient(circle,color-mix(in srgb,var(--accent) 16%,transparen
 .legend-label{font-size:12px;color:var(--muted)}
 .legend-value{grid-column:2;font-size:18px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .legend-share{grid-column:2;font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}
-.triple{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.triple{display:grid;grid-template-columns:repeat(3,auto);justify-content:space-between;gap:8px}
 .mini{display:flex;flex-direction:column}
 .mini-value{font-size:28px;font-weight:720;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
-.mini-label{font-size:12px;color:var(--muted)}
+.mini-label{font-size:12px;color:var(--muted);white-space:nowrap}
+.mini-label .dot{margin-right:5px}
 .big{font-size:30px;font-weight:720;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .unit{font-size:13px;font-weight:500;color:var(--muted);letter-spacing:0}
 .facts{margin-top:8px}
@@ -1128,9 +1123,9 @@ background:radial-gradient(circle,color-mix(in srgb,var(--accent) 16%,transparen
 .detail{color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
 /* changes */
 .moves{list-style:none}
-.moves li{display:grid;grid-template-columns:1fr 90px 74px 46px;align-items:center;gap:10px;font-size:12.5px;padding:7px 0;border-top:1px solid var(--line)}
+.moves li{display:grid;grid-template-columns:1fr auto 46px;align-items:center;gap:5px 12px;font-size:12.5px;padding:7px 0;border-top:1px solid var(--line)}
 .moves li:first-child{border-top:0}
-.move-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.move-title{grid-column:1/-1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .move-bars{display:flex;flex-direction:column;gap:3px}
 .move-bars span{height:4px;border-radius:9px}
 .was{background:var(--line)}.now{background:var(--tone)}
